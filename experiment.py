@@ -8,7 +8,7 @@ import binary_scm
 import models
 
 # Flag for quicker testing of code.
-TEST_CODE = True
+TEST_CODE = False
 
 # Generating the historical data, the prediction model and the 
 # prediction on a specific new data point.
@@ -142,8 +142,6 @@ plt.xlabel('Pred_o')
 plt.ylabel('X_o')
 
 
-
-
 # ------------------------------------------------------------------
 #  Quick look at the updated posteriors
 # ------------------------------------------------------------------
@@ -181,7 +179,6 @@ az.plot_pair(idata, var_names=[
 ])
 
 # # Binary A
-
 
 
 # constants

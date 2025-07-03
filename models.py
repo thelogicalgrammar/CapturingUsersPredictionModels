@@ -1,12 +1,13 @@
 """
-Experiment model is defined here.
+Experiment models are defined here.
 """
 import pymc as pm
 import pytensor.tensor as at
 from pytensor.tensor import log1p, softplus, sigmoid, logaddexp, dot
 
 
-def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3):
+def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3
+    ) -> pm.Model:
     """
     Defines the internal model of the agent, enabling Bayesian update on the priors.
     """
@@ -52,7 +53,8 @@ def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3):
     return m
 
 
-def define_model_2(x_obs, pred_obs, n_train, eps_pred=1e-2, eps_phi=1e-9, rng=None):
+def define_model_2(x_obs, pred_obs, n_train, eps_pred=1e-2, eps_phi=1e-9, rng=None
+                   ) -> pm.Model:
     with pm.Model() as scm_nc:
         α_Xμ   = pm.Normal("α_Xμ", 0, 3)
         α_Xσ   = pm.HalfNormal("α_Xσ", 2)
@@ -107,7 +109,8 @@ def define_model_2(x_obs, pred_obs, n_train, eps_pred=1e-2, eps_phi=1e-9, rng=No
     return scm_nc
 
 
-def define_model_3(Xo_obs, Predo_obs, n, tiny):
+def define_model_3(Xo_obs, Predo_obs, n, tiny
+                   ) -> pm.Model:
     """
     Defines the internal model of the agent, enabling Bayesian update on the priors.
     This is the model with binary A, but X and Y are continuous.
@@ -153,7 +156,8 @@ def define_model_3(Xo_obs, Predo_obs, n, tiny):
     return m
 
 
-def define_model_4(Xo_obs, Predo_obs, n, sigma_P, rng=None):
+def define_model_4(Xo_obs, Predo_obs, n, sigma_P, rng=None
+                   ) -> pm.Model:
     with pm.Model() as m:
 
         # ─── hyper-priors ──────────────────────────────────────────

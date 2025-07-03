@@ -1,14 +1,7 @@
-# import pymc as pm
-# import pytensor.tensor as at
 import numpy as np
-# import arviz as az
-# import pandas as pd
-# import matplotlib.pyplot as plt
-# from pytensor.tensor.random.utils import params_broadcast_shapes  # Not in use.
-from typing import Tuple
 from dataclasses import dataclass
 from sklearn.linear_model import LinearRegression
-
+from typing import Tuple
 
 
 # ---------- helpers ----------
