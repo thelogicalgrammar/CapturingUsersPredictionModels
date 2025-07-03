@@ -1,6 +1,9 @@
+"""
+Data generation, intervention, and CATE estimation
+"""
+
 import numpy as np
 from dataclasses import dataclass
-from sklearn.linear_model import LinearRegression
 from typing import Tuple
 
 
@@ -16,9 +19,12 @@ class BinaryA_SCM:
     alpha_a_mu: float      # μ of N_A
     alpha_y_sigma: float   # σ of N_Y        (σ > 0)
     n_e: float             # coefficient N_E   (e.g. −0.5)
+    # Model parameters for the deterministic parts should preferably
+    # also be modifiable.
 
     # ----------------------------------------------------------
-    #    Observational sampling
+    #   Observational sampling
+    #   Binary A, continuous x, continuous y
     # ----------------------------------------------------------
     def sample(self, n: int = 1, random_state=None
               ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -27,7 +33,7 @@ class BinaryA_SCM:
 
         Args:
         n (int): Number of observations to generate.
-        random_state (int, None): Seed for reproducibility.
+        random_state (int, np.random.Generator, None): Seed for reproducibility.
         """
         rng = np.random.default_rng(random_state)
 
@@ -44,16 +50,18 @@ class BinaryA_SCM:
         return X, A, Y
 
     # ----------------------------------------------------------
-    #    Intervene on A :  do(A = a_fixed)
+    # Sampling from the SCM given do(A)
+    # (intervene on A :  do(A = a_fixed))
     # ----------------------------------------------------------
-    def do_A(self,
+    def sample_do_A(self,
              a_fixed,
              X: np.ndarray,
              n: int = 1,
              random_state=None
             ) -> np.ndarray:
         """
-        Returns an array with shape  (n, *X.shape), where each row
+        Samples from the SCM given do(A = a_fixed).
+        Returns an array with shape (n, *X.shape), where each row
         is an i.i.d. sample from  Y | do(A=a_fixed), X.
 
         Args:
@@ -85,10 +93,10 @@ class BinaryA_SCM:
     def analytic_do_distribution(self, a_fixed, X
                                 ) -> Tuple[np.ndarray, float]:
         """
-        Returns mean μ(X,a_fixed) and variance σ² of  Y | do(A=a_fixed), X.
-            μ = 0.5·X + n_e·a_fixed
-            σ² = (alpha_y_sigma)²       (independent of X and a_fixed)
-        
+        Returns mean μ(X,a_fixed) and variance σ² of Y | do(A=a_fixed), X.
+            μ = 0.5·X + n_e * a_fixed
+            σ² = (alpha_y_sigma)² (independent of X and a_fixed)
+
         Args:
         a_fixed (int or np.ndarray): value to intervene on A, or array with X.shape
         X (np.ndarray): observed values of X
@@ -111,24 +119,26 @@ def estimate_cate_from_row(row, *, n_mc: int = 0, seed: int | None = None):
                 If n_mc > 0, then the CATE is computed using n_mc draws (Monte-Carlo sampling)
     seed (int, None): Seed for reproducibility of the random sampling.
     """
-    scm = BinaryA_SCM(
-        alpha_x_mu   = row["αXμ"],
-        alpha_x_sigma= row["αXσ"],
-        alpha_a_mu   = row["αAμ"],
-        alpha_y_sigma= row["αYσ"],
-        n_e          = row["NE"],
-    )
-
-    # Analytic version
     if n_mc == 0:
+        # Analytic version
         # In this SCM  CATE(X) = E[Y|do(A=1),X] − E[Y|do(A=0),X] = n_e
-        return scm.n_e
+        #return scm.n_e  # No sense in initializing SCM  as we are only returning the value of n_e.
+        return row["NE"]
     else:
         # Monte-Carlo version
-        rng = np.random.default_rng(seed)
-        X, *_ = scm.sample(n=n_mc, random_state=rng)
+        scm = BinaryA_SCM(
+            alpha_x_mu   = row["αXμ"],
+            alpha_x_sigma= row["αXσ"],
+            alpha_a_mu   = row["αAμ"],
+            alpha_y_sigma= row["αYσ"],
+            n_e          = row["NE"],
+        )
+        X, *_ = scm.sample(n=n_mc, random_state=seed)
+        # Why do we use the analytic version next?
+        # X is sampled. 
         mu1, _ = scm.analytic_do_distribution(1, X)
         mu0, _ = scm.analytic_do_distribution(0, X)
+        # This ends up being the value where the MC-version should converge to:
         return (mu1 - mu0).mean()
 
 
@@ -153,7 +163,7 @@ if __name__ == "__main__":
 
     # Intervene on A
     a_fixed = 1  # Intervening on A to be 1
-    Y_do = binary_scm.do_A(a_fixed, X, n=10, random_state=42)
+    Y_do = binary_scm.sample_do_A(a_fixed, X, n=10, random_state=42)
     print("Y | do(A=1):", Y_do)
 
     tmp = BinaryA_SCM(
