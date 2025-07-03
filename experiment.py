@@ -4,8 +4,8 @@ import pandas as pd
 import pymc as pm
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
-import binary_scm
-import models
+import agent_models
+import historical_scm
 
 # Flag for quicker testing of code.
 TEST_CODE = False
@@ -14,7 +14,7 @@ TEST_CODE = False
 # prediction on a specific new data point.
 # We begin by defining an SCM and generating 100 data points.
 # This is the historical SCM so the parameters are fixed
-Hist = binary_scm.BinaryA_SCM(
+Hist = historical_scm.BinaryA_SCM(
         alpha_x_mu   = 2,
         alpha_x_sigma= 1,
         alpha_a_mu   = 0,
@@ -33,6 +33,7 @@ ax.set_xlabel("X")
 ax.set_ylabel("Y")
 plt.colorbar(scatter, label="A")  # optional but handy
 plt.show()
+plt.clf()
 
 
 # These data points are used to train a linear model
@@ -50,7 +51,7 @@ n         = 100
 tiny      = 1e-3
 Xo_obs    = 1.37
 Predo_obs = 2.11
-m = models.define_model_1(Xo_obs, Predo_obs, n, tiny)
+m = agent_models.define_model_1(Xo_obs, Predo_obs, n, tiny)
 if TEST_CODE:
     # For testing purposes, we use a smaller sample size
     # to speed up the sampling.
@@ -62,12 +63,14 @@ with m:
     trace = pm.sample(sample_size, target_accept=.97, chains=4, random_seed=42)
 
 pm.model_to_graphviz(m)
+plt.show()
 az.plot_posterior(
     trace,
-    # filter_vars=""
 )
 
 az.plot_pair(trace)
+plt.show()
+plt.clf()
 
 # one predictive sample per posterior draw
 rng = np.random.default_rng(123)  # FIXED VALUE RNG SEED!!
@@ -97,13 +100,14 @@ if False:
 # -Analytic (exact, fastest)
 # -Save samples from the posterior in a dataframe
 df_params = trace.posterior.to_dataframe()
-df_params["cate"] = df_params.apply(binary_scm.estimate_cate_from_row, axis=1)
+df_params["cate"] = df_params.apply(historical_scm.estimate_cate_from_row, axis=1)
 
 cate_vector = df_params["cate"].to_numpy()
 print(cate_vector)
 
 plt.hist(cate_vector)
-
+plt.show()
+plt.clf()
 
 # What happens to the distribution of Y if different copies of the same agent act on different
 # patients? For example if 100 agent defined as above act on 100 new data points.
@@ -112,9 +116,9 @@ plt.hist(cate_vector)
 
 # Version with binary A but X, Y continuous
 
-x_obs  # print?
-pred_obs  # print
-
+##########################################
+### Model 2
+##########################################
 # ------------------------------------------------------------------
 #  FILL-IN: your observed values and (optionally) how many training
 #  points you want the model to posit as latent.
@@ -124,7 +128,7 @@ eps_pred = 0.01  # tiny measurement noise for Pred°
 eps_phi = 1e-9  # for safe division
 rng = np.random.default_rng(0)  # for initialization of Z_X
 
-scm_nc = models.define_model_2(x_obs, pred_obs, n_train, eps_pred, eps_phi, rng)
+scm_nc = agent_models.define_model_2(x_obs, pred_obs, n_train, eps_pred, eps_phi, rng)
 
 with scm_nc:
     idata = pm.sample(3000, tune=3000, init="jitter+adapt_diag_grad", 
@@ -178,9 +182,9 @@ az.plot_pair(idata, var_names=[
     "N_E"
 ])
 
-# # Binary A
-
-
+##########################################
+### Model 3
+##########################################
 # constants
 if TEST_CODE:
     n = 7
@@ -190,7 +194,7 @@ Xo_obs    = 1.37
 Predo_obs = 2.11
 tiny      = 1e-3
 
-model_3 = models.define_model_3(Xo_obs, Predo_obs, n, tiny)
+model_3 = agent_models.define_model_3(Xo_obs, Predo_obs, n, tiny)
 with model_3:
     trace = pm.sample(2000, target_accept=.99, chains=4)
 
@@ -210,7 +214,7 @@ Predo_obs = 2.11
 sigma_P   = 0.05          # <- not 1e-3 !
 rng       = np.random.default_rng(1)
 
-m = models.define_model_4(Xo_obs, Predo_obs, n, sigma_P, rng)
+m = agent_models.define_model_4(Xo_obs, Predo_obs, n, sigma_P, rng)
 
 with m:
     trace = pm.sample(2_000,
