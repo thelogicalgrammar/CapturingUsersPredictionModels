@@ -10,6 +10,7 @@ def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3
     ) -> pm.Model:
     """
     Defines the internal model of the agent, enabling Bayesian update on the priors.
+    Continuous A. 
     """
     with pm.Model() as m:
         # hyper‑priors
@@ -25,9 +26,9 @@ def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3
         sy2 = pm.Deterministic('sy2', NE**2 + αYσ**2)
     
         # Draw the three low‑dimensional auxiliaries of the n-dimensional plate
-        T1 = pm.Normal('T1',  0, 1,  shape=())  # will be scaled by sqrt(n)
+        T1 = pm.Normal('T1', 0, 1, shape=())  # will be scaled by sqrt(n)
         T2 = pm.ChiSquared('T2', n)
-        T3 = pm.Normal('T3',  0, 1,  shape=())
+        T3 = pm.Normal('T3', 0, 1, shape=())
 
         # scale them (see derivation)
         T1s = at.sqrt(n) * T1
@@ -45,6 +46,8 @@ def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3
             a*Sxx + b*n*αXμ + b*αXσ*T1s + αXσ*at.sqrt(sy2)*T3s
         )
         # this is the coefficient of the linear model
+        # Implicitly builds on observations being centered around 0.
+        # This is the OLS estimate of the slope.
         phi = pm.Deterministic('phi', Sxy / Sxx)
 
         # only observed data in the entire model
@@ -60,7 +63,7 @@ def define_model_2(x_obs, pred_obs, n_train, eps_pred=1e-2, eps_phi=1e-9, rng=No
         α_Xσ   = pm.HalfNormal("α_Xσ", 2)
 
         Z_X    = pm.Normal("Z_X", 0, 1, shape=n_train,
-                        initval=rng.normal(size=n_train))
+                           initval=rng.normal(size=n_train))
         X      = pm.Deterministic("X", α_Xμ + α_Xσ * Z_X)
 
         α_Aμ   = pm.Normal("α_Aμ", 0, 2)
@@ -81,8 +84,8 @@ def define_model_2(x_obs, pred_obs, n_train, eps_pred=1e-2, eps_phi=1e-9, rng=No
         # ------------- mixture weights -------------------
         # p_A = sigmoid(α_Aμ + 0.7 * X**2)
         logit_pA = α_Aμ + 0.7 * X**2
-        p_A      = pm.Deterministic("p_A", pm.math.sigmoid(logit_pA))
-        p_A   = pm.math.clip(p_A, eps_phi, 1.0 - eps_phi)   # <- clipping of p_A to avoid it getting to 1 or 0
+        p_A = pm.Deterministic("p_A", pm.math.sigmoid(logit_pA))
+        p_A = pm.math.clip(p_A, eps_phi, 1.0 - eps_phi)   # <- clipping of p_A to avoid it getting to 1 or 0
 
         # ------------- Y likelihood (mixture) ------------
         comps = pm.Normal.dist(
