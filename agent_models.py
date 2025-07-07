@@ -112,51 +112,149 @@ def define_model_2(x_obs, pred_obs, n_train, eps_pred=1e-2, eps_phi=1e-9, rng=No
     return scm_nc
 
 
-def define_model_3(Xo_obs, Predo_obs, n, tiny
-                   ) -> pm.Model:
+def define_model_3(Xo_obs, Predo_obs, n, tiny=1e-3) -> pm.Model:
     """
-    Defines the internal model of the agent, enabling Bayesian update on the priors.
-    This is the model with binary A, but X and Y are continuous.
 
-    Args:
-        Xo_obs (float): The observed value of X.
-        Predo_obs (float): The observed prediction value.
-        n (int): The number of samples to consider.
-        tiny (float): A small value to avoid numerical issues in the model.
     """
+
     with pm.Model() as m:
-        
+    
         # hyper-priors
         αXμ = pm.Normal('αXμ', 10, 5)
         αXσ = pm.Exponential('αXσ', 1)
-        αAμ = pm.Normal('αAμ', 5, 1)
+
+        # parameters that decide
+        # the probability of treatment A as a function of X 
+        # (in expit space)
+        # NOTE: Here we can also use priors for a beta distributino
+        # and get the probability of treatment A from the pdf of the beta
+        αA = pm.Normal('αA', 5, 1)
+        βA = pm.Normal('βA', 0, 1)
+
+        # population-level noise in the outcome Y
         αYσ = pm.Exponential('αYσ', 1)
+        # treatment effect 
         NE  = pm.Normal('NE', -0.1, 1)
 
-        # latent (X_i, Y_i) — still size-n
+        # outcome noise for specific patients
+        N_Y = pm.Normal('Y', 0,   αYσ,  shape=n)
+        # latent (X_i, Y_i) — size-n
         X = pm.Normal('X', αXμ, αXσ, shape=n)
-        Y = pm.Normal('Y', 0, 10, shape=n)          # diffuse prior
 
-        # ---- binary-A marginal likelihood ---------------------------------
-        mu0   = X
-        mu1   = X + NE
-        logp0 = pm.logp(pm.Normal.dist(mu=mu0, sigma=αYσ), Y)
-        logp1 = pm.logp(pm.Normal.dist(mu=mu1, sigma=αYσ), Y)
-        logit_pi = X + αAμ
-        
-        pm.Potential('mixlike',
-            pm.math.logaddexp(log1p(-sigmoid(logit_pi)) + logp0,
-                            softplus(logit_pi)        + logp1))
+        A = pm.Bernoulli(
+            'A',
+            # probability of treatment A given X
+            p = sigmoid(αA + βA * X),
+            # shape=n
+        )
 
-        # analytic φ* based on X and Y  (still valid!)
-        phi = pm.Deterministic('phi', pm.math.dot(X, Y) / pm.math.dot(X, X))
+        Y = pm.Deterministic(
+            'Y',
+            # outcome Y is a linear function of X and treatment A
+            # intercept is 0
+            X + A * NE + N_Y
+        )
+
+        # analytic φ* based on X and Y 
+        # This represents the OLS estimate of the slope that relates X and Y.
+        # NOTE: Does not take into account the treatment at all.
+        phi = pm.Deterministic(
+            'phi',
+            pm.math.dot(X, Y) / pm.math.dot(X, X)
+        )
+
+        # NOTE: This is new! - discuss
+        pm.Normal(
+            'Xo',
+            mu = αXμ,
+            sigma = αXσ,
+            observed = Xo_obs
+        )
 
         # observed pair (X^o, Pred^o)
-        pm.Normal('Predo',
-                mu = phi * Xo_obs,
-                sigma = tiny,
-                observed = Predo_obs)
-    return m
+        pm.Normal(
+            'Predo',
+            # Assumes that the intercept is 0
+            mu = phi * Xo_obs,
+            sigma = tiny,
+            observed = Predo_obs
+        )
+
+    m_marginalized = pmx.marginalize(m, ['A'])
+
+    return m_marginalized
+
+
+##### OLD
+# def define_model_3(Xo_obs, Predo_obs, n, tiny
+#                    ) -> pm.Model:
+#     """
+#     Defines the internal model of the agent, enabling Bayesian update on the priors.
+#     This is the model with binary A, but X and Y are continuous.
+
+#     Args:
+#         Xo_obs (float): The observed value of X.
+#         Predo_obs (float): The observed prediction value.
+#         n (int): The number of samples to consider.
+#         tiny (float): A small value to avoid numerical issues in the model.
+#     """
+#     with pm.Model() as m:
+        
+#         # hyper-priors
+#         αXμ = pm.Normal('αXμ', 10, 5)
+#         αXσ = pm.Exponential('αXσ', 1)
+#         # slope of expit of the probability of treatment A as a function of X
+#         αAμ = pm.Normal('αAμ', 5, 1)
+#         αYσ = pm.Exponential('αYσ', 1)
+#         # treatment effect 
+#         NE  = pm.Normal('NE', -0.1, 1)
+
+#         # latent (X_i, Y_i) — size-n
+#         X = pm.Normal('X', αXμ, αXσ, shape=n)
+#         Y = pm.Normal('Y', 0,   10,  shape=n)
+
+#         # ---- binary-A marginal likelihood ---------------------------------
+
+#         # Mean of outcome for patients who did not get the treatment
+#         mu0   = X
+#         # Mean of outcome for patients who did get the treatment
+#         mu1   = X + NE
+#         # logprobability of the sampled outcomes given no treatment
+#         logp0 = pm.logp(pm.Normal.dist(mu=mu0, sigma=αYσ), Y)
+#         # logprobability of the sampled outcomes given yes treatment
+#         logp1 = pm.logp(pm.Normal.dist(mu=mu1, sigma=αYσ), Y)
+
+#         # ???
+#         logit_pi = X + αAμ
+        
+#         # The user does not know who got the treatment and who didn't,
+#         # so they calculate the probability for both
+#         # and use a mixture model to combine them.
+#         pm.Potential(
+#             'mixlike',
+#             pm.math.logaddexp(
+#                 # log(1 - sigmoid(logit_pi)) + logp0,
+#                 log1p(-sigmoid(logit_pi)) + logp0, 
+#                 # log(1 + exp(logit_pi)) + logp1
+#                 softplus(logit_pi)  + logp1
+#             )
+#         )
+
+#         # analytic φ* based on X and Y 
+#         # This represents the OLS estimate of the slope that relates X and Y.
+#         # NOTE: Does not take into account the treatment at all.
+#         phi = pm.Deterministic('phi', pm.math.dot(X, Y) / pm.math.dot(X, X))
+
+#         # observed pair (X^o, Pred^o)
+#         pm.Normal(
+#             'Predo',
+#             # Assumes that the intercept is 0
+#             mu = phi * Xo_obs,
+#             sigma = tiny,
+#             observed = Predo_obs
+#         )
+
+#     return m
 
 
 def define_model_4(Xo_obs, Predo_obs, n, sigma_P, rng=None
