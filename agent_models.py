@@ -50,6 +50,8 @@ def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3
         # This is the OLS estimate of the slope.
         phi = pm.Deterministic('phi', Sxy / Sxx)
 
+        pm.Normal('Xo', mu = αXμ, sigma = αXσ, observed = Xo_obs)
+
         # only observed data in the entire model
         pm.Normal('Predo', mu = phi * Xo_obs, sigma = tiny, observed = Predo_obs)
 
