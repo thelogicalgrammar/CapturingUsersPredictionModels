@@ -4,14 +4,15 @@ Experiment models are defined here.
 import pymc as pm
 import pytensor.tensor as at
 from pytensor.tensor import log1p, softplus, sigmoid, logaddexp, dot
+import numpy as np
 
 
-def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3
-    ) -> pm.Model:
+def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3) -> pm.Model:
     """
     Defines the internal model of the agent, enabling Bayesian update on the priors.
     Continuous A. 
     """
+
     with pm.Model() as m:
         # hyper‑priors
         αXμ  = pm.Normal('αXμ',  10, 5)
@@ -50,10 +51,20 @@ def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3
         # This is the OLS estimate of the slope.
         phi = pm.Deterministic('phi', Sxy / Sxx)
 
-        pm.Normal('Xo', mu = αXμ, sigma = αXσ, observed = Xo_obs)
+        pm.Normal(
+            'Xo', 
+            mu = αXμ, 
+            sigma = αXσ, 
+            observed = Xo_obs
+        )
 
         # only observed data in the entire model
-        pm.Normal('Predo', mu = phi * Xo_obs, sigma = tiny, observed = Predo_obs)
+        pm.Normal(
+            'Predo', 
+            mu = phi * Xo_obs, 
+            sigma = tiny, 
+            observed = Predo_obs
+        )
 
     return m
 

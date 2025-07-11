@@ -48,7 +48,8 @@ print(pred_obs)  # [-6.73087294]
 # ---------- constants ----------
 # latent sample size
 n         = 100
-tiny      = 1e-3
+# NOTE: If this value is too small, the model will have a lot of divergences.
+tiny      = 5e-2
 Xo_obs    = 1.37
 Predo_obs = 2.11
 m = agent_models.define_model_1(Xo_obs, Predo_obs, n, tiny)
@@ -57,13 +58,48 @@ if TEST_CODE:
     # to speed up the sampling.
     sample_size = 7
 else:
-    sample_size = 3000
+    sample_size = 1000
 
 with m:
-    trace = pm.sample(sample_size, target_accept=.97, chains=4, random_seed=42)
+    prior_preds = pm.sample_prior_predictive()
+
+az.plot_pair(
+    prior_preds,  
+    group="prior",
+    # Only plot meaningful parameters
+    var_names=[
+        "NE",
+        "N_E",
+        "phi",
+        "phi_hat",
+        "αA",
+        "βA",
+        "αAμ",
+        "α_Aμ",
+        "αXμ",
+        "αXσ",
+        "α_Xμ",
+        "α_Xσ",
+        "αYσ",
+        "α_Yσ"
+    ]
+)
+plt.show()
+plt.clf()
+
+with m:
+    trace = pm.sample(
+        sample_size, 
+        target_accept=.99, 
+        chains=4, 
+        random_seed=42,
+        max_treedepth=15,
+        init="jitter+adapt_diag"
+    )
 
 pm.model_to_graphviz(m)
 plt.show()
+
 az.plot_posterior(
     trace,
 )
