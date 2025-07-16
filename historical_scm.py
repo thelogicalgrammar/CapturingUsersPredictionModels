@@ -13,12 +13,13 @@ def sigmoid(z):
 
 
 @dataclass
-class BinaryA_SCM:
+class SCM:
     alpha_x_mu: float      # μ of N_X
     alpha_x_sigma: float   # σ of N_X        (σ > 0)
     alpha_a_mu: float      # μ of N_A
     alpha_y_sigma: float   # σ of N_Y        (σ > 0)
-    n_e: float             # coefficient N_E   (e.g. −0.5)
+    n_e: float = 0.5       # coefficient N_E   (e.g. −0.5)
+    A_type: str = "binary" # "binary" or "continuous"
     # Model parameters for the deterministic parts should preferably
     # also be modifiable.
 
@@ -39,14 +40,25 @@ class BinaryA_SCM:
 
         # exogenous noise
         N_X = rng.normal(self.alpha_x_mu, self.alpha_x_sigma, size=n)
-        N_Y = rng.normal(0.0,             self.alpha_y_sigma, size=n)
+        N_Y = rng.normal(0.0, self.alpha_y_sigma, size=n)
         N_A = rng.normal(self.alpha_a_mu, 1.0, size=n)
 
         # endogenous variables
         X = N_X
-        p_A = sigmoid(0.7 * X**2 + N_A)  # P(A = 1 | X, N_A)
-        A = rng.binomial(1, p_A)  # binary treatment
-        Y = 0.5 * X + self.n_e * A + N_Y
+        if self.A_type == "continuous":
+            # Continuous treatment A
+            A = 0.125 * X + N_A  # 1/8 of X is added to dosage.
+        elif self.A_type == "binary":
+            # Binary treatment A
+            # p(A = 1 | X, N_A) = sigmoid(0.7 * X**2 + N_A)
+            # Note: 0.7 is a hyperparameter that can be adjusted.
+            # It controls the strength of the relationship between X and A.
+            p_A = sigmoid(0.7 * X**2 + N_A)  # P(A = 1 | X, N_A)
+            A = rng.binomial(1, p_A)  # binary treatment
+        else:
+            raise ValueError("A_type must be 'binary' or 'continuous'.")
+        Y = 12 - 0.1 * X + self.n_e * A + N_Y  # Agent assumes the treatement effect is independent of X and constant.
+        # Y = 0.5 * X + self.n_e * A + N_Y
         return X, A, Y
 
     # ----------------------------------------------------------
@@ -70,8 +82,9 @@ class BinaryA_SCM:
         n (int): number of samples to draw
         random_state: seed for reproducibility
         """
-        if np.any((np.asarray(a_fixed) != 0) & (np.asarray(a_fixed) != 1)):
-            raise ValueError("a_fixed must be 0 or 1 (binary).")
+        if self.A_type == 'binary':
+            if np.any((np.asarray(a_fixed) != 0) & (np.asarray(a_fixed) != 1)):
+                raise ValueError("a_fixed must be 0 or 1 (binary).")
 
         rng = np.random.default_rng(random_state)
         X = np.asarray(X)
@@ -84,7 +97,8 @@ class BinaryA_SCM:
                              "or `a_fixed` must be scalar.")
 
         N_Y = rng.normal(0.0, self.alpha_y_sigma, size=(n,) + X.shape)
-        Y_do = 0.5 * X[None, ...] + self.n_e * a_fixed[None, ...] + N_Y
+        # Y_do = 0.5 * X[None, ...] + self.n_e * a_fixed[None, ...] + N_Y
+        Y_do = 12 - 0.1 * X[None, ...] + self.n_e * a_fixed + N_Y
         return Y_do
 
     # ----------------------------------------------------------
@@ -93,18 +107,33 @@ class BinaryA_SCM:
     def analytic_do_distribution(self, a_fixed, X
                                 ) -> Tuple[np.ndarray, float]:
         """
-        Returns mean μ(X,a_fixed) and variance σ² of Y | do(A=a_fixed), X.
-            μ = 0.5·X + n_e * a_fixed
-            σ² = (alpha_y_sigma)² (independent of X and a_fixed)
+        Returns the mean and variance of Y given X and do(a_fixed).
 
         Args:
         a_fixed (int or np.ndarray): value to intervene on A, or array with X.shape
         X (np.ndarray): observed values of X
         """
         a_fixed = np.asarray(a_fixed)
-        mu = 0.5 * np.asarray(X) + self.n_e * a_fixed
+        mu = 12 - 0.1 * np.asarray(X) + self.n_e * a_fixed
         var = self.alpha_y_sigma ** 2
         return mu, var
+
+
+class BinaryA_SCM(SCM):
+    """
+    A specific SCM with binary treatment A, continuous X and Y.
+    This class inherits from SCM and sets the A_type to "binary".
+    """
+    def __init__(self, alpha_x_mu, alpha_x_sigma, alpha_a_mu,
+                 alpha_y_sigma, n_e):
+        super().__init__(
+            alpha_x_mu=alpha_x_mu,
+            alpha_x_sigma=alpha_x_sigma,
+            alpha_a_mu=alpha_a_mu,
+            alpha_y_sigma=alpha_y_sigma,
+            n_e=n_e,
+            A_type="binary"
+        )
 
 
 # Looping over different parameters of the SCM
@@ -126,6 +155,7 @@ def estimate_cate_from_row(row, *, n_mc: int = 0, seed: int | None = None):
         return row["NE"]
     else:
         # Monte-Carlo version
+        print('Defaulting to model with binary treatment.')
         scm = BinaryA_SCM(
             alpha_x_mu   = row["αXμ"],
             alpha_x_sigma= row["αXσ"],
@@ -144,35 +174,8 @@ def estimate_cate_from_row(row, *, n_mc: int = 0, seed: int | None = None):
 
 if __name__ == "__main__":
     """
-    Run a simple test of the BinaryA_SCM class
+    Run a simple test of the SCM class
     """
-    # Create an instance of the BinaryA_SCM class
-    binary_scm = BinaryA_SCM(
-        alpha_x_mu=0.0,
-        alpha_x_sigma=1.0,
-        alpha_a_mu=0.0,
-        alpha_y_sigma=1.0,
-        n_e=-0.5
-        )
-
-    # Sample from the SCM
-    X, A, Y = binary_scm.sample(n=10, random_state=42)
-    print("X:", X)
-    print("A:", A)
-    print("Y:", Y)
-
-    # Intervene on A
-    a_fixed = 1  # Intervening on A to be 1
-    Y_do = binary_scm.sample_do_A(a_fixed, X, n=10, random_state=42)
-    print("Y | do(A=1):", Y_do)
-
-    tmp = BinaryA_SCM(
-        alpha_x_mu=0.0,
-        alpha_x_sigma=1.0,
-        alpha_a_mu=0.0,
-        alpha_y_sigma=1.0,
-        n_e=-0.5
-    )
-
-    tmp2 = BinaryA_SCM.sample(tmp, n=10, random_state=42)
-    print(tmp2)
+    import tests.test_historical_scm
+    # If no crash, then the test passed.
+    print("\nSCM test passed.")
