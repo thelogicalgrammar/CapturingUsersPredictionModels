@@ -19,7 +19,7 @@ class SCM:
     alpha_a_mu: float      # μ of N_A
     alpha_y_sigma: float   # σ of N_Y        (σ > 0)
     n_e: float = 0.5       # coefficient N_E   (e.g. −0.5)
-    A_type: str = "binary" # "binary" or "continuous"
+    A_type: str = "continuous" # "binary" or "continuous"
     # Model parameters for the deterministic parts should preferably
     # also be modifiable.
 
@@ -61,10 +61,6 @@ class SCM:
         # Y = 0.5 * X + self.n_e * A + N_Y
         return X, A, Y
 
-    # ----------------------------------------------------------
-    # Sampling from the SCM given do(A)
-    # (intervene on A :  do(A = a_fixed))
-    # ----------------------------------------------------------
     def sample_do_A(self,
              a_fixed,
              X: np.ndarray,
@@ -82,6 +78,7 @@ class SCM:
         n (int): number of samples to draw
         random_state: seed for reproducibility
         """
+        # Sanity check
         if self.A_type == 'binary':
             if np.any((np.asarray(a_fixed) != 0) & (np.asarray(a_fixed) != 1)):
                 raise ValueError("a_fixed must be 0 or 1 (binary).")
@@ -136,8 +133,10 @@ class BinaryA_SCM(SCM):
         )
 
 
+
 # Looping over different parameters of the SCM
-def estimate_cate_from_row(row, *, n_mc: int = 0, seed: int | None = None):
+def estimate_cate_from_row(row, *, n_mc: int = 0, seed: int | None = None,
+                           mode='binary'):
     """
     This function is used to estimate CATE given a series of parameters to initialize
     the SCM.
@@ -166,10 +165,47 @@ def estimate_cate_from_row(row, *, n_mc: int = 0, seed: int | None = None):
         X, *_ = scm.sample(n=n_mc, random_state=seed)
         # Why do we use the analytic version next?
         # X is sampled. 
+        # HARD CODED TO BINARY TREATMENT. CHANGE. SUPPORT ALSO CONTINUOUS TREATMENTS.
         mu1, _ = scm.analytic_do_distribution(1, X)
         mu0, _ = scm.analytic_do_distribution(0, X)
         # This ends up being the value where the MC-version should converge to:
         return (mu1 - mu0).mean()
+
+
+def estimate_CATE(row, a1_fixed, a0_fixed):
+        """
+        This function estimates the CATE for using treatment 1 (higher dosage)
+        instead of treatment 0.
+
+        marginalCATE(X) = E[Y|X, do(A=a1)] - E[Y|X, do(A=a0)]
+
+        Args:
+        row (series from from df_params): Posterior parameters
+        a1_fixed [float]: Dosage value of higher dose treatment
+        a0_fixed [float]: Dosage value of lower dose treatment
+
+        Again, what are we more specifically interested in?
+        The expected treatment effect for a patient with features X at
+        the doctor's office?
+        The name specifically indicates that this is NOT ATE!
+        """
+        print("Estimating marginalCATE for continuous treatment.")
+        print("This is work-in-progress!!")
+        # New model for data generation instantiated with posterior parameter values:
+        scm = SCM(
+            alpha_x_mu   = row["αXμ"],
+            alpha_x_sigma= row["αXσ"],
+            alpha_a_mu   = row["αAμ"],
+            alpha_y_sigma= row["αYσ"],
+            n_e          = row["NE"],
+            A_type       = 'continuous'
+        )
+        X, A, Y = scm.sample(n=n_mc, random_state=seed)
+        # X is sampled and we have a dosage A and outcome Y with that.
+        # We need the outcome if we use the same X and A + 1 next.
+        Y_do1 = scm.sample_do_A(A + 1, X)
+        marginalCATE = Y_do1 - Y  # Element-wise subtraction
+        return marginalCATE
 
 
 if __name__ == "__main__":
