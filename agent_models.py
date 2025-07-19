@@ -16,10 +16,10 @@ def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3) -> pm.Model:
     with pm.Model() as m:
         # hyper‑priors
         αXμ  = pm.Normal('αXμ', 80, 1)
-        αXσ  = pm.Exponential('αXσ', 1)
+        αXσ  = pm.Exponential('αXσ', 10)
         αAμ  = pm.Normal('αAμ', 10, 1)
-        αYσ  = pm.Exponential('αYσ', 1)
-        NE   = pm.Normal('NE', 0.5, 0.1)
+        αYσ  = pm.Exponential('αYσ', .1)
+        NE   = pm.Normal('NE', 20.0, 1)
 
         # deterministic helpers
         a  = pm.Deterministic('a', 1 + NE)
