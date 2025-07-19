@@ -23,7 +23,7 @@ scm = historical_scm.SCM(
 )
 
 # Low value of n to run tests quickly:
-n_mc = 40
+n_mc = 1000
 seed = 7
 
 
@@ -54,18 +54,11 @@ print("The predicted outcome for this patient weighing {}kg is {}.".format(x_o, 
 # 5. Define agent model. The agent's priors are set in define_model_1() and
 #    additionally the data and prediction of the observed patient is passed
 #    to the function (for estimating the posterior).
-agent_model = agent_models.define_model_1(x_o, pred_o, n=7, tiny=1e-3)
+agent_model = agent_models.define_model_1(x_o, pred_o, n=1000, tiny=1e-3)
 
 
-# 6. Maybe feed the same x_o to the updated agent model and see how the
-#    decision of the physician changed as consequence of having decision
-#    support.
-
-
-
-
-# 7. The agent's belief is updated / the posterior given the observed data is estimated.
-latent_sample_size = 5  # Size of plate
+# 6. The agent's belief is updated / the posterior given the observed data is estimated.
+latent_sample_size = 100  # Size of plate
 with agent_model:
     trace = pm.sample(
         latent_sample_size, 
@@ -76,4 +69,29 @@ with agent_model:
         init="jitter+adapt_diag"
     )
 
-tmp = trace.posterior.to_dataframe()
+posterior_df = trace.posterior.to_dataframe()
+
+
+# 7. Estimate physician's CATE with updated beliefs. Perhaps compare
+#    to true model and to what the physician would have done without
+#    the updated knowledge.
+posterior_CATE_samples = [historical_scm.sample_CATE(tmp_params, x_o, a1_fixed=20, a0_fixed=10) for _, tmp_params in posterior_df.iterrows()]
+posterior_CATE_samples = np.concatenate(posterior_CATE_samples)
+plt.hist(posterior_CATE_samples, label="Samples from agent's posterior distribution", color="#FF000090", density=True, bins=10)
+posterior_CATE_mu = np.mean(posterior_CATE_samples)
+
+# 7.1 Compare to TRUE MODEL, not agent's prior...
+true_Ydo1_samples = scm.sample_do_A(a_fixed=20, X=x_o, n=400)
+true_Ydo0_samples = scm.sample_do_A(a_fixed=10, X=x_o, n=400)
+true_CATE_samples = [item1 - item0 for item0, item1 in zip(true_Ydo0_samples, true_Ydo1_samples)]
+true_CATE_mu = np.mean(true_CATE_samples)
+plt.hist(true_CATE_samples, label='Samples from true distribution', color="#0000FF90", density=True, bins=10)  # HOW DO I INCLUDE A LABEL FOR THE TWO COLORED PLOTS?
+plt.legend()
+plt.title("True CATE vs. CATE estimated from physicians posterior.")
+plt.savefig('./fig/basic_example_true_and_posterior_CATE.png')
+plt.clf()
+
+print("The agent's posterior CATE for *this patient is {} whereas the true CATE is {}.".format(posterior_CATE_mu, true_CATE_mu))
+
+# 7.2 Compare to physicians prior beliefs
+#     Do we have a model for the physician's prior beliefs encoded?
