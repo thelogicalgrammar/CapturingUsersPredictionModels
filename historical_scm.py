@@ -172,15 +172,14 @@ def estimate_cate_from_row(row, *, n_mc: int = 0, seed: int | None = None,
         return (mu1 - mu0).mean()
 
 
-def estimate_CATE(row, a1_fixed, a0_fixed):
+def sample_CATE(row, X, a1_fixed, a0_fixed):
         """
-        This function estimates the CATE for using treatment 1 (higher dosage)
+        This function samples the CATE-distribution from using treatment 1 (higher dosage)
         instead of treatment 0.
-
-        marginalCATE(X) = E[Y|X, do(A=a1)] - E[Y|X, do(A=a0)]
 
         Args:
         row (series from from df_params): Posterior parameters
+        X (float): Feature to condition on
         a1_fixed [float]: Dosage value of higher dose treatment
         a0_fixed [float]: Dosage value of lower dose treatment
 
@@ -189,23 +188,36 @@ def estimate_CATE(row, a1_fixed, a0_fixed):
         the doctor's office?
         The name specifically indicates that this is NOT ATE!
         """
-        print("Estimating marginalCATE for continuous treatment.")
-        print("This is work-in-progress!!")
         # New model for data generation instantiated with posterior parameter values:
         scm = SCM(
             alpha_x_mu   = row["αXμ"],
             alpha_x_sigma= row["αXσ"],
             alpha_a_mu   = row["αAμ"],
             alpha_y_sigma= row["αYσ"],
-            n_e          = row["NE"],
+            n_e          = row["NE"],  # Is this supposed to be updated?
             A_type       = 'continuous'
         )
-        X, A, Y = scm.sample(n=n_mc, random_state=seed)
-        # X is sampled and we have a dosage A and outcome Y with that.
-        # We need the outcome if we use the same X and A + 1 next.
-        Y_do1 = scm.sample_do_A(A + 1, X)
-        marginalCATE = Y_do1 - Y  # Element-wise subtraction
-        return marginalCATE
+        # Sample an outcome with treatment 1:
+        Y_do1 = scm.sample_do_A(a1_fixed, X)
+        # Sample an outcome with treatment 0:
+        Y_do0 = scm.sample_do_A(a0_fixed, X)
+        # The sample drawn from the CATE-distribution:
+        CATE_sample = Y_do1 - Y_do0
+        return CATE_sample
+
+
+def estimate_CATE_parameters(row, X, a1_fixed, a0_fixed, n=1000):
+    """
+    Sample many points from the CATE-distribution and estimate mean
+    and variance?
+    """
+    pass
+
+def marginal_CATE():
+    """
+    marginalCATE(X) = E[Y|X, do(A=a1)] - E[Y|X, do(A=a0)]
+    """
+    pass
 
 
 if __name__ == "__main__":
