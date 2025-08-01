@@ -7,10 +7,12 @@ from pytensor.tensor import log1p, softplus, sigmoid, logaddexp, dot
 import numpy as np
 
 
-def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3) -> pm.Model:
+def define_model_1(Xo_obs, Predo_obs,  intercept, coefficient_X, n=100, tiny=1e-3) -> \
+        pm.Model:
     """
     Defines the internal model of the agent, enabling Bayesian update on the priors.
-    Continuous A. 
+    Continuous A.
+    Parameters a and b are the intercept and coefficient of X in the definition of Y of the SCM.
     """
 
     with pm.Model() as m:
@@ -19,34 +21,37 @@ def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3) -> pm.Model:
         αXσ  = pm.Exponential('αXσ', 1)
         αAμ  = pm.Normal('αAμ',  5, 1)
         αYσ  = pm.Exponential('αYσ', 1)
-        NE   = pm.Normal('NE',  -0.1, 1)
+        αAσ = pm.Exponential('αAσ', 1)
+        NE = pm.Normal('NE',  -0.1, 1)
     
         # deterministic helpers
-        a  = pm.Deterministic('a', 1 + NE)
-        b  = pm.Deterministic('b', NE * αAμ)
-        sy2 = pm.Deterministic('sy2', NE**2 + αYσ**2)
+        # a  = pm.Deterministic('a', 1 + NE)
+        # b  = pm.Deterministic('b', NE * αAμ)
+        # sy2 = pm.Deterministic('sy2', NE**2 + αYσ**2)
     
         # Draw the three low‑dimensional auxiliaries of the n-dimensional plate
-        T1 = pm.Normal('T1', 0, 1, shape=())  # will be scaled by sqrt(n)
+        T1 = pm.Normal('T1', 0, n, shape=())  # will be scaled by sqrt(n)
         T2 = pm.ChiSquared('T2', n)
-        T3 = pm.Normal('T3', 0, 1, shape=())
+        T3 = pm.Normal('T3', n*NE*αAμ, n*NE**2 * αAσ + n*αYσ, shape=())
 
         # scale them (see derivation)
-        T1s = at.sqrt(n) * T1
-        T3s = at.sqrt(n) * T3
+        # T1s = at.sqrt(n) * T1
+        # T3s = at.sqrt(n) * T3
 
-        sx2 = αXσ**2
-        deltax = αXμ / αXσ
+        # sx2 = αXσ**2
+        # deltax = αXμ / αXσ
 
         Sxx = pm.Deterministic(
             'Sxx',
-            sx2 * (n*deltax**2 + 2*deltax*T1s + T2)
+            αXμ**2 + αXσ**2 * T2 +2*αXμ * αXσ * T1
         )
         Sxy = pm.Deterministic(
             'Sxy',
-            a*Sxx + b*n*αXμ + b*αXσ*T1s + αXσ*at.sqrt(sy2)*T3s
+            (intercept * n * αXμ) + (intercept * αXσ * T1) + (coefficient_X * Sxx) + (αXμ * T3) + (αXσ * T3)
         )
-        # this is the coefficient of the linear model
+        # this is the coefficient of the linear model, which is assumed to have no intercept
+        # (so the agent 'knows' the model is limited/incorrect if the real intercept variable is
+        # not 0)
         # Implicitly builds on observations being centered around 0.
         # This is the OLS estimate of the slope.
         phi = pm.Deterministic('phi', Sxy / Sxx)
