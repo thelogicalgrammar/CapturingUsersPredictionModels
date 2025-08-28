@@ -2,9 +2,101 @@
 Experiment models are defined here.
 """
 import pymc as pm
+import warnings
 import pytensor.tensor as at
 from pytensor.tensor import log1p, softplus, sigmoid, logaddexp, dot
 import numpy as np
+
+
+class AgentModel():
+    def __init__(self, plate_size, constants=None, prior_parameters=None):
+        """
+        Class for agent models.
+
+        The structural equations are:
+        X_i = N_{Xi}
+        A_i = d X_i + N_{Ai}
+        Y_i = a + b X_i + N_{E} A_i + N_{Yi}
+        where N_{Xi}, N_{Ai}, N_{Yi} are normal noise variables drawn J times
+        for every instantiation of the plate and N_{E} is a normal variable
+        drawn once per instantiation of the plate.
+
+        Args:
+        plate_size (int): size of the plate (number of i.i.d. samples).
+        constants (dict): dictionary with structural equation constants 'a', 'b', and 'd'.
+         If constants is None, then it defaults to values in the paper (28.8.2025).
+        prior_parameters (dict): dictionary with parameters for prior distributions
+         If prior_parameters is None, then it defaults to values in the paper (28.8.2025).
+        """
+        self.plate_size = plate_size
+        if constants is None:
+            constants = {'a': 12, 'b': -0.1, 'd': 0.125}
+            # N_{E} is essentially replacing "c"
+        if prior_parameters is None:
+            prior_parameters = {'mu_X': 80, 'sigma_X': 1,
+                                'lambda_X': 10,
+                                'mu_A': 10, 'sigma_A': 1,
+                                'lambda_A': 10,
+                                'mu_Y': 0, 'sigma_Y': 1,
+                                'lambda_Y': 1,
+                                'N_E_mu': 20, 'N_E_sigma': 1}
+        self.constants = constants
+        self.prior_parameters = prior_parameters
+
+        self.model = pm.Model()
+        with self.model:
+            # Placeholders for observed data:
+            X_o_ = pm.Data('X_o_', None)
+            pred_o_ = pm.Data('pred_o_', None)
+
+            # Outside of the plate:
+            alpha_mu_X = pm.Normal('alpha_mu_X', self.prior_parameters['mu_X'], self.prior_parameters['sigma_X'])
+            # Is an exponential distribution well-behaved as a prior?
+            alpha_sigma_X = pm.Exponential('alpha_sigma_X', self.prior_parameters['lambda_X'])
+            alpha_mu_A = pm.Normal('alpha_mu_A', self.prior_parameters['mu_A'], self.prior_parameters['sigma_A'])
+            alpha_sigma_A = 1  # pm.Exponential('sigma_A', 10)  # sigma_A is not learned.
+            alpha_mu_Y = pm.Normal('alpha_mu_Y', self.prior_parameters['mu_Y'], self.prior_parameters['sigma_Y'])
+            alpha_sigma_Y = pm.Exponential('alpha_sigma_Y', self.prior_parameters['lambda_Y'])
+            N_E = pm.Normal('N_E', self.prior_parameters['N_E_mu'], self.prior_parameters['N_E_sigma'])
+
+            # Plate in model:
+            X_i = pm.Normal('X_i', alpha_mu_X, alpha_sigma_X, shape=self.plate_size)
+            # Is it faster to have a Normal distribution with separate parameters (here X_i * d)
+            # or to sample from a Standard Normal and then scale them?
+            A_i = pm.Normal('A_i', self.constants['d'] * X_i + alpha_mu_A, alpha_sigma_A, shape=self.plate_size)
+            Y_i = pm.Normal('Y_i', self.constants['a'] + self.constants['b'] * X_i + N_E * A_i + alpha_mu_Y, alpha_sigma_Y, shape=self.plate_size)
+
+            # Is this element-wise multiplication? Could use dot product.
+            mu_M = pm.Deterministic('mu_M', pm.math.sum(X_i * Y_i) / pm.math.sum(X_i**2))
+            sigma_M = pm.Deterministic('sigma_M', pm.math.sqrt(pm.math.sum((mu_M * X_i - Y_i)**2) / (plate_size - 1)))  # Variance with Bessel's correction
+
+            # What should these be called?
+            # And are both somehow included in the likelihood of the observed data?
+            X_o = pm.Deterministic('X_o', pm.Normal('N_X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_))
+            pred_o = pm.Deterministic('pred_o', pm.Normal('M_j', mu_M * X_o, sigma_M, observed=pred_o_))
+
+    def sample(self, X_o, pred_o, draws=1000):
+        """
+        Sample from the posterior given observed data.
+
+        Args:
+        X_o (np.ndarray): 1-dim observed feature data.
+        pred_o (np.ndarray): 1-dim observed prediction data.
+        n (int): number of samples to draw from the posterior.
+        """
+        # Replace placeholders with actual data:
+        pm.set_data({'X_o_': X_o, 'pred_o_': pred_o}, model=self.model)
+        with self.model:
+            trace = pm.sample(draws=draws,
+                              tune=1000,
+                              target_accept=.99,
+                              chains=4,
+                              random_seed=42,
+                              max_treedepth=15,
+                              init="jitter+adapt_diag",
+                              )
+        return trace
+
 
 
 def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3) -> pm.Model:
@@ -27,8 +119,10 @@ def define_model_1(Xo_obs, Predo_obs, n=100, tiny=1e-3) -> pm.Model:
         sy2 = pm.Deterministic('sy2', NE**2 + αYσ**2)
 
         # Draw the three low‑dimensional auxiliaries of the n-dimensional plate
+        text =  "While T2 might follow a Chi-squared distribution, T1 and T2 are not independent and cannote be sampled separately."
+        warnings.warn(text)
         T1 = pm.Normal('T1', 0, 1, shape=())  # will be scaled by sqrt(n)
-        T2 = pm.ChiSquared('T2', n)
+        T2 = pm.ChiSquared('T2', n)  
         T3 = pm.Normal('T3', 0, 1, shape=())
 
         # scale them (see derivation)
