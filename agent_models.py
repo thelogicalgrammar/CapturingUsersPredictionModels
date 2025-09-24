@@ -18,7 +18,7 @@ def printing_callback(trace, draw):
 
 
 class AgentModel():
-    def __init__(self, plate_size, constants=None, prior_parameters=None):
+    def __init__(self, plate_size, constants=None, prior_parameters=None, low_dim_aux_plate=True):
         """
         Class for agent models.
 
@@ -36,6 +36,9 @@ class AgentModel():
          If constants is None, then it defaults to values in the paper (28.8.2025).
         prior_parameters (dict): dictionary with parameters for prior distributions
          If prior_parameters is None, then it defaults to values in the paper (28.8.2025).
+        low_dim_aux_plate (bool): If true the plate is estimated using low-dimensional
+         auxiliary variables. This speeds up inference. If false, the plate is explicitly 
+         modeled.
         """
         self.plate_size = plate_size
         if constants is None:
@@ -71,20 +74,50 @@ class AgentModel():
             alpha_sigma_Y = pm.Exponential('alpha_sigma_Y', self.prior_parameters['lambda_Y'])
             N_E = pm.Normal('N_E', self.prior_parameters['N_E_mu'], self.prior_parameters['N_E_sigma'])
 
-            # Plate in model (for i in 1...plate_size):
-            X = pm.Normal('X', alpha_mu_X, alpha_sigma_X, shape=self.plate_size)
-            # Is it faster to have a Normal distribution with separate parameters (here X_i * d)
-            # or to sample from a Standard Normal and then scale them?
-            A = pm.Normal('A', self.constants['d'] * X + alpha_mu_A, alpha_sigma_A, shape=self.plate_size)
-            Y = pm.Normal('Y', self.constants['a'] + self.constants['b'] * X + N_E * A + alpha_mu_Y, alpha_sigma_Y, shape=self.plate_size)
+            if not low_dim_aux_plate:
+                # Plate in model (for i in 1...plate_size):
+                X = pm.Normal('X', alpha_mu_X, alpha_sigma_X, shape=self.plate_size)
+                # Is it faster to have a Normal distribution with separate parameters (here X_i * d)
+                # or to sample from a Standard Normal and then scale them?
+                A = pm.Normal('A', self.constants['d'] * X + alpha_mu_A, alpha_sigma_A, shape=self.plate_size)
+                Y = pm.Normal('Y', self.constants['a'] + self.constants['b'] * X + N_E * A + alpha_mu_Y, alpha_sigma_Y, shape=self.plate_size)
 
-            # Is this element-wise multiplication? Could use dot product.
-            mu_M = pm.Deterministic('mu_M', pm.math.sum(X * Y) / pm.math.sum(X**2))
-            sigma_M = pm.Deterministic('sigma_M', pm.math.sqrt(pm.math.sum((mu_M * X - Y)**2) / (self.plate_size - 1)))  # Variance with Bessel's correction
-
+                # Is this element-wise multiplication? Could use dot product.
+                mu_M = pm.Deterministic('mu_M', pm.math.sum(X * Y) / pm.math.sum(X**2))
+                # sigma_M = pm.Deterministic('sigma_M', pm.math.sqrt(pm.math.sum((mu_M * X - Y)**2) / (self.plate_size - 1)))  # Variance with Bessel's correction
+            else:
+                epsilon_x = pm.Normal('sum_U_x', 0, 1)  # Not a sum yet, needs to be scaled appropriately.
+                epsilon_y = pm.Normal('sum_U_y', 0, 1)  # Not a sum yet, needs to be scaled appropriately.
+                epsilon_a = pm.Normal('sum_U_a', 0, 1)  # Not a sum yet, needs to be scaled appropriately.
+                Z_xx = pm.ChiSquared('Z_xx', self.plate_size - 1)  # Independent part of sum of squares (independent of sum of X).
+                Z_xy_alpha = pm.ChiSquared('Z_xy_alpha', self.plate_size - 1)  # First part of "chi-squared difference distribution"
+                Z_xy_beta = pm.ChiSquared('Z_xy_beta', self.plate_size - 1)  # Second part of "chi-squared difference distribution"
+                Z_xa_alpha = pm.ChiSquared('Z_xa_alpha', self.plate_size - 1)  # First part of "chi-squared difference distribution"
+                Z_xa_beta = pm.ChiSquared('Z_xa_beta', self.plate_size - 1)  # Second part of "chi-squared difference distribution"
+                # All alpha_mu and alpha_sigma goes into a function.
+                # N_E = N_E  # Just to be explicit.
+                sum_X = pm.Deterministic('sum_X', self.plate_size * alpha_mu_X + at.sqrt(self.plate_size) * alpha_sigma_X * epsilon_x)
+                sum_X_squared = pm.Deterministic('sum_X_squared', self.plate_size * alpha_mu_X**2 +\
+                                                 2 * self.plate_size * alpha_mu_X * alpha_sigma_X * epsilon_x +\
+                                                 alpha_sigma_X**2 * (Z_xx - epsilon_x))  # (\sum((epsilon_x_i))/n)^2 = (sqrt(n)*epsilon_x)^2/n = epsilon_x^2
+                sum_XA = pm.Deterministic('sum_XA', self.plate_size * alpha_mu_X * alpha_mu_A +\
+                                            self.plate_size * alpha_mu_X * alpha_sigma_A * epsilon_a +\
+                                            self.plate_size * alpha_mu_A * alpha_sigma_X * epsilon_x +\
+                                            alpha_sigma_X * alpha_sigma_A * (Z_xa_alpha - Z_xa_beta))  # Covariance part.
+                sum_XY = pm.Deterministic('sum_XY', self.plate_size * alpha_mu_X * alpha_mu_Y +\
+                                            self.plate_size * alpha_mu_X * alpha_sigma_Y * epsilon_y +\
+                                            self.plate_size * alpha_mu_Y * alpha_sigma_X * epsilon_x +\
+                                            alpha_sigma_X * alpha_sigma_Y * (Z_xy_alpha - Z_xy_beta))
+                phi = pm.Deterministic('phi', self.constants['b'] + self.constants['d'] * N_E +\
+                                        self.constants['a'] * sum_X / sum_X_squared +\
+                                        N_E * sum_XA / sum_X_squared +\
+                                        sum_XY / sum_X_squared)
+                # phi does not currently have a distribution. I do not think we will be able to express it in a more simple
+                # form than done here.
+                # RESOLVE LACK OF DISTRIBUTION FOR PHI BY ASSUMING X_OBS IS A NARROW DISTRIBUTION?
             # What should these be called?
             X_o = pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
-            pred_o = pm.Normal('pred_o', mu_M * X_o, sigma_M, observed=pred_o_)
+            pm.DIST(param1.., obs=phi?...)  # What is the distriburtion of sum(X_i*Y_i)/sum(X_i^2)?
 
     def sample(self, X_o, pred_o, draws=1000):
         """
@@ -108,3 +141,7 @@ class AgentModel():
                               callback=printing_callback,
                               )
         return trace
+
+
+with pm.Model() as model:
+    pass
