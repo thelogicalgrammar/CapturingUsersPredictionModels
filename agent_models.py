@@ -4,7 +4,6 @@ Experiment models are defined here.
 import pymc as pm
 import warnings
 import pytensor.tensor as at
-from pytensor.tensor import log1p, softplus, sigmoid, logaddexp, dot
 
 DEBUGGING = False
 
@@ -85,6 +84,9 @@ class AgentModel():
                 # Is this element-wise multiplication? Could use dot product.
                 mu_M = pm.Deterministic('mu_M', pm.math.sum(X * Y) / pm.math.sum(X**2))
                 # sigma_M = pm.Deterministic('sigma_M', pm.math.sqrt(pm.math.sum((mu_M * X - Y)**2) / (self.plate_size - 1)))  # Variance with Bessel's correction
+                X_o = pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
+                warnings.warn("Model currently not complete. It lacks a distribution for phi.")
+                # pm.DIST(param1.., obs=phi?...)  # What is the distriburtion of sum(X_i*Y_i)/sum(X_i^2)?
             else:
                 epsilon_x = pm.Normal('sum_U_x', 0, 1)  # Not a sum yet, needs to be scaled appropriately.
                 epsilon_y = pm.Normal('sum_U_y', 0, 1)  # Not a sum yet, needs to be scaled appropriately.
@@ -103,21 +105,32 @@ class AgentModel():
                 sum_XA = pm.Deterministic('sum_XA', self.plate_size * alpha_mu_X * alpha_mu_A +\
                                             self.plate_size * alpha_mu_X * alpha_sigma_A * epsilon_a +\
                                             self.plate_size * alpha_mu_A * alpha_sigma_X * epsilon_x +\
-                                            alpha_sigma_X * alpha_sigma_A * (Z_xa_alpha - Z_xa_beta))  # Covariance part.
+                                            alpha_sigma_X * alpha_sigma_A * (Z_xa_alpha - Z_xa_beta) / 2)  # Covariance part.
                 sum_XY = pm.Deterministic('sum_XY', self.plate_size * alpha_mu_X * alpha_mu_Y +\
                                             self.plate_size * alpha_mu_X * alpha_sigma_Y * epsilon_y +\
                                             self.plate_size * alpha_mu_Y * alpha_sigma_X * epsilon_x +\
-                                            alpha_sigma_X * alpha_sigma_Y * (Z_xy_alpha - Z_xy_beta))
+                                            alpha_sigma_X * alpha_sigma_Y * (Z_xy_alpha - Z_xy_beta) / 2)
                 phi = pm.Deterministic('phi', self.constants['b'] + self.constants['d'] * N_E +\
                                         self.constants['a'] * sum_X / sum_X_squared +\
                                         N_E * sum_XA / sum_X_squared +\
                                         sum_XY / sum_X_squared)
-                # phi does not currently have a distribution. I do not think we will be able to express it in a more simple
-                # form than done here.
-                # RESOLVE LACK OF DISTRIBUTION FOR PHI BY ASSUMING X_OBS IS A NARROW DISTRIBUTION?
-            # What should these be called?
-            X_o = pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
-            pm.DIST(param1.., obs=phi?...)  # What is the distriburtion of sum(X_i*Y_i)/sum(X_i^2)?
+                pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
+                phi_hat = pred_o_ / X_o_
+                pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
+                # From stackexchange https://stats.stackexchange.com/questions/285986/distribution-of-linear-regression-coefficients
+                # phi ~ N(\hat{phi}, (X^T X)^{-1} sigma^2) where sigma is the standard deviation of the noise in Y? 
+                # For one set of samples, we can treat X as fixed and get 
+                # For regression Y = c_1 + c_2 * X + err where err ~ N(0, sigma^2) when c_1 == 0 (as in our cae)
+                # Then phi = c_2 + err / sum(X^2)
+                # phi ~ N(\hat{phi}, var(err) / sum(X_squared))
+                # Note that var(err) == var(Y-phi*X)? Isn't this the distribution of errors around the regression line?
+                # As in, not the uncertainty of phi itself?
+                # This is _not_ the uncertainty of phi given the parameters of the (prior) noise distributions.
+                # This is also _not_ the uncertainty of phi given the parameters sampled from the (prior) noise distribution.
+                # This could be the uncertainty of phi given the _sampled_ values of the low-dim. auxiliary variables, but note
+                # that this uncertainty will vary for new samples of the low-dim. aux. variables even when
+                # the parameters of the noise distributions are kept fixed.
+            #
 
     def sample(self, X_o, pred_o, draws=1000):
         """
@@ -133,7 +146,7 @@ class AgentModel():
         with self.model:
             trace = pm.sample(draws=draws,
                               tune=1000,
-                              target_accept=.99,
+                              target_accept=.95,
                               chains=4,
                               random_seed=42,  # Fixed for reproducibility.
                               max_treedepth=15,
