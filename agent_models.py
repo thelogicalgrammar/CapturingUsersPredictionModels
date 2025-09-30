@@ -82,11 +82,12 @@ class AgentModel():
                 Y = pm.Normal('Y', self.constants['a'] + self.constants['b'] * X + N_E * A + alpha_mu_Y, alpha_sigma_Y, shape=self.plate_size)
 
                 # Is this element-wise multiplication? Could use dot product.
-                mu_M = pm.Deterministic('mu_M', pm.math.sum(X * Y) / pm.math.sum(X**2))
+                phi = pm.Deterministic('phi', pm.math.sum(X * Y) / pm.math.sum(X**2))
                 # sigma_M = pm.Deterministic('sigma_M', pm.math.sqrt(pm.math.sum((mu_M * X - Y)**2) / (self.plate_size - 1)))  # Variance with Bessel's correction
-                X_o = pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
-                warnings.warn("Model currently not complete. It lacks a distribution for phi.")
-                # pm.DIST(param1.., obs=phi?...)  # What is the distriburtion of sum(X_i*Y_i)/sum(X_i^2)?
+                pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
+                phi_hat = pred_o_ / X_o_
+                pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
+
             else:
                 epsilon_x = pm.Normal('sum_U_x', 0, 1)  # Not a sum yet, needs to be scaled appropriately.
                 epsilon_y = pm.Normal('sum_U_y', 0, 1)  # Not a sum yet, needs to be scaled appropriately.
@@ -130,6 +131,10 @@ class AgentModel():
                 # This could be the uncertainty of phi given the _sampled_ values of the low-dim. auxiliary variables, but note
                 # that this uncertainty will vary for new samples of the low-dim. aux. variables even when
                 # the parameters of the noise distributions are kept fixed.
+                # Hypothetically we could model the plate many times with the drawn parameters to estimate some sort of
+                # uncertainty of phi. Kind of doing Bayesian sampling within Bayesian sampling.
+                # -We will have to save that for later.
+                # -> Simply use the "phi ~ N(\hat{phi}, 1e-3)" for now.
             #
 
     def sample(self, X_o, pred_o, draws=1000):
