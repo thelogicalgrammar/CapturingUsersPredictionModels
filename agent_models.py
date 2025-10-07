@@ -2,7 +2,7 @@
 Experiment models are defined here.
 """
 import pymc as pm
-import warnings
+import numpy as np
 import pytensor.tensor as at
 
 DEBUGGING = False
@@ -17,7 +17,7 @@ def printing_callback(trace, draw):
 
 
 class AgentModel():
-    def __init__(self, plate_size, constants=None, prior_parameters=None, low_dim_aux_plate=True):
+    def __init__(self, plate_size, constants=None, prior_parameters=None, low_dim_aux_plate=True, test=False):
         """
         Class for agent models.
 
@@ -60,8 +60,14 @@ class AgentModel():
             # with mu and sigma (not variance).
             # Placeholders for observed data:
             # Named with underscore to distinguish from random variables.
-            X_o_ = pm.Data('X_o_', None)
-            pred_o_ = pm.Data('pred_o_', None)
+            if not test:
+                X_o_ = pm.Data('X_o_', None)
+                pred_o_ = pm.Data('pred_o_', None)
+            else:
+                # For a test with 100 observed variables.
+                # Should make the posterior shift more clearly.
+                X_o_ = pm.Data('X_o_', np.zeros(100))
+                pred_o_ = pm.Data('pred_o_', np.zeros(100))
 
             # Outside of the plate:
             alpha_mu_X = pm.Normal('alpha_mu_X', self.prior_parameters['mu_X'], self.prior_parameters['sigma_X'])
@@ -83,41 +89,53 @@ class AgentModel():
 
                 # Is this element-wise multiplication? Could use dot product.
                 phi = pm.Deterministic('phi', pm.math.sum(X * Y) / pm.math.sum(X**2))
-                # sigma_M = pm.Deterministic('sigma_M', pm.math.sqrt(pm.math.sum((mu_M * X - Y)**2) / (self.plate_size - 1)))  # Variance with Bessel's correction
+                # Create testing mode where a large number of observations could be input.
                 pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
                 phi_hat = pred_o_ / X_o_
                 pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
 
             else:
-                epsilon_x = pm.Normal('sum_U_x', 0, 1)  # Not a sum yet, needs to be scaled appropriately.
-                epsilon_y = pm.Normal('sum_U_y', 0, 1)  # Not a sum yet, needs to be scaled appropriately.
-                epsilon_a = pm.Normal('sum_U_a', 0, 1)  # Not a sum yet, needs to be scaled appropriately.
-                Z_xx = pm.ChiSquared('Z_xx', self.plate_size - 1)  # Independent part of sum of squares (independent of sum of X).
-                Z_xy_alpha = pm.ChiSquared('Z_xy_alpha', self.plate_size - 1)  # First part of "chi-squared difference distribution"
-                Z_xy_beta = pm.ChiSquared('Z_xy_beta', self.plate_size - 1)  # Second part of "chi-squared difference distribution"
-                Z_xa_alpha = pm.ChiSquared('Z_xa_alpha', self.plate_size - 1)  # First part of "chi-squared difference distribution"
-                Z_xa_beta = pm.ChiSquared('Z_xa_beta', self.plate_size - 1)  # Second part of "chi-squared difference distribution"
+                # Derivation has some errors. Missing squareroots for some self.plate_size factors, then the dependent parts of the 
+                # normal product distributed RVs are missing. Further the dependent part of the chi-squared RV should be 
+                # epsilon_X^2, not epsilon_X. Phi should also be estimated by summing first and dividing last.
+                # Maybe move up constant for S_4 to match equations in paper.
+                # Maybe replace all variable names with corresponding from paper? Unify notation.
+                # Maybe change \epsilon_{S_X} to \sim \mathcal{N}(0, n) to avoid some squareroots.
+                # -Are Fausto and Giovanni ok with that?
+                epsilon_SX = pm.Normal('epsilon_SX', 0, self.plate_size)
+                epsilon_SY = pm.Normal('epsilon_SY', 0, self.plate_size)
+                epsilon_SA = pm.Normal('epsilon_SA', 0, self.plate_size)
+                gamma_XX = pm.ChiSquared('gamma_XX', self.plate_size - 1)  # Independent part of sum of squares (independent of sum of X). \gamma_{XX}
+                gamma_XY_a = pm.ChiSquared('gamma_XY_a', self.plate_size - 1)  # First part of "chi-squared difference distribution" \gamma_{XYa}
+                gamma_XY_b = pm.ChiSquared('gamma_XY_b', self.plate_size - 1)  # Second part of "chi-squared difference distribution" \gamma_{XYb}
+                gamma_XA_a = pm.ChiSquared('gamma_XA_a', self.plate_size - 1)  # First part of "chi-squared difference distribution" \gamma_{XAa}
+                gamma_XA_b = pm.ChiSquared('gamma_XA_b', self.plate_size - 1)  # Second part of "chi-squared difference distribution" \gamma_{XAb}
                 # All alpha_mu and alpha_sigma goes into a function.
                 # N_E = N_E  # Just to be explicit.
-                sum_X = pm.Deterministic('sum_X', self.plate_size * alpha_mu_X + at.sqrt(self.plate_size) * alpha_sigma_X * epsilon_x)
-                sum_X_squared = pm.Deterministic('sum_X_squared', self.plate_size * alpha_mu_X**2 +\
-                                                 2 * self.plate_size * alpha_mu_X * alpha_sigma_X * epsilon_x +\
-                                                 alpha_sigma_X**2 * (Z_xx - epsilon_x))  # (\sum((epsilon_x_i))/n)^2 = (sqrt(n)*epsilon_x)^2/n = epsilon_x^2
-                sum_XA = pm.Deterministic('sum_XA', self.plate_size * alpha_mu_X * alpha_mu_A +\
-                                            self.plate_size * alpha_mu_X * alpha_sigma_A * epsilon_a +\
-                                            self.plate_size * alpha_mu_A * alpha_sigma_X * epsilon_x +\
-                                            alpha_sigma_X * alpha_sigma_A * (Z_xa_alpha - Z_xa_beta) / 2)  # Covariance part.
-                sum_XY = pm.Deterministic('sum_XY', self.plate_size * alpha_mu_X * alpha_mu_Y +\
-                                            self.plate_size * alpha_mu_X * alpha_sigma_Y * epsilon_y +\
-                                            self.plate_size * alpha_mu_Y * alpha_sigma_X * epsilon_x +\
-                                            alpha_sigma_X * alpha_sigma_Y * (Z_xy_alpha - Z_xy_beta) / 2)
-                phi = pm.Deterministic('phi', self.constants['b'] + self.constants['d'] * N_E +\
-                                        self.constants['a'] * sum_X / sum_X_squared +\
-                                        N_E * sum_XA / sum_X_squared +\
-                                        sum_XY / sum_X_squared)
-                pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
+                S_9 = pm.Deterministic('S_9', (epsilon_SX * epsilon_SA / self.plate_size +
+                                            (gamma_XA_a - gamma_XA_b) / 2))
+                S_8 = pm.Deterministic('S_8', (epsilon_SX * epsilon_SY / self.plate_size +
+                                            (gamma_XY_a - gamma_XY_b) / 2))
+                S_7 = pm.Deterministic('S_7', gamma_XX - epsilon_SX**2 / self.plate_size)
+                S_6 = pm.Deterministic('S_6', (self.plate_size * alpha_mu_X * alpha_mu_Y +
+                                            alpha_mu_X * alpha_sigma_Y * epsilon_SY +
+                                            alpha_mu_Y * alpha_sigma_X * epsilon_SX +
+                                            alpha_sigma_X * alpha_sigma_Y * S_8))
+                S_5 = pm.Deterministic('S_5', N_E * (self.plate_size * alpha_mu_X * alpha_mu_A +
+                                            alpha_mu_X * alpha_sigma_A * epsilon_SA +
+                                            alpha_mu_A * alpha_sigma_X * epsilon_SX +
+                                            alpha_sigma_X * alpha_sigma_A * S_9))
+                S_4 = pm.Deterministic('S_4', self.constants['a'] * (self.plate_size * alpha_mu_X + alpha_sigma_X * epsilon_SX))
+                # Sum of S_1, S_2, and S_3 (denominator):
+                S_123 = pm.Deterministic('sum_X_squared', (self.plate_size * alpha_mu_X**2 +  # S_1
+                                                 2 * alpha_mu_X * alpha_sigma_X * epsilon_SX +  # S_2
+                                                 alpha_sigma_X**2 * S_7))  # S_3
+                # Equation for phi.
+                phi = pm.Deterministic('phi', (self.constants['b'] + self.constants['d'] * N_E +\
+                                        (S_4 + S_5 + S_6) / S_123))
+                pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_, shape=X_o_.shape)
                 phi_hat = pred_o_ / X_o_
-                pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
+                pm.Normal('phi_obs', phi, 1.0, observed=phi_hat)
                 # From stackexchange https://stats.stackexchange.com/questions/285986/distribution-of-linear-regression-coefficients
                 # phi ~ N(\hat{phi}, (X^T X)^{-1} sigma^2) where sigma is the standard deviation of the noise in Y? 
                 # For one set of samples, we can treat X as fixed and get 
@@ -154,7 +172,7 @@ class AgentModel():
                               target_accept=.95,
                               chains=4,
                               random_seed=42,  # Fixed for reproducibility.
-                              max_treedepth=15,
+                              #max_treedepth=15,
                               init="jitter+adapt_diag",
                               callback=printing_callback,
                               )
