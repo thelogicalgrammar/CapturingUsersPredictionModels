@@ -38,6 +38,8 @@ class AgentModel():
         low_dim_aux_plate (bool): If true the plate is estimated using low-dimensional
          auxiliary variables. This speeds up inference. If false, the plate is explicitly 
          modeled.
+        test (bool): If true, the model is set up in testing mode enabling multiple observed
+         data points to be input. This is mainly for testing that the model works as intended.
         """
         self.plate_size = plate_size
         if constants is None:
@@ -57,7 +59,7 @@ class AgentModel():
         self.model = pm.Model()
         with self.model:
             # Note that the normal distribution in PyMC is parameterized
-            # with mu and sigma (not variance).
+            # with mu and sigma (not variance, sigma^2).
             # Placeholders for observed data:
             # Named with underscore to distinguish from random variables.
             if not test:
@@ -82,8 +84,6 @@ class AgentModel():
             if not low_dim_aux_plate:
                 # Plate in model (for i in 1...plate_size):
                 X = pm.Normal('X', alpha_mu_X, alpha_sigma_X, shape=self.plate_size)
-                # Is it faster to have a Normal distribution with separate parameters (here X_i * d)
-                # or to sample from a Standard Normal and then scale them?
                 A = pm.Normal('A', self.constants['d'] * X + alpha_mu_A, alpha_sigma_A, shape=self.plate_size)
                 Y = pm.Normal('Y', self.constants['a'] + self.constants['b'] * X + N_E * A + alpha_mu_Y, alpha_sigma_Y, shape=self.plate_size)
 
@@ -95,22 +95,14 @@ class AgentModel():
                 pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
 
             else:
-                # Derivation has some errors. Missing squareroots for some self.plate_size factors, then the dependent parts of the 
-                # normal product distributed RVs are missing. Further the dependent part of the chi-squared RV should be 
-                # epsilon_X^2, not epsilon_X. Phi should also be estimated by summing first and dividing last.
-                # Maybe move up constant for S_4 to match equations in paper.
-                # Maybe replace all variable names with corresponding from paper? Unify notation.
-                # Maybe change \epsilon_{S_X} to \sim \mathcal{N}(0, n) to avoid some squareroots.
-                # -Are Fausto and Giovanni ok with that?
                 epsilon_SX = pm.Normal('epsilon_SX', 0, self.plate_size)
                 epsilon_SY = pm.Normal('epsilon_SY', 0, self.plate_size)
                 epsilon_SA = pm.Normal('epsilon_SA', 0, self.plate_size)
-                gamma_XX = pm.ChiSquared('gamma_XX', self.plate_size - 1)  # Independent part of sum of squares (independent of sum of X). \gamma_{XX}
-                gamma_XY_a = pm.ChiSquared('gamma_XY_a', self.plate_size - 1)  # First part of "chi-squared difference distribution" \gamma_{XYa}
-                gamma_XY_b = pm.ChiSquared('gamma_XY_b', self.plate_size - 1)  # Second part of "chi-squared difference distribution" \gamma_{XYb}
-                gamma_XA_a = pm.ChiSquared('gamma_XA_a', self.plate_size - 1)  # First part of "chi-squared difference distribution" \gamma_{XAa}
-                gamma_XA_b = pm.ChiSquared('gamma_XA_b', self.plate_size - 1)  # Second part of "chi-squared difference distribution" \gamma_{XAb}
-                # All alpha_mu and alpha_sigma goes into a function.
+                gamma_XX = pm.ChiSquared('gamma_XX', self.plate_size - 1)  # Independent part of sum of squares (independent of sum of X)
+                gamma_XY_a = pm.ChiSquared('gamma_XY_a', self.plate_size - 1)  # First part of "chi-squared difference distribution"
+                gamma_XY_b = pm.ChiSquared('gamma_XY_b', self.plate_size - 1)  # Second part of "chi-squared difference distribution"
+                gamma_XA_a = pm.ChiSquared('gamma_XA_a', self.plate_size - 1)  # First part of "chi-squared difference distribution"
+                gamma_XA_b = pm.ChiSquared('gamma_XA_b', self.plate_size - 1)  # Second part of "chi-squared difference distribution"
                 # N_E = N_E  # Just to be explicit.
                 S_9 = pm.Deterministic('S_9', (epsilon_SX * epsilon_SA / self.plate_size +
                                             (gamma_XA_a - gamma_XA_b) / 2))
@@ -136,24 +128,6 @@ class AgentModel():
                 pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_, shape=X_o_.shape)
                 phi_hat = pred_o_ / X_o_
                 pm.Normal('phi_obs', phi, 1.0, observed=phi_hat)
-                # From stackexchange https://stats.stackexchange.com/questions/285986/distribution-of-linear-regression-coefficients
-                # phi ~ N(\hat{phi}, (X^T X)^{-1} sigma^2) where sigma is the standard deviation of the noise in Y? 
-                # For one set of samples, we can treat X as fixed and get 
-                # For regression Y = c_1 + c_2 * X + err where err ~ N(0, sigma^2) when c_1 == 0 (as in our cae)
-                # Then phi = c_2 + err / sum(X^2)
-                # phi ~ N(\hat{phi}, var(err) / sum(X_squared))
-                # Note that var(err) == var(Y-phi*X)? Isn't this the distribution of errors around the regression line?
-                # As in, not the uncertainty of phi itself?
-                # This is _not_ the uncertainty of phi given the parameters of the (prior) noise distributions.
-                # This is also _not_ the uncertainty of phi given the parameters sampled from the (prior) noise distribution.
-                # This could be the uncertainty of phi given the _sampled_ values of the low-dim. auxiliary variables, but note
-                # that this uncertainty will vary for new samples of the low-dim. aux. variables even when
-                # the parameters of the noise distributions are kept fixed.
-                # Hypothetically we could model the plate many times with the drawn parameters to estimate some sort of
-                # uncertainty of phi. Kind of doing Bayesian sampling within Bayesian sampling.
-                # -We will have to save that for later.
-                # -> Simply use the "phi ~ N(\hat{phi}, 1e-3)" for now.
-            #
 
     def sample(self, X_o, pred_o, draws=1000):
         """
