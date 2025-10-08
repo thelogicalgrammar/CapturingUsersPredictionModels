@@ -95,39 +95,40 @@ class AgentModel():
                 pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
 
             else:
-                epsilon_SX = pm.Normal('epsilon_SX', 0, self.plate_size)
-                epsilon_SY = pm.Normal('epsilon_SY', 0, self.plate_size)
-                epsilon_SA = pm.Normal('epsilon_SA', 0, self.plate_size)
-                gamma_XX = pm.ChiSquared('gamma_XX', self.plate_size - 1)  # Independent part of sum of squares (independent of sum of X)
-                gamma_XY_a = pm.ChiSquared('gamma_XY_a', self.plate_size - 1)  # First part of "chi-squared difference distribution"
-                gamma_XY_b = pm.ChiSquared('gamma_XY_b', self.plate_size - 1)  # Second part of "chi-squared difference distribution"
-                gamma_XA_a = pm.ChiSquared('gamma_XA_a', self.plate_size - 1)  # First part of "chi-squared difference distribution"
-                gamma_XA_b = pm.ChiSquared('gamma_XA_b', self.plate_size - 1)  # Second part of "chi-squared difference distribution"
+                # Var(S_X) = n, but pm.Normal takes STANDARD DEVIATION as parameter.
+                S_X = pm.Normal('S_X', mu=0, sigma=at.sqrt(self.plate_size))
+                S_Y = pm.Normal('S_Y', mu=0, sigma=at.sqrt(self.plate_size))
+                S_A = pm.Normal('S_A', mu=0, sigma=at.sqrt(self.plate_size))
+                Z_XX = pm.ChiSquared('Z_XX', self.plate_size - 1)  # Independent part of sum of squares (independent of sum of X)
+                U_XY = pm.ChiSquared('U_XY', self.plate_size - 1)  # First part of "chi-squared difference distribution"
+                V_XY = pm.ChiSquared('V_XY', self.plate_size - 1)  # Second part of "chi-squared difference distribution"
+                U_XA = pm.ChiSquared('U_XA', self.plate_size - 1)  # First part of "chi-squared difference distribution"
+                V_XA = pm.ChiSquared('V_XA', self.plate_size - 1)  # Second part of "chi-squared difference distribution"
                 # N_E = N_E  # Just to be explicit.
-                S_9 = pm.Deterministic('S_9', (epsilon_SX * epsilon_SA / self.plate_size +
-                                            (gamma_XA_a - gamma_XA_b) / 2))
-                S_8 = pm.Deterministic('S_8', (epsilon_SX * epsilon_SY / self.plate_size +
-                                            (gamma_XY_a - gamma_XY_b) / 2))
-                S_7 = pm.Deterministic('S_7', gamma_XX - epsilon_SX**2 / self.plate_size)
+                S_9 = pm.Deterministic('S_9', (S_X * S_A / self.plate_size +
+                                            (U_XA - V_XA) / 2))
+                S_8 = pm.Deterministic('S_8', (S_X * S_Y / self.plate_size +
+                                            (U_XY - V_XY) / 2))
+                S_7 = pm.Deterministic('S_7', Z_XX - S_X**2 / self.plate_size)
                 S_6 = pm.Deterministic('S_6', (self.plate_size * alpha_mu_X * alpha_mu_Y +
-                                            alpha_mu_X * alpha_sigma_Y * epsilon_SY +
-                                            alpha_mu_Y * alpha_sigma_X * epsilon_SX +
+                                            alpha_mu_X * alpha_sigma_Y * S_Y +
+                                            alpha_mu_Y * alpha_sigma_X * S_X +
                                             alpha_sigma_X * alpha_sigma_Y * S_8))
                 S_5 = pm.Deterministic('S_5', N_E * (self.plate_size * alpha_mu_X * alpha_mu_A +
-                                            alpha_mu_X * alpha_sigma_A * epsilon_SA +
-                                            alpha_mu_A * alpha_sigma_X * epsilon_SX +
+                                            alpha_mu_X * alpha_sigma_A * S_A +
+                                            alpha_mu_A * alpha_sigma_X * S_X +
                                             alpha_sigma_X * alpha_sigma_A * S_9))
-                S_4 = pm.Deterministic('S_4', self.constants['a'] * (self.plate_size * alpha_mu_X + alpha_sigma_X * epsilon_SX))
+                S_4 = pm.Deterministic('S_4', self.constants['a'] * (self.plate_size * alpha_mu_X + alpha_sigma_X * S_X))
                 # Sum of S_1, S_2, and S_3 (denominator):
-                S_123 = pm.Deterministic('sum_X_squared', (self.plate_size * alpha_mu_X**2 +  # S_1
-                                                 2 * alpha_mu_X * alpha_sigma_X * epsilon_SX +  # S_2
+                S_123 = pm.Deterministic('S_123', (self.plate_size * alpha_mu_X**2 +  # S_1
+                                                 2 * alpha_mu_X * alpha_sigma_X * S_X +  # S_2
                                                  alpha_sigma_X**2 * S_7))  # S_3
                 # Equation for phi.
                 phi = pm.Deterministic('phi', (self.constants['b'] + self.constants['d'] * N_E +\
                                         (S_4 + S_5 + S_6) / S_123))
-                pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_, shape=X_o_.shape)
+                pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_, shape=X_o_.shape)  # Shape is already defined at pm.Data(). Probably cannot be changed here.
                 phi_hat = pred_o_ / X_o_
-                pm.Normal('phi_obs', phi, 1.0, observed=phi_hat)
+                pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
 
     def sample(self, X_o, pred_o, draws=1000):
         """
@@ -145,13 +146,9 @@ class AgentModel():
                               tune=1000,
                               target_accept=.95,
                               chains=4,
-                              random_seed=42,  # Fixed for reproducibility.
+                              #random_seed=42,  # Fixed for reproducibility.
                               #max_treedepth=15,
                               init="jitter+adapt_diag",
                               callback=printing_callback,
                               )
         return trace
-
-
-with pm.Model() as model:
-    pass
