@@ -43,14 +43,12 @@ Ad hoc tests
 #import pymc as pm
 # from pymc.sampling.jax import sample_numpyro_nuts
 import agent_models as am
-#import historical_scm
+import scm
 import arviz as az
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import binom
 import warnings
-
-
 
 def test_1(noise=False, test=True):
     """
