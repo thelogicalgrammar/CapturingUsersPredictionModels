@@ -10,7 +10,7 @@ import historical_scm
 
 # Set number of observations used to train prediction model.
 # This is also the plate size used later.
-PLATE_SIZE = 100
+PLATE_SIZE = 10
 
 # 1. Instantiate SCM to generate the "historical" data. Currently
 #    this is thought of as the true underlying SCM.
@@ -42,7 +42,7 @@ pred_model = LinearRegression(fit_intercept=False).fit(X.reshape(-1, 1), Y)
 
 # 4. The prediction model is now used for decision support. The physician
 #    inputs the data of the patient and the prediction model produces a prediction.
-X_o = np.asarray(80)  # The observed patient. x_o simulates a patient weighing 80kg.
+X_o = np.asarray(-280)  # The observed patient. x_o simulates a patient weighing 80kg.
 pred_o = pred_model.predict(X_o.reshape(-1, 1))  # The observed prediction
 print("The predicted outcome for this patient weighing {}kg is {}.".format(X_o, pred_o[0]))
 
@@ -58,9 +58,9 @@ trace = agent_model.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o[0]), dr
 if False:
     with agent_model.model:
         trace = pm.sample(
-            draws=1000, 
-            target_accept=.99, 
-            chains=4, 
+            draws=1000,
+            target_accept=.95,
+            chains=4,
             random_seed=42,
             max_treedepth=15,
             init="jitter+adapt_diag"

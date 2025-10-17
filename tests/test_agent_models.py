@@ -32,6 +32,13 @@ Consistency checks
 
 Sampler diagnostics
 
+Ad hoc tests
+-test whether the posterior means of the full model and the low-dim one are "sufficiently"
+ close to represent the same posterior.
+-Different plate size. What are we expecting?
+-Break dependencies in SCM e.g. by setting a=0 to simplify. Then X_o and pred_o should
+ induce a change in the distribution of Y.
+
 """
 #import pymc as pm
 # from pymc.sampling.jax import sample_numpyro_nuts
@@ -40,6 +47,8 @@ import agent_models as am
 import arviz as az
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.stats import binom
+import warnings
 
 
 
@@ -65,9 +74,18 @@ def test_1(noise=False, test=True):
     # a larger effect of the observed data on the posterior.
     # "If we see 'this extreme value' of phi_obs, then our prior beliefs must have 
     # been way off."
-    PLATE_SIZE = 100
-    agent_model_low_dim = am.AgentModel(plate_size=PLATE_SIZE, test=test)
-    agent_model_full_plate = am.AgentModel(plate_size=PLATE_SIZE, low_dim_aux_plate=False, test=test)
+    PLATE_SIZE = 5
+    test=False
+    prior_parameters = {'mu_X': 80, 'sigma_X': 1,
+                    'lambda_X': 10,
+                    'mu_A': 10, 'sigma_A': 1,
+                    'lambda_A': 10,
+                    'mu_Y': 0, 'sigma_Y': 1,
+                    'lambda_Y': 1,
+                    'N_E_mu': 20, 'N_E_sigma': 1}
+
+    agent_model_low_dim = am.AgentModel(plate_size=PLATE_SIZE, test=test, prior_parameters=prior_parameters)
+    agent_model_full_plate = am.AgentModel(plate_size=PLATE_SIZE, low_dim_aux_plate=False, test=test, prior_parameters=prior_parameters)
 
     if test:
         # Input maximum likelihood observation (peak of X-distribution etc.)
@@ -82,8 +100,9 @@ def test_1(noise=False, test=True):
             pred_o += np.random.normal(0, 10, size=pred_o.shape)
     else:
         # Use only one observation:
-        X_o = np.asarray(80.0)  # A person that would weight 80 kg. This falls in the middle of the
-        pred_o = np.asarray(400.47228)
+        phi = 5.0059035
+        X_o = np.asarray(200.0)  #80.0)  # A person that would weight 80 kg. This falls in the middle of the
+        pred_o = np.asarray(X_o * phi)
     # by the linear model when 10000 obsevations was used to fit it.
     print("Sampling low-dimensional auxiliary variable model... This can take a while.")
     trace_low_dim = agent_model_low_dim.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o), draws=1000)  # not element-wise yet?
@@ -95,57 +114,161 @@ def test_1(noise=False, test=True):
     print(summary_low_dim_plate_100)
     print(summary_full_plate_plate_100)
 
-    # We currently have a distribution only for mu_X. All others are one point value for every chain (I think).
-    az.plot_trace(trace_low_dim, var_names="alpha_mu_Y")
-    az.plot_trace(trace_full_plate, var_names="alpha_mu_Y")
-    az.plot_trace(trace_low_dim, var_names="alpha_mu_X")
-    az.plot_trace(trace_full_plate, var_names="alpha_mu_X")
-    az.plot_trace(trace_low_dim, var_names="alpha_mu_A")
-    az.plot_trace(trace_full_plate, var_names="alpha_mu_A")
-    az.plot_trace(trace_low_dim, var_names="N_E")
-    az.plot_trace(trace_full_plate, var_names="N_E")
+    # az.plot_trace(trace_low_dim, var_names="alpha_mu_Y")
+    # az.plot_trace(trace_full_plate, var_names="alpha_mu_Y")
+    # az.plot_trace(trace_low_dim, var_names="alpha_mu_X")
+    # az.plot_trace(trace_full_plate, var_names="alpha_mu_X")
+    # az.plot_trace(trace_low_dim, var_names="alpha_mu_A")
+    # az.plot_trace(trace_full_plate, var_names="alpha_mu_A")
+    # az.plot_trace(trace_low_dim, var_names="N_E")
+    # az.plot_trace(trace_full_plate, var_names="N_E")
+
+    az.plot_trace(trace_low_dim)
+    plt.show()
+    az.plot_energy(trace_low_dim)
+    plt.show()
+    az.plot_autocorr(trace_low_dim)
+    plt.show()
+    az.plot_rank(trace_low_dim)
     plt.show()
 
+
+def test_2(a, b):
     """
-    Output of test_1(noise=False, test=True) with seed=42:
+    Test for parametric similarity of full plate and low-dim model.
+    """
+    for var in ['alpha_mu_X', 'alpha_mu_Y', 'alpha_mu_A']:
+        compare(a, b, var)
 
->>> print(summary_low_dim_plate_100)
-                      mean         sd     hdi_2.5%    hdi_97.5%  mcse_mean   mcse_sd  ess_bulk  ess_tail  r_hat
-alpha_mu_X          80.000      0.000       80.000       80.000      0.000     0.000    4117.0    2704.0   1.00
-alpha_mu_A          10.090      0.493        9.296       10.539      0.246     0.119       4.0      12.0   3.38
-alpha_mu_Y          -0.431      0.386       -1.085       -0.099      0.192     0.106       4.0      24.0   3.32
-N_E                 19.770      0.500       19.310       20.567      0.249     0.117       4.0      11.0   3.42
-epsilon_SX          -0.305      0.800       -0.927        1.052      0.398     0.219       4.0      14.0   3.47
-epsilon_SY          -0.403      0.398       -0.895        0.130      0.198     0.067       4.0      14.0   3.47
-epsilon_SA          -0.100      0.204       -0.347        0.157      0.102     0.027       4.0      11.0   4.17
-alpha_sigma_X        0.000      0.000        0.000        0.000      0.000     0.000       5.0      14.0   3.10
-alpha_sigma_Y        0.868      0.133        0.700        1.044      0.066     0.023       4.0      11.0   4.17
-gamma_XX            92.847      4.994       86.583      100.546      2.487     1.263       4.0      14.0   3.34
-gamma_XY_a         104.634     10.496       91.172      120.633      5.227     2.648       4.0      11.0   3.73
-gamma_XY_b          90.976     12.359       78.473      110.077      6.155     2.689       4.0      12.0   3.22
-gamma_XA_a          93.947      7.670       83.098      102.174      3.820     1.274       5.0      11.0   3.08
-gamma_XA_b          84.800     12.427       67.046      102.180      6.189     3.093       4.0      16.0   4.19
-S_9                  4.574      7.047       -1.105       16.514      3.509     1.932       4.0      11.0   3.24
-S_8                  6.828     11.056       -9.446       21.081      5.506     2.568       4.0      11.0   3.66
-S_7                 92.840      4.996       86.576      100.544      2.488     1.264       4.0      14.0   3.34
-S_6              -3477.981   3088.135    -8722.058     -867.843   1537.879   854.230       4.0      21.0   3.33
-S_5            1593689.000  39393.174  1528991.893  1627772.597  19617.642  9983.155       4.0      14.0   3.46
-S_4              96000.000      0.000    96000.000    96000.000      0.000     0.000    4078.0    2873.0   1.00
-S_123           640000.000      0.000   640000.000   640000.000      0.000     0.000    4078.0    2873.0   1.00
-phi                  5.006      0.000        5.006        5.006      0.000     0.000       4.0      14.0   4.11
->>> print(summary_full_plate_plate_100)
-                  mean      sd  hdi_2.5%  hdi_97.5%  mcse_mean  mcse_sd  ess_bulk  ess_tail  r_hat
-alpha_mu_X      80.000   0.000    80.000     80.000      0.000    0.000    3972.0      93.0   1.08
-alpha_mu_A      10.265   0.732     9.593     11.503      0.365    0.202       4.0      13.0   3.59
-alpha_mu_Y      -0.329   0.253    -0.650      0.059      0.126    0.064       4.0      12.0   3.61
-N_E             19.604   0.682    18.445     20.199      0.340    0.189       4.0      13.0   3.59
-X[0]            80.000   0.000    80.000     80.000      0.000    0.000    4238.0      63.0   1.11
-...                ...     ...       ...        ...        ...      ...       ...       ...    ...
-Y[98]          395.637   9.334   386.077    408.243      4.648    1.261       5.0      22.0   3.23
-Y[99]          387.807  11.074   368.701    395.277      5.515    3.158       5.0      23.0   3.29
-alpha_sigma_X    0.000   0.000     0.000      0.000      0.000    0.000       4.0      11.0   3.54
-alpha_sigma_Y    0.962   0.355     0.583      1.517      0.177    0.082       4.0      11.0   3.35
-phi              5.006   0.000     5.006      5.006      0.000    0.000       4.0      11.0   3.51
+def compare(a, b, var_name='alpha_mu_X'):
+    """
+    This function estimates from two sets of points whether
+    one on average takes on higher values than the other.
+    It is basically a Bayesian test for similarity.
 
-[307 rows x 9 columns]
-"""
+    This could alternatively be formulated as p of 'a' being within
+    epsilon-distance from 'b', i.e. p(|a-b| < epsilon)
+
+    Args:
+    a (trace, arviz.data.inference_data.InferenceData): Object that can be 
+        accessed with a.posterior.[variable] for the posterior samples
+    b (trace): Same as above.
+    var_name (str): Name of the variable to compare on.
+    """
+    # Equality would be a *perfect* match.
+    # Counting pairwise differences. Comparing twice 
+    # If 90% of all pairs match, then both N_a_larger and N_a_smaller will be way
+    # below 0.5. Add half of the equal N to both for centering?
+
+    # Chains merged
+    N_equal = np.sum(np.equal(a.posterior[var_name].values, b.posterior[var_name].values))
+    N_b_larger = np.sum(np.greater(b.posterior[var_name].values, a.posterior[var_name].values))
+    N_b_smaller = np.sum(np.less(b.posterior[var_name].values, a.posterior[var_name].values))
+    N_obs = a.posterior[var_name].size
+    # Sanity check
+    text = "Error: Number of samples does not add up to total number of samples for {}.".format(var_name)
+    assert N_b_larger + N_b_smaller + N_equal == N_obs, text
+
+    # Bayesian pairwise rank test:
+    p_b_larger = (N_b_larger + .5 * N_equal) / N_obs
+    p_b_smaller = (N_b_smaller + .5 * N_equal) / N_obs
+    print("Bayesian pairwise rank test for {} in traces.".format(var_name))
+    print("p(b > a) = {:.2%}".format(p_b_larger))
+    print("p(b < a) = {:.2%}".format(p_b_smaller))
+    # Does the observed value fall within expected bounds?
+    if N_b_larger + .5 * N_equal > 0.5 * N_obs:
+        # Equally scoring observations split equally between upper and lower bound
+        upper_bound = N_b_larger + N_equal / 2
+        lower_bound = N_b_smaller + N_equal / 2
+    else:
+        upper_bound = N_b_smaller + N_equal / 2
+        lower_bound = N_b_larger + N_equal / 2
+    # Comparing results to binomial distribution
+    cdf_upper = binom.cdf(upper_bound, N_obs, 0.5)
+    cdf_lower = binom.cdf(lower_bound, N_obs, 0.5)
+    two_sided_mass = cdf_upper - cdf_lower
+    print("Pairwise rank difference within {:.2%} of expected if both traces come from the same distribution.".format(two_sided_mass))
+    if two_sided_mass > 0.95:
+        text = "The posterior distributions of alpha_X_mu differn more than 5%. \n" +\
+            "This might indicate a bug in model specification. Rerun test, perhaps fix."
+        raise Warning(text)
+    
+    # Z-test for means (assuming the trace of a is from the correct distribution)
+    a_mean = np.mean(a.posterior[var_name])
+    a_std = np.std(a.posterior[var_name])
+    b_mean = np.mean(b.posterior[var_name])
+    b_std = np.std(b.posterior[var_name])
+    print("Mean value and standard deviation for trace-a: {:.2}, {:.2}".format(a_mean, a_std))
+    print("Mean value and standard deviation for trace-c: {:.2}, {:.2}".format(b_mean, b_std))
+    print("Z-test comparing b-trace to a-trace.")
+    Z_score = np.abs(b_mean - a_mean) / a_std
+    print("Z-score for b-trace: {:.2}".format(Z_score))
+    if Z_score > .05:
+        # What is the appropriate Z-score for raising an error?
+        text = "Z-score too high to assume that the distributions of {} in the two traces are from the same distribution."
+        raise Warning(text)  # Maybe raise error instead of warning.
+    
+    # Maybe add KL-divergence?
+    return
+
+
+if __name__ == '__main__':
+    # Test similarity between full plate and low-dim models
+    PLATE_SIZE = 5
+    test=False
+    prior_parameters = {'mu_X': 80, 'sigma_X': 1,
+                    'lambda_X': 10,
+                    'mu_A': 10, 'sigma_A': 1,
+                    'lambda_A': 10,
+                    'mu_Y': 0, 'sigma_Y': 1,
+                    'lambda_Y': 1,
+                    'N_E_mu': 20, 'N_E_sigma': 1}
+
+    agent_model_low_dim = am.AgentModel(plate_size=PLATE_SIZE, test=True, prior_parameters=prior_parameters)
+    agent_model_full_plate = am.AgentModel(plate_size=PLATE_SIZE, low_dim_aux_plate=False, test=True, prior_parameters=prior_parameters)
+
+    # Use 100 observed variables centered around alpha_X_mu with prediction that corresponds 
+    # to model parameters generated from SCM plus some noise
+    X_o = np.asarray(100 * [80.0])  # A person that would weight 80 kg.
+    X_o += np.random.normal(0, 10, size=X_o.shape)
+    phi = 5.0059035
+    pred_o = np.asarray(100 * [80.0 * phi])  # Observed prediction
+    pred_o += np.random.normal(0, 10, size=pred_o.shape)
+
+    print("Sampling low-dimensional auxiliary variable model... This can take a while.")
+    trace_low_dim = agent_model_low_dim.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o), draws=1000)  # not element-wise yet?
+    print("Sampling full plate model... This might take 30 minutes.")
+    trace_full_plate = agent_model_full_plate.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o), draws=1000)
+
+    test_2(trace_full_plate, trace_low_dim)
+
+    az.plot_trace(trace_low_dim, var_names="alpha_mu_Y")
+    plt.savefig('./tests/fig/trace_low_dim_model.pdf')
+    plt.clf()
+    az.plot_energy(trace_low_dim)
+    plt.savefig('./tests/fig/energy_low_dim_model.pdf')
+    plt.clf()
+    az.plot_autocorr(trace_low_dim)
+    plt.savefig('./tests/fig/autocorrelation_low_dim_model.pdf')
+    plt.clf()
+    az.plot_rank(trace_low_dim)
+    plt.savefig('./tests/fig/rank_low_dim.pdf')
+    plt.clf()
+
+    az.plot_trace(trace_full_plate, var_names="alpha_mu_Y")
+    plt.savefig('./tests/fig/model_full_plate_model.pdf')
+    plt.clf()
+    az.plot_energy(trace_full_plate)
+    plt.savefig('./tests/fig/energy_full_plate_model.pdf')
+    plt.clf()
+    az.plot_autocorr(trace_full_plate)
+    plt.savefig('./tests/fig/autocorrelation_full_plate_model.pdf')
+    plt.clf()
+    az.plot_rank(trace_full_plate)
+    plt.savefig('./tests/fig/rank_full_plate.pdf')
+    plt.clf()
+
+
+    # Prior predictive checks
+    # Posterior checks
+    # Posterior predictive checks

@@ -147,7 +147,7 @@ class AgentModel():
                               target_accept=.95,
                               chains=4,
                               #random_seed=42,  # Fixed for reproducibility.
-                              #max_treedepth=15,
+                              max_treedepth=15,
                               init="jitter+adapt_diag",
                               callback=printing_callback,
                               )
