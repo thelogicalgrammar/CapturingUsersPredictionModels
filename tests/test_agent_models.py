@@ -49,10 +49,7 @@ Sampling metrics
 """
 import pymc as pm
 import agent_models as am
-import scm
-import arviz as az
 import numpy as np
-import matplotlib.pyplot as plt
 import tests.statistical_tests_for_similarity as sts
 import tests.visual_tests as vt
 import warnings
