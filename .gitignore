@@ -164,3 +164,4 @@ cython_debug/
 *.pdf
 tmp_env/
 .DS_Store
+tmp/
