@@ -5,7 +5,7 @@ import pymc as pm
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 import agent_models
-import historical_scm
+import scm
 
 
 print("Testing only that the code runs, not validating results.")
@@ -13,7 +13,7 @@ print("Testing only that the code runs, not validating results.")
 
 def test_binary_scm():
     # Create an instance of the BinaryA_SCM class
-    binary_scm = historical_scm.BinaryA_SCM(
+    binary_scm = scm.BinaryA_SCM(
         alpha_x_mu=0.0,
         alpha_x_sigma=1.0,
         alpha_a_mu=0.0,
@@ -32,7 +32,7 @@ def test_binary_scm():
     Y_do = binary_scm.sample_do_A(a_fixed, X, n=10, random_state=42)
     print("Y | do(A=1):", Y_do)
 
-    tmp = historical_scm.BinaryA_SCM(
+    tmp = scm.BinaryA_SCM(
         alpha_x_mu=0.0,
         alpha_x_sigma=1.0,
         alpha_a_mu=0.0,
@@ -40,13 +40,13 @@ def test_binary_scm():
         n_e=-0.5
     )
 
-    tmp2 = historical_scm.BinaryA_SCM.sample(tmp, n=10, random_state=42)
+    tmp2 = scm.BinaryA_SCM.sample(tmp, n=10, random_state=42)
     print(tmp2)
     return
 
 
 
-hist_model = historical_scm.SCM(
+hist_model = scm.SCM(
         alpha_x_mu   = 80,
         alpha_x_sigma= 10,
         alpha_a_mu   = 10, 

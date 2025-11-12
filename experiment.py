@@ -5,7 +5,7 @@ import pymc as pm
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 import agent_models
-import historical_scm
+import scm
 
 # Flag for quicker testing of code.
 TEST_CODE = False
@@ -14,7 +14,7 @@ TEST_CODE = False
 # prediction on a specific new data point.
 # We begin by defining an SCM and generating 100 data points.
 # This is the historical SCM so the parameters are fixed
-Hist = historical_scm.BinaryA_SCM(
+Hist = scm.BinaryA_SCM(
         alpha_x_mu   = 2,
         alpha_x_sigma= 1,
         alpha_a_mu   = 0,
@@ -136,7 +136,7 @@ if False:
 # -Analytic (exact, fastest)
 # -Save samples from the posterior in a dataframe
 df_params = trace.posterior.to_dataframe()
-df_params["cate"] = df_params.apply(historical_scm.estimate_cate_from_row, axis=1)
+df_params["cate"] = df_params.apply(scm.estimate_cate_from_row, axis=1)
 
 cate_vector = df_params["cate"].to_numpy()
 print(cate_vector)

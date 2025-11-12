@@ -49,7 +49,7 @@ Sampling metrics
 """
 import pymc as pm
 import agent_models as am
-#import historical_scm
+import scm
 import arviz as az
 import numpy as np
 import matplotlib.pyplot as plt
