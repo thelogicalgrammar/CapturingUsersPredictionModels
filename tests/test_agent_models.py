@@ -39,182 +39,172 @@ Ad hoc tests
 -Break dependencies in SCM e.g. by setting a=0 to simplify. Then X_o and pred_o should
  induce a change in the distribution of Y.
 
+ 
+KL-divergene
+
+Likelihood
+Compare likelihood of low-dim and full plate models given the same data
+
+Sampling metrics
 """
-#import pymc as pm
-# from pymc.sampling.jax import sample_numpyro_nuts
+import pymc as pm
 import agent_models as am
 #import historical_scm
 import arviz as az
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import binom
+import tests.statistical_tests_for_similarity as sts
+import tests.visual_tests as vt
 import warnings
 
+# The similarity checks are based on the variables
+# defined here.
+PRIOR_PREDICTIVE_VAR_NAMES = ['phi']
+POSTERIOR_PREDICTIVE_VAR_NAMES = ['phi_obs', 'X_o']
+POSTERIOR_VAR_NAMES = ['alpha_mu_X', 'N_E', 'alpha_sigma_X']
+SAMPLE_SIZE = 10000
 
 
-def test_1(noise=False, test=True):
+def check_similarity(observations_A, observations_B, var_name):
     """
-    Compare full plate model to low-dimensional auxiliary variable model.
-    
-    If noise=False, the models will be tested with 100 identical X_o and
-    and pred_o. This will make the posterior behave mostly like point estimates.
-    -This should be useful to see that both the full plate and low-dimensional
-    models are implemented correctly and produce the (almost) identical posterior.
-    
-    If noise=True, some noise is added to these observations. This should produce
-    distributions with some spread.
-
-    # Work-in-progress:
-    If test=False, the models will be tested with one X_o and pred_o observation.
-    -This is more like the real use case.
-    If noise=True, the 100 observations will be input.
-
+    Wrapper for all statistical tests in sts.
+    None of the tests check for dependences between variables.
     """
-    # Larger plate size should result in narrower distribution of phi_obs and in
-    # a larger effect of the observed data on the posterior.
-    # "If we see 'this extreme value' of phi_obs, then our prior beliefs must have 
-    # been way off."
-    PLATE_SIZE = 5
-    test=False
-    prior_parameters = {'mu_X': 80, 'sigma_X': 1,
-                    'lambda_X': 10,
-                    'mu_A': 10, 'sigma_A': 1,
-                    'lambda_A': 10,
-                    'mu_Y': 0, 'sigma_Y': 1,
-                    'lambda_Y': 1,
-                    'N_E_mu': 20, 'N_E_sigma': 1}
+    # Test for rank similarity
+    tmp1 = sts.bayesian_test_for_rank_similarity(observations_A, observations_B)
+    # Test for similarity of means:
+    tmp2 = sts.bayesian_test_for_similarity_of_means(observations_A, observations_B)
+    # Test for similarity of mean, variance, and skewness (bootstrap)
+    tmp3 = sts.bootstrap_test_for_similarity(observations_B, observations_A)
+    # Normalized Wasserstein distance
+    tmp4 = sts.normalized_wasserstein_distance(observations_A, observations_B)
 
-    agent_model_low_dim = am.AgentModel(plate_size=PLATE_SIZE, test=test, prior_parameters=prior_parameters)
-    agent_model_full_plate = am.AgentModel(plate_size=PLATE_SIZE, low_dim_aux_plate=False, test=test, prior_parameters=prior_parameters)
-
-    if test:
-        # Input maximum likelihood observation (peak of X-distribution etc.)
-        X_o = np.asarray(100 * [80.0])  # A person that would weight 80 kg. This falls in the middle of the
-        # prior for X.
-        # phi = 5.0059035
-        pred_o = np.asarray(100 * [400.47228])  # Prediction you actually saw. This is the value produced
-        if noise:
-            # Maybe add noise to this for some variation?
-            X_o += np.random.normal(0, 10, size=X_o.shape)
-            # Maybe scramble the predictions a bit as well?
-            pred_o += np.random.normal(0, 10, size=pred_o.shape)
+    if tmp1['success'] and tmp2['success'] and tmp3['success'] and tmp4['success']:
+        print("=== Numerical tests for similarity of {} passed. ===".format(var_name))
+        success = True
     else:
-        # Use only one observation:
-        phi = 5.0059035
-        X_o = np.asarray(200.0)  #80.0)  # A person that would weight 80 kg. This falls in the middle of the
-        pred_o = np.asarray(X_o * phi)
-    # by the linear model when 10000 obsevations was used to fit it.
-    print("Sampling low-dimensional auxiliary variable model... This can take a while.")
-    trace_low_dim = agent_model_low_dim.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o), draws=1000)  # not element-wise yet?
-    print("Sampling full plate model... This might take 30 minutes.")
-    trace_full_plate = agent_model_full_plate.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o), draws=1000)
-
-    summary_low_dim_plate_100 = az.summary(trace_low_dim, hdi_prob=0.95)
-    summary_full_plate_plate_100 = az.summary(trace_full_plate, hdi_prob=0.95)
-    print(summary_low_dim_plate_100)
-    print(summary_full_plate_plate_100)
-
-    # az.plot_trace(trace_low_dim, var_names="alpha_mu_Y")
-    # az.plot_trace(trace_full_plate, var_names="alpha_mu_Y")
-    # az.plot_trace(trace_low_dim, var_names="alpha_mu_X")
-    # az.plot_trace(trace_full_plate, var_names="alpha_mu_X")
-    # az.plot_trace(trace_low_dim, var_names="alpha_mu_A")
-    # az.plot_trace(trace_full_plate, var_names="alpha_mu_A")
-    # az.plot_trace(trace_low_dim, var_names="N_E")
-    # az.plot_trace(trace_full_plate, var_names="N_E")
-
-    az.plot_trace(trace_low_dim)
-    plt.show()
-    az.plot_energy(trace_low_dim)
-    plt.show()
-    az.plot_autocorr(trace_low_dim)
-    plt.show()
-    az.plot_rank(trace_low_dim)
-    plt.show()
+        text = "Similarity was not confirmed."
+        warnings.warn(text)
+        success = False
+    return {'success': success,
+            'rank': tmp1,
+            'mean': tmp2,
+            'bootstrap': tmp3,
+            'wasserstein': tmp4}
 
 
-def test_2(a, b):
+def prior_predictive_check_for_similarity(model_A, model_B, 
+                                          var_names=PRIOR_PREDICTIVE_VAR_NAMES,
+                                          sample_size=SAMPLE_SIZE):
     """
-    Test for parametric similarity of full plate and low-dim model.
-    """
-    for var in ['alpha_mu_X', 'alpha_mu_Y', 'alpha_mu_A']:
-        compare(a, b, var)
-
-def compare(a, b, var_name='alpha_mu_X'):
-    """
-    This function estimates from two sets of points whether
-    one on average takes on higher values than the other.
-    It is basically a Bayesian test for similarity.
-
-    This could alternatively be formulated as p of 'a' being within
-    epsilon-distance from 'b', i.e. p(|a-b| < epsilon)
+    Prior predictive check for similarity between models.
+    The function generates a number of observations of the variable
+    defined from both models and compares the observations.
 
     Args:
-    a (trace, arviz.data.inference_data.InferenceData): Object that can be 
-        accessed with a.posterior.[variable] for the posterior samples
-    b (trace): Same as above.
-    var_name (str): Name of the variable to compare on.
+    model_A: Can be e.g. a low_dim_model. 
+    full_plate_model:
+    var_names ([str, ]): List with names of variables to run similarity
+     check on.
+    sample_size (int): Size of sample (number of observations) to
+     generate from both models for comparison.
     """
-    # Equality would be a *perfect* match.
-    # Counting pairwise differences. Comparing twice 
-    # If 90% of all pairs match, then both N_a_larger and N_a_smaller will be way
-    # below 0.5. Add half of the equal N to both for centering?
+    # Generate observations from both models
+    with model_A.model:
+        model_A_prior_predictive = pm.sample_prior_predictive(samples=sample_size)
+    with model_B.model:
+        model_B_prior_predictive = pm.sample_prior_predictive(samples=sample_size)
+    # Extract numpy arrays of phi-observations:
+    success = []
+    visualization = vt.VisualTests(var_names)
+    for var_name in var_names:
+        observations_model_A = model_A_prior_predictive.prior[var_name].values.flatten()
+        observations_model_B = model_B_prior_predictive.prior[var_name].values.flatten()
+        success.append(check_similarity(observations_model_A, observations_model_B, var_name))
+        visualization.plot(observations_model_A, observations_model_B, var_name)
+    visualization.show()
 
-    # Chains merged
-    N_equal = np.sum(np.equal(a.posterior[var_name].values, b.posterior[var_name].values))
-    N_b_larger = np.sum(np.greater(b.posterior[var_name].values, a.posterior[var_name].values))
-    N_b_smaller = np.sum(np.less(b.posterior[var_name].values, a.posterior[var_name].values))
-    N_obs = a.posterior[var_name].size
-    # Sanity check
-    text = "Error: Number of samples does not add up to total number of samples for {}.".format(var_name)
-    assert N_b_larger + N_b_smaller + N_equal == N_obs, text
+    return success
 
-    # Bayesian pairwise rank test:
-    p_b_larger = (N_b_larger + .5 * N_equal) / N_obs
-    p_b_smaller = (N_b_smaller + .5 * N_equal) / N_obs
-    print("Bayesian pairwise rank test for {} in traces.".format(var_name))
-    print("p(b > a) = {:.2%}".format(p_b_larger))
-    print("p(b < a) = {:.2%}".format(p_b_smaller))
-    # Does the observed value fall within expected bounds?
-    if N_b_larger + .5 * N_equal > 0.5 * N_obs:
-        # Equally scoring observations split equally between upper and lower bound
-        upper_bound = N_b_larger + N_equal / 2
-        lower_bound = N_b_smaller + N_equal / 2
-    else:
-        upper_bound = N_b_smaller + N_equal / 2
-        lower_bound = N_b_larger + N_equal / 2
-    # Comparing results to binomial distribution
-    cdf_upper = binom.cdf(upper_bound, N_obs, 0.5)
-    cdf_lower = binom.cdf(lower_bound, N_obs, 0.5)
-    two_sided_mass = cdf_upper - cdf_lower
-    print("Pairwise rank difference within {:.2%} of expected if both traces come from the same distribution.".format(two_sided_mass))
-    if two_sided_mass > 0.95:
-        text = "The posterior distributions of alpha_X_mu differn more than 5%. \n" +\
-            "This might indicate a bug in model specification. Rerun test, perhaps fix."
-        raise Warning(text)
-    
-    # Z-test for means (assuming the trace of a is from the correct distribution)
-    a_mean = np.mean(a.posterior[var_name])
-    a_std = np.std(a.posterior[var_name])
-    b_mean = np.mean(b.posterior[var_name])
-    b_std = np.std(b.posterior[var_name])
-    print("Mean value and standard deviation for trace-a: {:.2}, {:.2}".format(a_mean, a_std))
-    print("Mean value and standard deviation for trace-c: {:.2}, {:.2}".format(b_mean, b_std))
-    print("Z-test comparing b-trace to a-trace.")
-    Z_score = np.abs(b_mean - a_mean) / a_std
-    print("Z-score for b-trace: {:.2}".format(Z_score))
-    if Z_score > .05:
-        # What is the appropriate Z-score for raising an error?
-        text = "Z-score too high to assume that the distributions of {} in the two traces are from the same distribution."
-        raise Warning(text)  # Maybe raise error instead of warning.
-    
-    # Maybe add KL-divergence?
-    return
+
+def posterior_check_for_similarity(trace_A, trace_B, 
+                                   var_names=POSTERIOR_VAR_NAMES):
+    """
+    Args:
+    trace_1: trace of model 1
+    trace_2: trace of model 2
+    var_names ([str, ]): List of names of variables to perform check
+     over. Defaults to list specified at beginning of file.
+    """
+    print("=" * 40)
+    print("POSTERIOR CHECKS FOR SIMILARITY")
+    success = []
+    visualization = vt.VisualTests(var_names)
+    for var_name in var_names:
+        print("-" * 40)
+        print("Checking similarity of {}...".format(var_name))
+        observations_A = trace_A.posterior[var_name].values.flatten()
+        observations_B = trace_B.posterior[var_name].values.flatten()
+        success.append(check_similarity(observations_A, observations_B, var_name))
+        visualization.plot(observations_A, observations_B, var_name)
+    visualization.show()
+
+    return success
+
+
+def posterior_predictive_check_for_similarity(model_A, model_B,
+                                              trace_A, trace_B,
+                                              var_names=POSTERIOR_PREDICTIVE_VAR_NAMES):
+    """
+    Args:
+    model_A (AgentModel): Model that generated trace_A.
+    model_B (AgentModel): Model that generated trace_B.
+    trace_A: trace of model A
+    trace_B: trace of model B
+    var_names ([str, ]): List of variable names for variables
+     to perform similarity check on.
+    """
+    with model_A.model:
+        # Model is needed to map the posterior parameters to a
+        # DAG, and trace contains the sampled posterior parameters.
+        posterior_samples_A = pm.sample_posterior_predictive(trace_A)
+    with model_B.model:
+        posterior_samples_B = pm.sample_posterior_predictive(trace_B)
+
+    success = []
+    visualization = vt.VisualTests(var_names)
+    # Extract numpy arrays of phi-observations:
+    print("POSTERIOR PREDICTEIVE CHECKS FOR SIMILARITY")
+    for var_name in var_names:
+        # Extract one variable at a time and perform similarity check
+        print("-" * 40)
+        print("Checking similarity of {}...".format(var_name))
+        observations_A = posterior_samples_A.posterior_predictive[var_name].values.flatten()
+        observations_B = posterior_samples_B.posterior_predictive[var_name].values.flatten()
+        success.append(check_similarity(observations_A, observations_B, var_name))
+        visualization.plot(observations_A, observations_B, var_name)
+    visualization.show()
+
+    return success
+
 
 
 if __name__ == '__main__':
+    """
+    Also check:
+    -different plate sizes.
+    -different prior parameters.
+    -different observations (not perfectly centered!)
+    -updating with just one observation (instead of 100)
+
+    Can we figure out automatically which variables exist in both models
+    and which ones are predictive?
+    -Could run tests automatically on those.
+    -Does it complicate "modifications" too much? Maybe.
+    """
     # Test similarity between full plate and low-dim models
     PLATE_SIZE = 5
+    sample_size = 10000  # What should this number be?
     test=False
     prior_parameters = {'mu_X': 80, 'sigma_X': 1,
                     'lambda_X': 10,
@@ -227,6 +217,11 @@ if __name__ == '__main__':
     agent_model_low_dim = am.AgentModel(plate_size=PLATE_SIZE, test=True, prior_parameters=prior_parameters)
     agent_model_full_plate = am.AgentModel(plate_size=PLATE_SIZE, low_dim_aux_plate=False, test=True, prior_parameters=prior_parameters)
 
+    # Prior predictive check
+    import tests.test_agent_models as tam
+    tmp1 = tam.prior_predictive_check_for_similarity(agent_model_low_dim,
+                                                agent_model_full_plate)
+    # Posterior checks
     # Use 100 observed variables centered around alpha_X_mu with prediction that corresponds 
     # to model parameters generated from SCM plus some noise
     X_o = np.asarray(100 * [80.0])  # A person that would weight 80 kg.
@@ -236,12 +231,20 @@ if __name__ == '__main__':
     pred_o += np.random.normal(0, 10, size=pred_o.shape)
 
     print("Sampling low-dimensional auxiliary variable model... This can take a while.")
-    trace_low_dim = agent_model_low_dim.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o), draws=1000)  # not element-wise yet?
+    trace_low_dim = agent_model_low_dim.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o), draws=1000)
     print("Sampling full plate model... This might take 30 minutes.")
     trace_full_plate = agent_model_full_plate.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o), draws=1000)
 
-    test_2(trace_full_plate, trace_low_dim)
+    tmp2 = posterior_check_for_similarity(trace_low_dim, trace_full_plate)
 
+    # Posterior predictive check
+    tmp3 = posterior_predictive_check_for_similarity(agent_model_low_dim,
+                                                         agent_model_full_plate,
+                                                         trace_low_dim,
+                                                         trace_full_plate)
+
+
+def misc():
     az.plot_trace(trace_low_dim, var_names="alpha_mu_Y")
     plt.savefig('./tests/fig/trace_low_dim_model.pdf')
     plt.clf()
@@ -272,3 +275,26 @@ if __name__ == '__main__':
     # Prior predictive checks
     # Posterior checks
     # Posterior predictive checks
+
+    # Posterior checks
+    az.plot_trace(trace_low_dim)
+    plt.show()
+    az.plot_energy(trace_low_dim)
+    plt.show()
+    az.plot_autocorr(trace_low_dim)
+    plt.show()
+    az.plot_rank(trace_low_dim)
+    plt.show()
+
+    summary_low_dim = az.summary(low_dim_prior_predictive)
+    # common_var_names = ['A', 'N_E', 'X', 'X_o', 'Y', 'alpha_mu_A', 'alpha_mu_X', 'alpha_mu_Y', 'alpha_sigma_X', 'alpha_sigma_Y', 'phi_obs']
+    common_var_names = 'phi_obs'
+    tmp_low_dim = az.extract(low_dim_prior_predictive, group='prior_predictive', var_names=common_var_names)
+    tmp_full_plate = az.extract(full_plate_prior_predictive, group='prior_predictive', var_names=common_var_names)
+    summary_full_plate = az.summary(full_plate_prior_predictive)
+    # Check noise variables as a sanity check. Should *trivially* be equivalent... Should.
+    # Check resulting phi. This is really the interesting part. Both models should
+    # produce the same distribution of phi.
+    # tmp = {'low_dim': tmp_low_dim, 'full_plate': tmp_full_plate}
+    # AZ does not compare prior predictive distributions.
+    # az.compare(tmp)
