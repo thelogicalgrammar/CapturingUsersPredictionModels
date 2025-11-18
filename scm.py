@@ -1,10 +1,20 @@
 """
-Data generation, intervention, and CATE estimation
+Structural causal model (SCM) for 
+-data generation, and
+-for agent's internal representation.
+Agent uses this model to prescribe treatment
+based on his prior beliefs before seeing new
+information, and based on his posterior beliefs
+after seeing new information.
+
+Notes:
+Might be more efficient to reimplement the SCM
+class using pymc, especially as the Bayesian agent
+(agent model) is implemented using pymc.
 """
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Tuple
 
 
 # ---------- helpers ----------
@@ -14,106 +24,162 @@ def sigmoid(z):
 
 @dataclass
 class SCM:
-    alpha_x_mu: float      # μ of N_X
-    alpha_x_sigma: float   # σ of N_X        (σ > 0)
-    alpha_a_mu: float      # μ of N_A
-    alpha_y_sigma: float   # σ of N_Y        (σ > 0)
-    n_e: float = 0.5       # coefficient N_E   (e.g. −0.5)
-    A_type: str = "continuous" # "binary" or "continuous"
-    # Model parameters for the deterministic parts should preferably
-    # also be modifiable.
+    """
+    Class for SCM with continuous A, continuous X,
+    and continuous Y.
+    """
+    alpha_mu_X: float = 80
+    alpha_sigma_X: float = 10
+    alpha_mu_A: float = 10
+    alpha_sigma_A: float = 1.0
+    alpha_mu_Y: float = 0.0
+    alpha_sigma_Y: float = 0.1
+    N_E: float = 20  # Said 0.5 previously?!?
+    a: float = 12.0
+    b: float = -0.1
+    d: float = 0.125
 
-    # ----------------------------------------------------------
-    #   Observational sampling
-    #   Binary A, continuous x, continuous y
-    # ----------------------------------------------------------
-    def sample(self, n: int = 1, random_state=None
-              ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def update_parameters(self, parameter_dict):
         """
-        Generates n samples from the SCM.
+        Method to update chosen parameters in SCM
 
         Args:
-        n (int): Number of observations to generate.
-        random_state (int, np.random.Generator, None): Seed for reproducibility.
+        parameter_dict (dict): Dictionary of parameters
+         where the keys match parameter names in the scm.
         """
-        rng = np.random.default_rng(random_state)
+        for key, value in parameter_dict.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+            else:
+                raise ValueError("Unknown parameter: {}".format(key))
 
-        # exogenous noise
-        N_X = rng.normal(self.alpha_x_mu, self.alpha_x_sigma, size=n)
-        N_Y = rng.normal(0.0, self.alpha_y_sigma, size=n)
-        N_A = rng.normal(self.alpha_a_mu, 1.0, size=n)
-
-        # endogenous variables
-        X = N_X
-        if self.A_type == "continuous":
-            # Continuous treatment A
-            A = 0.125 * X + N_A  # 1/8 of X is added to dosage.
-        elif self.A_type == "binary":
-            # Binary treatment A
-            # p(A = 1 | X, N_A) = sigmoid(0.7 * X**2 + N_A)
-            # Note: 0.7 is a hyperparameter that can be adjusted.
-            # It controls the strength of the relationship between X and A.
-            p_A = sigmoid(0.7 * X**2 + N_A)  # P(A = 1 | X, N_A)
-            A = rng.binomial(1, p_A)  # binary treatment
-        else:
-            raise ValueError("A_type must be 'binary' or 'continuous'.")
-        Y = 12 - 0.1 * X + self.n_e * A + N_Y  # Agent assumes the treatement effect is independent of X and constant.
-        # Y = 0.5 * X + self.n_e * A + N_Y
-        return X, A, Y
-
-    def sample_do_A(self,
-             a_fixed,
-             X: np.ndarray,
-             n: int = 1,
-             random_state=None
-            ) -> np.ndarray:
+    def sample(self, X=None, A=None, draws=1, rng=None):
         """
-        Samples from the SCM given do(A = a_fixed).
-        Returns an array with shape (n, *X.shape), where each row
-        is an i.i.d. sample from  Y | do(A=a_fixed), X.
+        This method encodes the structure of the SCM and generates 
+        samples of X, Y and A:
+            X, A, Y ~ p(X, Y, A).
+        If X is passed, then the output A and Y are conditional on
+        the value of X:
+            A, Y ~ p(A, Y| X).
+        If A is passed, the output Y is conditional on the
+        intervention do(A):
+            X, Y ~ p(X, Y| do(A)).
+        If both X and Y are passed, the output is conditional on X
+        and on the intervention do(A):
+            Y ~ p(Y| X, do(A)).
+        All of X, A, and Y are always passed. In addition, the distribution
+        parameters for Y (mu_Y_cond, and var_Y_cond) are passed. If X
+        and/or A are provided, the distribution parameters are conditional
+        on the given values. Otherwise they are "conditional" only on the
+        sampled values (in contrast how the word "conditional" is normally
+        used).
 
         Args:
-        a_fixed (int- or array-like, values in {0, 1}): value to intervene on A, or array with X.shape
+        X: Optional input. If provided, output will be conditional on X.
+        A: Optional input. If provided, output will be conditional on do(A).
+        draws (int): Size of sample to generate.
+        rng: seed or initialized random number generator for reproducibility
+        """
+        # Sample noise when needed:
+        rng = np.random.default_rng(rng)
+        if X is None:
+            # Sample N_X and calculate X
+            N_X = rng.normal(self.alpha_mu_X, self.alpha_sigma_X, size=draws)
+            X = N_X
+        if A is None:
+            # Sample N_A and calculate A
+            N_A = rng.normal(self.alpha_mu_A, self.alpha_sigma_A, size=draws)
+            # Calculate A
+            A = self.d * X + N_A
+        # Sample N_Y
+        N_Y = rng.normal(self.alpha_mu_Y, self.alpha_sigma_Y, size=draws)
+        # Estimate conditional parameters for Y|X,do(A) ~ N(mu_Y, sigma_Y)
+        # If neither X nor A was passed, the generated Y is "conditional" on
+        # the sampled values (this is not what "conditional" usually refers to).
+        # If X was passed, the output Y is conditional on the passed value. 
+        # If A was passed, the output Y is conditional on do(A).
+        mu_Y_cond = self.a + self.b * X + self.N_E * A
+        var_Y_cond = np.full_like(mu_Y_cond, self.alpha_sigma_Y)
+        # Model defines the treatement effect as independent of X.
+        Y = mu_Y_cond + N_Y
+        # {'X': X, 'Y': Y, 'A': A, 'mu_Y_cond': mu_Y_cond, 'var_Y_cond': var_Y_cond}
+        return X, A, Y, mu_Y_cond, var_Y_cond
+
+    def sample_do_A(self, A_fixed, X: np.ndarray, draws: int = 1,
+                    rng=None) -> np.ndarray:
+        """
+        Generates sample from the SCM given the data and set treatments, i.e.
+            Y_i ~ p(Y|do(A_fixed), X)
+        Returns an array with shape (n, *X.shape).
+        This is merely a wrapper for the interventional path in self.sample().
+
+        Args:
+        A_fixed (int- or array-like): value to intervene on A, or array with X.shape
         X: observed values of X
-        n (int): number of samples to draw
-        random_state: seed for reproducibility
+        draws (int): Size of sample to draw for every observation in A.
+        rng: seed or initialized random number generator for reproducibility
         """
-        # Sanity check
-        if self.A_type == 'binary':
-            if np.any((np.asarray(a_fixed) != 0) & (np.asarray(a_fixed) != 1)):
-                raise ValueError("a_fixed must be 0 or 1 (binary).")
-
-        rng = np.random.default_rng(random_state)
-        X = np.asarray(X)
-        a_fixed = np.asarray(a_fixed)
-
-        if a_fixed.shape == ():  # broadcast scalar
-            a_fixed = np.full_like(X, a_fixed)
-        if a_fixed.shape != X.shape:
-            raise ValueError("`a_fixed` and `X` must have the same shape "
-                             "or `a_fixed` must be scalar.")
-
-        N_Y = rng.normal(0.0, self.alpha_y_sigma, size=(n,) + X.shape)
-        # Y_do = 0.5 * X[None, ...] + self.n_e * a_fixed[None, ...] + N_Y
-        Y_do = 12 - 0.1 * X[None, ...] + self.n_e * a_fixed + N_Y
+        # Either include checks everywhere or nowhere.
+        # X = np.asarray(X)
+        # A_fixed = np.asarray(A_fixed)
+        # if A_fixed.shape == ():  # broadcast scalar
+        #     A_fixed = np.full_like(X, A_fixed)
+        # if A_fixed.shape != X.shape:
+        #     raise ValueError("`A_fixed` and `X` must have the same shape "
+        #                      "or `A_fixed` must be scalar.")
+        _X, _A, Y_do, *_ = self.sample(X, A=A_fixed, draws=draws, rng=rng)
         return Y_do
 
-    # ----------------------------------------------------------
-    #    Closed-form distribution of  Y | do(A=a), X
-    # ----------------------------------------------------------
-    def analytic_do_distribution(self, a_fixed, X
-                                ) -> Tuple[np.ndarray, float]:
+    def sample_CATE(self, X, A1_fixed, A0_fixed, draws=1, rng=None):
         """
-        Returns the mean and variance of Y given X and do(a_fixed).
+        This method samples the CATE-distribution using treatment 1 (higher dosage)
+        instead of treatment 0.
+        Given X and two treatment options A1_fixed and A0_fixed
 
         Args:
-        a_fixed (int or np.ndarray): value to intervene on A, or array with X.shape
-        X (np.ndarray): observed values of X
+        X (float): Feature to condition on
+        A1_fixed [float]: Dosage value of higher dose treatment
+        A0_fixed [float]: Dosage value of lower dose treatment
+        draws (int): Size of sample to generate
+        rng: seed or initialized random number generator for reproducibility
         """
-        a_fixed = np.asarray(a_fixed)
-        mu = 12 - 0.1 * np.asarray(X) + self.n_e * a_fixed
-        var = self.alpha_y_sigma ** 2
-        return mu, var
+        # Sample an outcome with treatment 1:
+        Y_do1 = self.sample_do_A(A1_fixed, X, draws, rng=rng)
+        # Sample an outcome with treatment 0:
+        Y_do0 = self.sample_do_A(A0_fixed, X, draws, rng=rng)
+        # The sample drawn from the CATE-distribution:
+        CATE_samples = Y_do1 - Y_do0
+        if draws > 2:
+            # Estimate mean and variance from sample
+            CATE_mean = np.mean(CATE_samples)
+            CATE_std = np.std(CATE_samples)
+        else:
+            CATE_mean = None
+            CATE_std = None
+        return CATE_samples, CATE_mean, CATE_std
+
+    # Maybe move most of this to tests.
+    def get_CATE_mu(self, A1_fixed, A0_fixed):
+        """
+        This method returns the mean of the CATE-distribution given
+        X, A1_fixed, and A0_fixed. Due to how the SCM is defined,
+        this value is equivalent to (A1_fixed - A0_fixed) * self.N_E.
+
+        The SCM in this class is defined so that Y given A and X is
+        normally distributed and its parameters are deterministically
+        determined by the values of A and X. This results in the CATE-
+        distibution also being normal and allows for deterministic
+        calculation of the mean as:
+            CATE_mu(X) = E(Y| X, do(A=A1)) - E(Y| X, do(A=A0))
+
+        Args:
+        A1_fixed [float]: Dosage value of higher dose treatment
+        A0_fixed [float]: Dosage value of lower dose treatment
+        """
+        # _X1, _A1, _Y1, mu_Y1, _* = self.sample(X, A1_fixed)
+        # _X0, _A0, _Y0, mu_Y0, _* = self.sample(X, A0_fixed)
+        # assert mu_Y1 - mu_Y0 == self.N_E, "Something wrong in mu-calculations"
+        return (A1_fixed - A0_fixed) * self.N_E
 
 
 class BinaryA_SCM(SCM):
@@ -121,109 +187,54 @@ class BinaryA_SCM(SCM):
     A specific SCM with binary treatment A, continuous X and Y.
     This class inherits from SCM and sets the A_type to "binary".
     """
-    def __init__(self, alpha_x_mu, alpha_x_sigma, alpha_a_mu,
-                 alpha_y_sigma, n_e):
+    def __init__(self, alpha_mu_X, alpha_sigma_X, alpha_mu_A,
+                 alpha_sigma_Y, N_E):
         super().__init__(
-            alpha_x_mu=alpha_x_mu,
-            alpha_x_sigma=alpha_x_sigma,
-            alpha_a_mu=alpha_a_mu,
-            alpha_y_sigma=alpha_y_sigma,
-            n_e=n_e,
-            A_type="binary"
+            alpha_mu_X=alpha_mu_X,
+            alpha_sigma_X=alpha_sigma_X,
+            alpha_mu_A=alpha_mu_A,
+            alpha_sigma_Y=alpha_sigma_Y,
+            N_E=N_E,
         )
 
-
-
-# Looping over different parameters of the SCM
-def estimate_cate_from_row(row, *, n_mc: int = 0, seed: int | None = None,
-                           mode='binary'):
-    """
-    This function is used to estimate CATE given a series of parameters to initialize
-    the SCM.
-
-    Args:
-    row … a Series from df_params  (one set of α's and n_e)
-    n_mc (int): If n_mc = 0, then the CATE is computed analytically (fast, exact).
-                If n_mc > 0, then the CATE is computed using n_mc draws (Monte-Carlo sampling)
-    seed (int, None): Seed for reproducibility of the random sampling.
-    """
-    if n_mc == 0:
-        # Analytic version
-        # In this SCM  CATE(X) = E[Y|do(A=1),X] − E[Y|do(A=0),X] = n_e
-        #return scm.n_e  # No sense in initializing SCM  as we are only returning the value of n_e.
-        return row["NE"]
-    else:
-        # Monte-Carlo version
-        print('Defaulting to model with binary treatment.')
-        scm = BinaryA_SCM(
-            alpha_x_mu   = row["αXμ"],
-            alpha_x_sigma= row["αXσ"],
-            alpha_a_mu   = row["αAμ"],
-            alpha_y_sigma= row["αYσ"],
-            n_e          = row["NE"],
-        )
-        X, *_ = scm.sample(n=n_mc, random_state=seed)
-        # Why do we use the analytic version next?
-        # X is sampled. 
-        # HARD CODED TO BINARY TREATMENT. CHANGE. SUPPORT ALSO CONTINUOUS TREATMENTS.
-        mu1, _ = scm.analytic_do_distribution(1, X)
-        mu0, _ = scm.analytic_do_distribution(0, X)
-        # This ends up being the value where the MC-version should converge to:
-        return (mu1 - mu0).mean()
-
-
-def sample_CATE(row, X, a1_fixed, a0_fixed):
+    def sample(self, X=None, A=None, draws=1, rng=None):
         """
-        This function samples the CATE-distribution from using treatment 1 (higher dosage)
-        instead of treatment 0.
+        Definition of SCM structure (and variables)
+        If N_A is passed, A is calculated. If A is passed,
+        it is used as is.
 
         Args:
-        row (series from from df_params): Posterior parameters
-        X (float): Feature to condition on
-        a1_fixed [float]: Dosage value of higher dose treatment
-        a0_fixed [float]: Dosage value of lower dose treatment
-
-        Again, what are we more specifically interested in?
-        The expected treatment effect for a patient with features X at
-        the doctor's office?
-        The name specifically indicates that this is NOT ATE!
+        X (float): Optional input. If provided, output will be conditional on X.
+        A (float): Optional input. If provided, output will be conditional on do(A).
+        draws (int): Size of sample to generate.
+        rng (int or rng): seed or initialized random number generator for reproducibility
         """
-        # New model for data generation instantiated with posterior parameter values:
-        scm = SCM(
-            alpha_x_mu   = row["αXμ"],
-            alpha_x_sigma= row["αXσ"],
-            alpha_a_mu   = row["αAμ"],
-            alpha_y_sigma= row["αYσ"],
-            n_e          = row["NE"],  # Is this supposed to be updated?
-            A_type       = 'continuous'
-        )
-        # Sample an outcome with treatment 1:
-        Y_do1 = scm.sample_do_A(a1_fixed, X)
-        # Sample an outcome with treatment 0:
-        Y_do0 = scm.sample_do_A(a0_fixed, X)
-        # The sample drawn from the CATE-distribution:
-        CATE_sample = Y_do1 - Y_do0
-        return CATE_sample
-
-
-def estimate_CATE_parameters(row, X, a1_fixed, a0_fixed, n=1000):
-    """
-    Sample many points from the CATE-distribution and estimate mean
-    and variance?
-    """
-    pass
-
-def marginal_CATE():
-    """
-    marginalCATE(X) = E[Y|X, do(A=a1)] - E[Y|X, do(A=a0)]
-    """
-    pass
+        # Sample noise when needed:
+        rng = np.random.default_rng(rng)
+        if X is None:
+            # Sample N_X and calculate X
+            N_X = rng.normal(self.alpha_mu_X, self.alpha_sigma_X, size=draws)
+            X = N_X
+        if A is None:
+            # Sample N_A and calculate A
+            N_A = rng.normal(self.alpha_mu_A, self.alpha_sigma_A, size=draws)
+            # Calculate A
+            # Binary treatment A
+            # p(A = 1 | X, N_A) = sigmoid(d * X**2 + N_A)
+            # 'd' controls the strength of the relationship between X and A.
+            p_A = sigmoid(self.d * X**2 + N_A)  # P(A = 1 | X, N_A)
+            A = rng.binomial(1, p_A)  # binary treatment
+        # Sample N_y
+        N_Y = rng.normal(self.alpha_mu_Y, self.alpha_sigma_Y, size=draws)
+        # Agent assumes the treatement effect is independent of X and constant.
+        Y = self.a + self.b * X + self.N_E * A + N_Y
+        return X, A, Y
 
 
 if __name__ == "__main__":
     """
     Run a simple test of the SCM class
     """
-    import tests.test_historical_scm
+    import tests.test_scm
     # If no crash, then the test passed.
     print("\nSCM test passed.")
