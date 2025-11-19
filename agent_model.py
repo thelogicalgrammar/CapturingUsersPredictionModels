@@ -234,7 +234,7 @@ class AgentModel():
             sample.append([X, A, Y])
         return sample
     
-    def sample_prior_predictive_CATE(self, X, A1_fixed, A0_fixed, rng=None):
+    def sample_prior_predictive_CATE(self, X, A1_treatment, A0_treatment, rng=None):
         """
         This method returns a sample from the prior CATE-distribution,
         and its sample mean and standard deviation.
@@ -242,8 +242,8 @@ class AgentModel():
         not require conditioning on X.
 
         Args:
-        A1_fixed (float): Dosage value of higher dose treatment
-        A0_fixed (float): Dosage value of lower dose treatment
+        A1_treatment (float): Dosage value of higher dose treatment
+        A0_treatment (float): Dosage value of lower dose treatment
         X (np.array): Feature to condition on.
         rng: seed or initialized random number generator for reproducibility
         """
@@ -257,20 +257,20 @@ class AgentModel():
             # Update scm-parameters
             self.predictive_scm.update_parameters(parameters)
             # sample_CATE (generates X, Y, A, mu_A_cond, sigma_A_cond)
-            CATE_samples[i], *_ = self.predictive_scm.sample_CATE(X, A1_fixed, A0_fixed, rng=rng)
+            CATE_samples[i], *_ = self.predictive_scm.sample_CATE(X, A1_treatment, A0_treatment, rng=rng)
         # Estimate mean and variance from sample
         CATE_mean = np.mean(CATE_samples)
         CATE_std = np.std(CATE_samples)
         return CATE_samples, CATE_mean, CATE_std
 
-    def get_prior_CATE_mu(self, A1_fixed, A0_fixed):
+    def get_prior_CATE_mu(self, A1_treatment, A0_treatment):
         """
         The method returns the mean of the CATE-distribution times
-        A1_fixed - A0_fixed. The current SCM is such that N_E is not
+        A1_treatment - A0_treatment. The current SCM is such that N_E is not
         dependent on X and the treatment effect only depends on
         N_E and size of A_fixed.
         """
-        return (A1_fixed - A0_fixed) * self.prior_parameters['N_E_mu']
+        return (A1_treatment - A0_treatment) * self.prior_parameters['N_E_mu']
 
     def sample_posterior_predictive(self, rng=None):
         """
@@ -296,15 +296,15 @@ class AgentModel():
             samples.append(self.predictive_scm.sample(rng=rng))
         return samples
 
-    def sample_posterior_predictive_CATE(self, X, A1_fixed, A0_fixed, rng=None):
+    def sample_posterior_predictive_CATE(self, X, A1_treatment, A0_treatment, rng=None):
         """
         This method returns a sample from the posterior predictive
         CATE-distribution, and its sample mean and standard deviation.
 
         Args:
         X (np.array): Feature to condition on
-        A1_fixed (float): Higher dose treatment value
-        A0_fixed (float): Lower dose treatment value
+        A1_treatment (float): Higher dose treatment value
+        A0_treatment (float): Lower dose treatment value
         rng (int or rng): Random number generator or seed for reproducibility
         """
         parameter_array = {var: self.trace.posterior[var].values.flatten() for var in self.predictive_var_names}
@@ -315,7 +315,7 @@ class AgentModel():
             # Update scm-parameters
             self.predictive_scm.update_parameters(parameters)
             # Sample (generates CATE for that version of the scm):
-            CATE_samples[i], *_ = self.predictive_scm.sample_CATE(X, A1_fixed, A0_fixed, rng=rng)
+            CATE_samples[i], *_ = self.predictive_scm.sample_CATE(X, A1_treatment, A0_treatment, rng=rng)
         # Estimate mean and variance from sample
         CATE_mean = np.mean(CATE_samples)
         CATE_std = np.std(CATE_samples)
