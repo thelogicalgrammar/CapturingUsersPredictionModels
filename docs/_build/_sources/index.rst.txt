@@ -15,6 +15,7 @@ This package provides tools for Bayesian agent modeling and structural causal mo
    agent_model
    scm
    utils
+   experiment
 
 Indices and tables
 ==================

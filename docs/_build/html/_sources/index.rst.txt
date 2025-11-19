@@ -9,34 +9,13 @@
 This package provides tools for Bayesian agent modeling and structural causal models (SCM).
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :maxdepth: 3
+   :caption: API Reference:
 
-   self
-
-Agent Model
------------
-
-.. automodule:: agent_model
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Structural Causal Model (SCM)
-------------------------------
-
-.. automodule:: scm
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Utilities
----------
-
-.. automodule:: utils
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   agent_model
+   scm
+   utils
+   experiment
 
 Indices and tables
 ==================

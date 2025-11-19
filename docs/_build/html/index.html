@@ -18,7 +18,8 @@
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" /> 
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Agent Model" href="agent_model.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -40,9 +41,12 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">2-Step Agent documentation</a></li>
+              <p class="caption" role="heading"><span class="caption-text">API Reference:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="agent_model.html">Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scm.html">Structural Causal Model (SCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="utils.html">Utilities</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment.html">Experiment</a></li>
 </ul>
 
         </div>
@@ -73,372 +77,57 @@
 <h1>2-Step Agent documentation<a class="headerlink" href="#step-agent-documentation" title="Link to this heading"></a></h1>
 <p>This package provides tools for Bayesian agent modeling and structural causal models (SCM).</p>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">2-Step Agent documentation</a></li>
+<p class="caption" role="heading"><span class="caption-text">API Reference:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="agent_model.html">Agent Model</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agent_model.html#agent_model.AgentModel"><code class="docutils literal notranslate"><span class="pre">AgentModel</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agent_model.html#agent_model.AgentModel.get_prior_CATE_mu"><code class="docutils literal notranslate"><span class="pre">AgentModel.get_prior_CATE_mu()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="agent_model.html#agent_model.AgentModel.load_agent_model"><code class="docutils literal notranslate"><span class="pre">AgentModel.load_agent_model()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="agent_model.html#agent_model.AgentModel.sample"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="agent_model.html#agent_model.AgentModel.sample_posterior_do_A"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample_posterior_do_A()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="agent_model.html#agent_model.AgentModel.sample_posterior_predictive"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample_posterior_predictive()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="agent_model.html#agent_model.AgentModel.sample_posterior_predictive_CATE"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample_posterior_predictive_CATE()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="agent_model.html#agent_model.AgentModel.sample_prior_predictive"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample_prior_predictive()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="agent_model.html#agent_model.AgentModel.sample_prior_predictive_CATE"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample_prior_predictive_CATE()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="agent_model.html#agent_model.AgentModel.save_agent_model"><code class="docutils literal notranslate"><span class="pre">AgentModel.save_agent_model()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="agent_model.html#agent_model.printing_callback"><code class="docutils literal notranslate"><span class="pre">printing_callback()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="scm.html">Structural Causal Model (SCM)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="scm.html#scm.BinaryA_SCM"><code class="docutils literal notranslate"><span class="pre">BinaryA_SCM</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.BinaryA_SCM.sample"><code class="docutils literal notranslate"><span class="pre">BinaryA_SCM.sample()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="scm.html#scm.SCM"><code class="docutils literal notranslate"><span class="pre">SCM</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.N_E"><code class="docutils literal notranslate"><span class="pre">SCM.N_E</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.a"><code class="docutils literal notranslate"><span class="pre">SCM.a</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.alpha_mu_A"><code class="docutils literal notranslate"><span class="pre">SCM.alpha_mu_A</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.alpha_mu_X"><code class="docutils literal notranslate"><span class="pre">SCM.alpha_mu_X</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.alpha_mu_Y"><code class="docutils literal notranslate"><span class="pre">SCM.alpha_mu_Y</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.alpha_sigma_A"><code class="docutils literal notranslate"><span class="pre">SCM.alpha_sigma_A</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.alpha_sigma_X"><code class="docutils literal notranslate"><span class="pre">SCM.alpha_sigma_X</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.alpha_sigma_Y"><code class="docutils literal notranslate"><span class="pre">SCM.alpha_sigma_Y</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.b"><code class="docutils literal notranslate"><span class="pre">SCM.b</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.d"><code class="docutils literal notranslate"><span class="pre">SCM.d</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.get_CATE_mu"><code class="docutils literal notranslate"><span class="pre">SCM.get_CATE_mu()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.sample"><code class="docutils literal notranslate"><span class="pre">SCM.sample()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.sample_CATE"><code class="docutils literal notranslate"><span class="pre">SCM.sample_CATE()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.sample_do_A"><code class="docutils literal notranslate"><span class="pre">SCM.sample_do_A()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="scm.html#scm.SCM.update_parameters"><code class="docutils literal notranslate"><span class="pre">SCM.update_parameters()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="scm.html#scm.sigmoid"><code class="docutils literal notranslate"><span class="pre">sigmoid()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="utils.html">Utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="utils.html#utils.write_results_to_file"><code class="docutils literal notranslate"><span class="pre">write_results_to_file()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="experiment.html">Experiment</a></li>
 </ul>
 </div>
-<section id="module-agent_model">
-<span id="agent-model"></span><h2>Agent Model<a class="headerlink" href="#module-agent_model" title="Link to this heading"></a></h2>
-<p>Better name: bayesian_agent?
--Could initialize with an SCM that represents the</p>
-<blockquote>
-<div><p>agent’s internal representation of the world.</p>
-</div></blockquote>
-<dl class="simple">
-<dt>-Class could store the trace and perhaps using this</dt><dd><p>model the predictions based on the SCM.</p>
-</dd>
-<dt>-This would make the class contain both the agent’s</dt><dd><p>beliefs and thought processes (how to update beliefs
-based on new data).</p>
-</dd>
-</dl>
-<p>The Bayesian models specified here correspond to how an ideal
-Bayesian agent would update his beliefs given that he sees
-one or several observations and receives their predictions
-that are based on an OLS regression model without intercept.</p>
-<p>The agent is considered to have a separate SCM which uses
-the agent’s (prior or posterior) beliefs to choose the best
-treatment for a patient.</p>
-<p>Technically only one value of X should be allowed after update.
--Is there any point of allowing for sampling for other X-values?
--The model is NOT VALID for other X values.
--Don’t block this (yet), because that would prevent updating with</p>
-<blockquote>
-<div><p>e.g. 100 patients’ info.</p>
-</div></blockquote>
-<p>Could be interesting to estimate variance for CATE using sampling
-as we should expect correlation between E(Y|X,do(A1)) and E(Y|X,do(A0))
-but do not know how large that is.
-This applies to both prior and posterior.</p>
-<dl class="py class">
-<dt class="sig sig-object py" id="agent_model.AgentModel">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agent_model.</span></span><span class="sig-name descname"><span class="pre">AgentModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">plate_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prior_parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scm_constants</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">predictive_var_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">low_dim_aux_plate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel" title="Link to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<dl class="py method">
-<dt class="sig sig-object py" id="agent_model.AgentModel.get_prior_CATE_mu">
-<span class="sig-name descname"><span class="pre">get_prior_CATE_mu</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A1_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_fixed</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.get_prior_CATE_mu" title="Link to this definition"></a></dt>
-<dd><p>The method returns the mean of the CATE-distribution times
-A1_fixed - A0_fixed. The current SCM is such that N_E is not
-dependent on X and the treatment effect only depends on
-N_E and size of A_fixed.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agent_model.AgentModel.load_agent_model">
-<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load_agent_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./agent_model'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">folder</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./saved_models/'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.load_agent_model" title="Link to this definition"></a></dt>
-<dd><p>Load a saved agent model.</p>
-<p>Args:
-file_name: Base filename without extension (e.g., ‘agent_model’)</p>
-<blockquote>
-<div><p>Expects to find:
-- {file_name}.joblib (model configuration)
-- {file_name}_trace.nc (trace data, optional)
-- {file_name}_prior_samples.nc (prior sample data, optional)</p>
-</div></blockquote>
-<p>folder (str): Folder the models are saved in</p>
-<p>Returns:
-AgentModel instance</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agent_model.AgentModel.sample">
-<span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample" title="Link to this definition"></a></dt>
-<dd><p>Sample from the posterior given observed data.
-Stores latest trace in self.</p>
-<p>Args:
-X_o (np.ndarray): Vector of observed features.
-pred_o (np.ndarray): Vector of observed predictions.
-draws (int): Size of sample to draw from the posterior.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agent_model.AgentModel.sample_posterior_do_A">
-<span class="sig-name descname"><span class="pre">sample_posterior_do_A</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample_posterior_do_A" title="Link to this definition"></a></dt>
-<dd><p>Method for estimating the outcome for a patient with features X
-based on the agent’s posterior beliefs.</p>
-<p>Args:
-X (np.array): Feature to condition on
-A_fixed (float): Fixed treatment value
-rng (int or rng): Random number generator or seed for reproducibility</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agent_model.AgentModel.sample_posterior_predictive">
-<span class="sig-name descname"><span class="pre">sample_posterior_predictive</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample_posterior_predictive" title="Link to this definition"></a></dt>
-<dd><p>This method generates a sample from the agent’s posterior beliefs.
-Using the trace stored in self, this method replaces the parameter
-values in self.predictive_scm and draws a posterior predictive
-sample from this.</p>
-<p>Args:
-rng (int or rng): Random number generator or seed for reproducibility</p>
-<p>Notes:
-Consider VECTORIZING this method.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agent_model.AgentModel.sample_posterior_predictive_CATE">
-<span class="sig-name descname"><span class="pre">sample_posterior_predictive_CATE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample_posterior_predictive_CATE" title="Link to this definition"></a></dt>
-<dd><p>This method returns a sample from the posterior predictive
-CATE-distribution, and its sample mean and standard deviation.</p>
-<p>Args:
-X (np.array): Feature to condition on
-A1_fixed (float): Higher dose treatment value
-A0_fixed (float): Lower dose treatment value
-rng (int or rng): Random number generator or seed for reproducibility</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agent_model.AgentModel.sample_prior_predictive">
-<span class="sig-name descname"><span class="pre">sample_prior_predictive</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample_prior_predictive" title="Link to this definition"></a></dt>
-<dd><p>Method for sampling from distribution based on the
-agent’s prior beliefs.</p>
-<p>Args:
-draws (int): Size of sample to draw
-rng (int): Random number generator or seed for reproducibility</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agent_model.AgentModel.sample_prior_predictive_CATE">
-<span class="sig-name descname"><span class="pre">sample_prior_predictive_CATE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample_prior_predictive_CATE" title="Link to this definition"></a></dt>
-<dd><p>This method returns a sample from the prior CATE-distribution,
-and its sample mean and standard deviation.
-Currently CATE is not dependent on X and is hence ATE. It also does
-not require conditioning on X.</p>
-<p>Args:
-A1_fixed (float): Dosage value of higher dose treatment
-A0_fixed (float): Dosage value of lower dose treatment
-X (np.array): Feature to condition on.
-rng: seed or initialized random number generator for reproducibility</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="agent_model.AgentModel.save_agent_model">
-<span class="sig-name descname"><span class="pre">save_agent_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'agent_model'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">folder</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./saved_models/'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.save_agent_model" title="Link to this definition"></a></dt>
-<dd><p>Save the entire agent model (trace + configuration).</p>
-<p>Args:
-file_name (str): Base filename without extension (e.g., ‘agent_model’)</p>
-<blockquote>
-<div><p>Will create two files:
-- {file_name}.joblib (model configuration)
-- {file_name}_trace.nc (trace data)
-- {file_name}_prior_samples.nc (prior sample data)</p>
-</div></blockquote>
-<p>folder (str): Folder to save models into.</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="agent_model.printing_callback">
-<span class="sig-prename descclassname"><span class="pre">agent_model.</span></span><span class="sig-name descname"><span class="pre">printing_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trace</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draw</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.printing_callback" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-</section>
-<section id="module-scm">
-<span id="structural-causal-model-scm"></span><h2>Structural Causal Model (SCM)<a class="headerlink" href="#module-scm" title="Link to this heading"></a></h2>
-<p>Structural causal model (SCM) for
--data generation, and
--for agent’s internal representation.
-Agent uses this model to prescribe treatment
-based on his prior beliefs before seeing new
-information, and based on his posterior beliefs
-after seeing new information.</p>
-<p>Notes:
-Might be more efficient to reimplement the SCM
-class using pymc, especially as the Bayesian agent
-(agent model) is implemented using pymc.</p>
-<dl class="py class">
-<dt class="sig sig-object py" id="scm.BinaryA_SCM">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">scm.</span></span><span class="sig-name descname"><span class="pre">BinaryA_SCM</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alpha_mu_X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_sigma_X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_mu_A</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_sigma_Y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N_E</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scm.BinaryA_SCM" title="Link to this definition"></a></dt>
-<dd><p>Bases: <a class="reference internal" href="#scm.SCM" title="scm.SCM"><code class="xref py py-class docutils literal notranslate"><span class="pre">SCM</span></code></a></p>
-<p>A specific SCM with binary treatment A, continuous X and Y.
-This class inherits from SCM and sets the A_type to “binary”.</p>
-<dl class="py method">
-<dt class="sig sig-object py" id="scm.BinaryA_SCM.sample">
-<span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scm.BinaryA_SCM.sample" title="Link to this definition"></a></dt>
-<dd><p>Definition of SCM structure (and variables)
-If N_A is passed, A is calculated. If A is passed,
-it is used as is.</p>
-<p>Args:
-X (float): Optional input. If provided, output will be conditional on X.
-A (float): Optional input. If provided, output will be conditional on do(A).
-draws (int): Size of sample to generate.
-rng (int or rng): seed or initialized random number generator for reproducibility</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="scm.SCM">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">scm.</span></span><span class="sig-name descname"><span class="pre">SCM</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alpha_mu_X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">80</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_sigma_X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_mu_A</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_sigma_A</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_mu_Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_sigma_Y</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N_E</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">12.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">-0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.125</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scm.SCM" title="Link to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<p>Class for SCM with continuous A, continuous X,
-and continuous Y.</p>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="scm.SCM.N_E">
-<span class="sig-name descname"><span class="pre">N_E</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">20</span></em><a class="headerlink" href="#scm.SCM.N_E" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="scm.SCM.a">
-<span class="sig-name descname"><span class="pre">a</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">12.0</span></em><a class="headerlink" href="#scm.SCM.a" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="scm.SCM.alpha_mu_A">
-<span class="sig-name descname"><span class="pre">alpha_mu_A</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10</span></em><a class="headerlink" href="#scm.SCM.alpha_mu_A" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="scm.SCM.alpha_mu_X">
-<span class="sig-name descname"><span class="pre">alpha_mu_X</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">80</span></em><a class="headerlink" href="#scm.SCM.alpha_mu_X" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="scm.SCM.alpha_mu_Y">
-<span class="sig-name descname"><span class="pre">alpha_mu_Y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.0</span></em><a class="headerlink" href="#scm.SCM.alpha_mu_Y" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="scm.SCM.alpha_sigma_A">
-<span class="sig-name descname"><span class="pre">alpha_sigma_A</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1.0</span></em><a class="headerlink" href="#scm.SCM.alpha_sigma_A" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="scm.SCM.alpha_sigma_X">
-<span class="sig-name descname"><span class="pre">alpha_sigma_X</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10</span></em><a class="headerlink" href="#scm.SCM.alpha_sigma_X" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="scm.SCM.alpha_sigma_Y">
-<span class="sig-name descname"><span class="pre">alpha_sigma_Y</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.1</span></em><a class="headerlink" href="#scm.SCM.alpha_sigma_Y" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="scm.SCM.b">
-<span class="sig-name descname"><span class="pre">b</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">-0.1</span></em><a class="headerlink" href="#scm.SCM.b" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="scm.SCM.d">
-<span class="sig-name descname"><span class="pre">d</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.125</span></em><a class="headerlink" href="#scm.SCM.d" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="scm.SCM.get_CATE_mu">
-<span class="sig-name descname"><span class="pre">get_CATE_mu</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A1_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_fixed</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scm.SCM.get_CATE_mu" title="Link to this definition"></a></dt>
-<dd><p>This method returns the mean of the CATE-distribution given
-X, A1_fixed, and A0_fixed. Due to how the SCM is defined,
-this value is equivalent to (A1_fixed - A0_fixed) * self.N_E.</p>
-<p>The SCM in this class is defined so that Y given A and X is
-normally distributed and its parameters are deterministically
-determined by the values of A and X. This results in the CATE-
-distibution also being normal and allows for deterministic
-calculation of the mean as:</p>
-<blockquote>
-<div><p>CATE_mu(X) = E(Y| X, do(A=A1)) - E(Y| X, do(A=A0))</p>
-</div></blockquote>
-<p>Args:
-A1_fixed [float]: Dosage value of higher dose treatment
-A0_fixed [float]: Dosage value of lower dose treatment</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="scm.SCM.sample">
-<span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scm.SCM.sample" title="Link to this definition"></a></dt>
-<dd><p>This method encodes the structure of the SCM and generates
-samples of X, Y and A:</p>
-<blockquote>
-<div><p>X, A, Y ~ p(X, Y, A).</p>
-</div></blockquote>
-<p>If X is passed, then the output A and Y are conditional on
-the value of X:</p>
-<blockquote>
-<div><p>A, Y ~ p(A, Y| X).</p>
-</div></blockquote>
-<p>If A is passed, the output Y is conditional on the
-intervention do(A):</p>
-<blockquote>
-<div><p>X, Y ~ p(X, Y| do(A)).</p>
-</div></blockquote>
-<p>If both X and Y are passed, the output is conditional on X
-and on the intervention do(A):</p>
-<blockquote>
-<div><p>Y ~ p(Y| X, do(A)).</p>
-</div></blockquote>
-<p>All of X, A, and Y are always passed. In addition, the distribution
-parameters for Y (mu_Y_cond, and var_Y_cond) are passed. If X
-and/or A are provided, the distribution parameters are conditional
-on the given values. Otherwise they are “conditional” only on the
-sampled values (in contrast how the word “conditional” is normally
-used).</p>
-<p>Args:
-X: Optional input. If provided, output will be conditional on X.
-A: Optional input. If provided, output will be conditional on do(A).
-draws (int): Size of sample to generate.
-rng: seed or initialized random number generator for reproducibility</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="scm.SCM.sample_CATE">
-<span class="sig-name descname"><span class="pre">sample_CATE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scm.SCM.sample_CATE" title="Link to this definition"></a></dt>
-<dd><p>This method samples the CATE-distribution using treatment 1 (higher dosage)
-instead of treatment 0.
-Given X and two treatment options A1_fixed and A0_fixed</p>
-<p>Args:
-X (float): Feature to condition on
-A1_fixed [float]: Dosage value of higher dose treatment
-A0_fixed [float]: Dosage value of lower dose treatment
-draws (int): Size of sample to generate
-rng: seed or initialized random number generator for reproducibility</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="scm.SCM.sample_do_A">
-<span class="sig-name descname"><span class="pre">sample_do_A</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">numpy.ndarray</span></span></span><a class="headerlink" href="#scm.SCM.sample_do_A" title="Link to this definition"></a></dt>
-<dd><dl class="simple">
-<dt>Generates sample from the SCM given the data and set treatments, i.e.</dt><dd><p>Y_i ~ p(Y|do(A_fixed), X)</p>
-</dd>
-</dl>
-<p>Returns an array with shape (n, <a href="#id1"><span class="problematic" id="id2">*</span></a>X.shape).
-This is merely a wrapper for the interventional path in self.sample().</p>
-<p>Args:
-A_fixed (int- or array-like): value to intervene on A, or array with X.shape
-X: observed values of X
-draws (int): Size of sample to draw for every observation in A.
-rng: seed or initialized random number generator for reproducibility</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="scm.SCM.update_parameters">
-<span class="sig-name descname"><span class="pre">update_parameters</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parameter_dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scm.SCM.update_parameters" title="Link to this definition"></a></dt>
-<dd><p>Method to update chosen parameters in SCM</p>
-<p>Args:
-parameter_dict (dict): Dictionary of parameters</p>
-<blockquote>
-<div><p>where the keys match parameter names in the scm.</p>
-</div></blockquote>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="scm.sigmoid">
-<span class="sig-prename descclassname"><span class="pre">scm.</span></span><span class="sig-name descname"><span class="pre">sigmoid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">z</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scm.sigmoid" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-</section>
-<section id="module-utils">
-<span id="utilities"></span><h2>Utilities<a class="headerlink" href="#module-utils" title="Link to this heading"></a></h2>
-<dl class="py function">
-<dt class="sig sig-object py" id="utils.write_results_to_file">
-<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">write_results_to_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">result_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'results.csv'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#utils.write_results_to_file" title="Link to this definition"></a></dt>
-<dd><p>Function for writing results to file.</p>
-<p>Args:
-result_dict [dict]: Dict of results to store.</p>
-</dd></dl>
-
-</section>
 </section>
 <section id="indices-and-tables">
 <h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading"></a></h1>
@@ -452,7 +141,9 @@ result_dict [dict]: Dict of results to store.</p>
 
            </div>
           </div>
-          <footer>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="agent_model.html" class="btn btn-neutral float-right" title="Agent Model" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
 
   <hr/>
 
