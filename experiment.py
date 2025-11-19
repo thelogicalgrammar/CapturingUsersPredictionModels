@@ -73,7 +73,7 @@ def main(A1_fixed=A1_fixed, A0_fixed=A0_fixed, agent_priors=agent_priors_aligned
     agent_model.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o[0]), draws=draws)
 
     # 7. Using updated agent beliefs to come to a decision on what is the best treatment
-    posterior_CATE_samples, posterior_CATE_mean, posterior_CATE_std = \
+    posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std = \
         agent_model.sample_posterior_predictive_CATE(X_o, A1_fixed, A0_fixed)
     if posterior_CATE_mean > 0:
         selected_treatment = A1_fixed
@@ -91,7 +91,7 @@ def main(A1_fixed=A1_fixed, A0_fixed=A0_fixed, agent_priors=agent_priors_aligned
     # Fetch N_E_mu from agent priors? Sampling is more general, although
     # unnecessary here.
     prior_CATE_mu = agent_model.get_prior_CATE_mu(A1_fixed, A0_fixed)
-    prior_CATE_samples, prior_CATE_mean, prior_CATE_std = \
+    prior_CATE_samples_, prior_CATE_mean, prior_CATE_std = \
         agent_model.sample_prior_predictive_CATE(X_o, A1_fixed, A0_fixed)
 
     if prior_CATE_mu > 0:
@@ -105,14 +105,28 @@ def main(A1_fixed=A1_fixed, A0_fixed=A0_fixed, agent_priors=agent_priors_aligned
 
 
     # Ground truth (from data generating SCM)
-    true_CATE_samples, true_CATE_mean, true_CATE_std =\
+    true_CATE_mu = data_scm.get_CATE_mu(A1_fixed, A0_fixed)
+    true_CATE_samples_, true_CATE_mean, true_CATE_std =\
         data_scm.sample_CATE(X_o, A1_fixed, A0_fixed, draws=1000)
 
     # Save outputs to file:
     # Include mu, mean, and std for prior, posterior, and data generating SCM.
     # Also include timestamp and some identifier which uniquely maps the
     # results to a run.
+    #
 
+    # Wrap into function.
+    new_row = ['experiment_parameters'] 
+    new_row += [true_CATE_mu, true_CATE_mean, true_CATE_std]
+    new_row += [prior_CATE_mu, prior_CATE_mean, prior_CATE_std]
+    new_row += [None, posterior_CATE_mean, posterior_CATE_std]
+    # new_row += ['do_A1_outcome', 'do_A0_outcome']  # Based on data_scm
+    text = '"'
+    for item in new_row:
+        text += '"' + str(item) + '",'
+    text += '\n'
+    with open('results.csv', 'a') as f:
+        f.write(text)
 
     # Save model to disk:
     agent_model.save_agent_model()
