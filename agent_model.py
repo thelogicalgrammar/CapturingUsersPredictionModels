@@ -244,7 +244,7 @@ class AgentModel():
         Args:
         A1_fixed (float): Dosage value of higher dose treatment
         A0_fixed (float): Dosage value of lower dose treatment
-        X (float): Feature to condition on.
+        X (np.array): Feature to condition on.
         rng: seed or initialized random number generator for reproducibility
         """
         if self.prior_samples is None:
@@ -302,7 +302,7 @@ class AgentModel():
         CATE-distribution, and its sample mean and standard deviation.
 
         Args:
-        X (float): Feature to condition on
+        X (np.array): Feature to condition on
         A1_fixed (float): Higher dose treatment value
         A0_fixed (float): Lower dose treatment value
         rng (int or rng): Random number generator or seed for reproducibility
@@ -327,7 +327,7 @@ class AgentModel():
         based on the agent's posterior beliefs.
 
         Args:
-        X (float): Feature to condition on
+        X (np.array): Feature to condition on
         A_fixed (float): Fixed treatment value
         rng (int or rng): Random number generator or seed for reproducibility
         """
@@ -357,22 +357,20 @@ class AgentModel():
         if self.trace is not None:
             self.trace.to_netcdf(f'{file_name}_trace.nc')
             print(f"Trace saved to {file_name}_trace.nc")
-        # if self.prior_samples is not None:
-            self.trace.to_netcdf(f'{file_name}_prior_samples.nc')
+        if self.prior_samples is not None:
+            self.prior_samples.to_netcdf(f'{file_name}_prior_samples.nc')
             print(f"Prior samples saved to {file_name}_prior_samples.nc")
 
         # Temporarily remove trace and PyMC model (can't pickle easily)
         trace_backup = self.trace
         prior_samples_backup = self.prior_samples
         model_backup = self.model
-
         self.trace = None
         self.prior_samples = None
         self.model = None
 
         # Save the rest (configuration, constants, etc.)
         joblib.dump(self, f'{file_name}.joblib')
-
         # Restore the attributes
         self.trace = trace_backup
         self.prior_samples = prior_samples_backup
@@ -397,43 +395,17 @@ class AgentModel():
         """
         # Load the model structure
         agent = joblib.load(f'{file_name}.joblib')
-
-        # Reconstruct PyMC model (it was None when saved)
-        # This reinitializes agent.model based on saved configuration
-        agent.__init__(
-            plate_size=agent.plate_size,
-            prior_parameters=agent.prior_parameters,
-            scm_constants=agent.scm_constants,
-            predictive_var_names=agent.predictive_var_names,
-            low_dim_aux_plate=agent.low_dim_aux_plate,
-            test=agent.test
-        )
-
-        # Load trace if it exists
+        print("Agent model loaded from {}".format(file_name))
+        # Load trace
         try:
-            trace_exists = True
             agent.trace = az.from_netcdf(f'{file_name}_trace.nc')
         except FileNotFoundError:
-            trace_exists = False
             agent.trace = None
-
-        # Load prior samples if it exists
+            print("Trace not loaded (file {}_trace.nc does not exist.".format(file_name))
+        # Load prior samples
         try:
-            prior_samples_exist = True
             agent.prior_samples = az.from_netcdf(f'{file_name}_prior_samples.nc')
-            print(f"Agent model and trace loaded from {file_name}")
         except FileNotFoundError:
-            prior_samples_exist = False
             agent.trace = None
-            print(f"Agent model loaded from {file_name} (no trace found)")
-
-        if trace_exists and prior_samples_exist:
-            print(f"Agent model, trace, and prior samples loaded from {file_name}")
-        elif trace_exists:
-            print(f"Agent model and trace loaded from {file_name}. No prior samples found.")
-        elif prior_samples_exist:
-            print(f"Agent model and prior samples loaded from {file_name}. No trace found.")
-        else:
-            print(f"Agent model loaded from {file_name}. No trace or prior samples found.")
-
+            print("Prior samples not loaded (file {}_prior_samples.nc does not exist).".format(file_name))
         return agent
