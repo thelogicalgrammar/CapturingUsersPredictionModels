@@ -1,0 +1,279 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Model &mdash; 2-Step Agent 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Structural Causal Model (SCM)" href="scm.html" />
+    <link rel="prev" title="2-Step Agent documentation" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            2-Step Agent
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">API Reference:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Agent Model</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#agent_model.AgentModel"><code class="docutils literal notranslate"><span class="pre">AgentModel</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.get_prior_CATE_mu"><code class="docutils literal notranslate"><span class="pre">AgentModel.get_prior_CATE_mu()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.load_agent_model"><code class="docutils literal notranslate"><span class="pre">AgentModel.load_agent_model()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.sample"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.sample_posterior_do_A"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample_posterior_do_A()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.sample_posterior_predictive"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample_posterior_predictive()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.sample_posterior_predictive_CATE"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample_posterior_predictive_CATE()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.sample_prior_predictive"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample_prior_predictive()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.sample_prior_predictive_CATE"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample_prior_predictive_CATE()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.save_agent_model"><code class="docutils literal notranslate"><span class="pre">AgentModel.save_agent_model()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#agent_model.printing_callback"><code class="docutils literal notranslate"><span class="pre">printing_callback()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="scm.html">Structural Causal Model (SCM)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="utils.html">Utilities</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">2-Step Agent</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Agent Model</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/agent_model.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-agent_model">
+<span id="agent-model"></span><h1>Agent Model<a class="headerlink" href="#module-agent_model" title="Link to this heading"></a></h1>
+<p>Better name: bayesian_agent?
+-Could initialize with an SCM that represents the</p>
+<blockquote>
+<div><p>agent’s internal representation of the world.</p>
+</div></blockquote>
+<dl class="simple">
+<dt>-Class could store the trace and perhaps using this</dt><dd><p>model the predictions based on the SCM.</p>
+</dd>
+<dt>-This would make the class contain both the agent’s</dt><dd><p>beliefs and thought processes (how to update beliefs
+based on new data).</p>
+</dd>
+</dl>
+<p>The Bayesian models specified here correspond to how an ideal
+Bayesian agent would update his beliefs given that he sees
+one or several observations and receives their predictions
+that are based on an OLS regression model without intercept.</p>
+<p>The agent is considered to have a separate SCM which uses
+the agent’s (prior or posterior) beliefs to choose the best
+treatment for a patient.</p>
+<p>Technically only one value of X should be allowed after update.
+-Is there any point of allowing for sampling for other X-values?
+-The model is NOT VALID for other X values.
+-Don’t block this (yet), because that would prevent updating with</p>
+<blockquote>
+<div><p>e.g. 100 patients’ info.</p>
+</div></blockquote>
+<p>Could be interesting to estimate variance for CATE using sampling
+as we should expect correlation between E(Y|X,do(A1)) and E(Y|X,do(A0))
+but do not know how large that is.
+This applies to both prior and posterior.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="agent_model.AgentModel">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agent_model.</span></span><span class="sig-name descname"><span class="pre">AgentModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">plate_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prior_parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scm_constants</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">predictive_var_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">low_dim_aux_plate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="agent_model.AgentModel.get_prior_CATE_mu">
+<span class="sig-name descname"><span class="pre">get_prior_CATE_mu</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A1_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_fixed</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.get_prior_CATE_mu" title="Link to this definition"></a></dt>
+<dd><p>The method returns the mean of the CATE-distribution times
+A1_fixed - A0_fixed. The current SCM is such that N_E is not
+dependent on X and the treatment effect only depends on
+N_E and size of A_fixed.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agent_model.AgentModel.load_agent_model">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load_agent_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./agent_model'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">folder</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./saved_models/'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.load_agent_model" title="Link to this definition"></a></dt>
+<dd><p>Load a saved agent model.</p>
+<p>Args:
+file_name: Base filename without extension (e.g., ‘agent_model’)</p>
+<blockquote>
+<div><p>Expects to find:
+- {file_name}.joblib (model configuration)
+- {file_name}_trace.nc (trace data, optional)
+- {file_name}_prior_samples.nc (prior sample data, optional)</p>
+</div></blockquote>
+<p>folder (str): Folder the models are saved in</p>
+<p>Returns:
+AgentModel instance</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agent_model.AgentModel.sample">
+<span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample" title="Link to this definition"></a></dt>
+<dd><p>Sample from the posterior given observed data.
+Stores latest trace in self.</p>
+<p>Args:
+X_o (np.ndarray): Vector of observed features.
+pred_o (np.ndarray): Vector of observed predictions.
+draws (int): Size of sample to draw from the posterior.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agent_model.AgentModel.sample_posterior_do_A">
+<span class="sig-name descname"><span class="pre">sample_posterior_do_A</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample_posterior_do_A" title="Link to this definition"></a></dt>
+<dd><p>Method for estimating the outcome for a patient with features X
+based on the agent’s posterior beliefs.</p>
+<p>Args:
+X (np.array): Feature to condition on
+A_fixed (float): Fixed treatment value
+rng (int or rng): Random number generator or seed for reproducibility</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agent_model.AgentModel.sample_posterior_predictive">
+<span class="sig-name descname"><span class="pre">sample_posterior_predictive</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample_posterior_predictive" title="Link to this definition"></a></dt>
+<dd><p>This method generates a sample from the agent’s posterior beliefs.
+Using the trace stored in self, this method replaces the parameter
+values in self.predictive_scm and draws a posterior predictive
+sample from this.</p>
+<p>Args:
+rng (int or rng): Random number generator or seed for reproducibility</p>
+<p>Notes:
+Consider VECTORIZING this method.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agent_model.AgentModel.sample_posterior_predictive_CATE">
+<span class="sig-name descname"><span class="pre">sample_posterior_predictive_CATE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample_posterior_predictive_CATE" title="Link to this definition"></a></dt>
+<dd><p>This method returns a sample from the posterior predictive
+CATE-distribution, and its sample mean and standard deviation.</p>
+<p>Args:
+X (np.array): Feature to condition on
+A1_fixed (float): Higher dose treatment value
+A0_fixed (float): Lower dose treatment value
+rng (int or rng): Random number generator or seed for reproducibility</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agent_model.AgentModel.sample_prior_predictive">
+<span class="sig-name descname"><span class="pre">sample_prior_predictive</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample_prior_predictive" title="Link to this definition"></a></dt>
+<dd><p>Method for sampling from distribution based on the
+agent’s prior beliefs.</p>
+<p>Args:
+draws (int): Size of sample to draw
+rng (int): Random number generator or seed for reproducibility</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agent_model.AgentModel.sample_prior_predictive_CATE">
+<span class="sig-name descname"><span class="pre">sample_prior_predictive_CATE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample_prior_predictive_CATE" title="Link to this definition"></a></dt>
+<dd><p>This method returns a sample from the prior CATE-distribution,
+and its sample mean and standard deviation.
+Currently CATE is not dependent on X and is hence ATE. It also does
+not require conditioning on X.</p>
+<p>Args:
+A1_fixed (float): Dosage value of higher dose treatment
+A0_fixed (float): Dosage value of lower dose treatment
+X (np.array): Feature to condition on.
+rng: seed or initialized random number generator for reproducibility</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agent_model.AgentModel.save_agent_model">
+<span class="sig-name descname"><span class="pre">save_agent_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'agent_model'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">folder</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./saved_models/'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.save_agent_model" title="Link to this definition"></a></dt>
+<dd><p>Save the entire agent model (trace + configuration).</p>
+<p>Args:
+file_name (str): Base filename without extension (e.g., ‘agent_model’)</p>
+<blockquote>
+<div><p>Will create two files:
+- {file_name}.joblib (model configuration)
+- {file_name}_trace.nc (trace data)
+- {file_name}_prior_samples.nc (prior sample data)</p>
+</div></blockquote>
+<p>folder (str): Folder to save models into.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="agent_model.printing_callback">
+<span class="sig-prename descclassname"><span class="pre">agent_model.</span></span><span class="sig-name descname"><span class="pre">printing_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trace</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draw</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.printing_callback" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="2-Step Agent documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="scm.html" class="btn btn-neutral float-right" title="Structural Causal Model (SCM)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Carcassi, Cinà, Nyberg.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

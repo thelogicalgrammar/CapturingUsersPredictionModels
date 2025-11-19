@@ -69,7 +69,7 @@ instance/
 .scrapy
 
 # Sphinx documentation
-docs/_build/
+# docs/_build/
 
 # PyBuilder
 .pybuilder/
@@ -165,3 +165,11 @@ cython_debug/
 tmp_env/
 .DS_Store
 tmp/
+*.nc
+*.joblib
+*.csv
+# Sphinx files:
+docs/conf.py
+docs/*.rst
+docs/make.bat
+docs/Makefile
