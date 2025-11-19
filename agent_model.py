@@ -257,7 +257,7 @@ class AgentModel():
             # Update scm-parameters
             self.predictive_scm.update_parameters(parameters)
             # sample_CATE (generates X, Y, A, mu_A_cond, sigma_A_cond)
-            CATE_samples[i] = self.predictive_scm.sample_CATE(X, A1_fixed, A0_fixed, rng=rng)
+            CATE_samples[i], *_ = self.predictive_scm.sample_CATE(X, A1_fixed, A0_fixed, rng=rng)
         # Estimate mean and variance from sample
         CATE_mean = np.mean(CATE_samples)
         CATE_std = np.std(CATE_samples)
@@ -315,7 +315,7 @@ class AgentModel():
             # Update scm-parameters
             self.predictive_scm.update_parameters(parameters)
             # Sample (generates CATE for that version of the scm):
-            CATE_samples[i] = self.predictive_scm.sample_CATE(X, A1_fixed, A0_fixed, rng=rng)
+            CATE_samples[i], *_ = self.predictive_scm.sample_CATE(X, A1_fixed, A0_fixed, rng=rng)
         # Estimate mean and variance from sample
         CATE_mean = np.mean(CATE_samples)
         CATE_std = np.std(CATE_samples)
