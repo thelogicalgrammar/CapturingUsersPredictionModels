@@ -96,8 +96,8 @@ class AgentModel():
         self.predictive_var_names = predictive_var_names
         self.trace = None  # Placeholder for trace
         self.prior_samples = None  # Placeholder for prior samples
-        self.posterior_draws = None
-        self.prior_draws = None
+        self.posterior_draws = None  # Number of draws in trace
+        self.prior_draws = None  # Number of draws in prior samples
         self.X_o = None  # Placeholder for observed observation.
 
         self.model = pm.Model()
@@ -342,17 +342,21 @@ class AgentModel():
             potential_outcomes[i] = self.predictive_scm.sample_do_A(X, A_fixed, rng=rng)
         return potential_outcomes
 
-    def save_agent_model(self, file_name='./agent_model'):
+    def save_agent_model(self, file_name='agent_model', folder='./saved_models/'):
         """
         Save the entire agent model (trace + configuration).
 
         Args:
-        file_name: Base filename without extension (e.g., 'agent_model')
+        file_name (str): Base filename without extension (e.g., 'agent_model')
             Will create two files:
             - {file_name}.joblib (model configuration)
             - {file_name}_trace.nc (trace data)
             - {file_name}_prior_samples.nc (prior sample data)
+        folder (str): Folder to save models into.
         """
+        from pathlib import Path
+        Path('./saved_models').mkdir(parents=True, exist_ok=True)
+        file_name = folder + file_name
         # Save trace separately using ArviZ (if it exists)
         if self.trace is not None:
             self.trace.to_netcdf(f'{file_name}_trace.nc')
@@ -379,7 +383,7 @@ class AgentModel():
         print(f"Complete agent model saved to {file_name}.joblib")
 
     @classmethod
-    def load_agent_model(cls, file_name='./agent_model'):
+    def load_agent_model(cls, file_name='./agent_model', folder='./saved_models/'):
         """
         Load a saved agent model.
 
@@ -389,13 +393,37 @@ class AgentModel():
             - {file_name}.joblib (model configuration)
             - {file_name}_trace.nc (trace data, optional)
             - {file_name}_prior_samples.nc (prior sample data, optional)
+        folder (str): Folder the models are saved in
 
         Returns:
-        Loaded AgentModel instance
+        AgentModel instance
         """
+        file_name = folder + file_name
         # Load the model structure
         agent = joblib.load(f'{file_name}.joblib')
         print("Agent model loaded from {}".format(file_name))
+
+        # Store values that will be overwritten by __init__
+        posterior_draws = agent.posterior_draws
+        prior_draws = agent.prior_draws
+        X_o = agent.X_o
+
+        # Reconstruct PyMC model (it was None when saved)
+        # This reinitializes agent.model based on saved configuration
+        agent.__init__(
+            plate_size=agent.plate_size,
+            prior_parameters=agent.prior_parameters,
+            scm_constants=agent.scm_constants,
+            predictive_var_names=agent.predictive_var_names,
+            low_dim_aux_plate=agent.low_dim_aux_plate,
+            test=agent.test
+        )
+
+        # Restore values that were overwritten by __init__
+        agent.posterior_draws = posterior_draws
+        agent.prior_draws = prior_draws
+        agent.X_o = X_o
+
         # Load trace
         try:
             agent.trace = az.from_netcdf(f'{file_name}_trace.nc')
@@ -406,6 +434,6 @@ class AgentModel():
         try:
             agent.prior_samples = az.from_netcdf(f'{file_name}_prior_samples.nc')
         except FileNotFoundError:
-            agent.trace = None
+            agent.prior_samples = None
             print("Prior samples not loaded (file {}_prior_samples.nc does not exist).".format(file_name))
         return agent
