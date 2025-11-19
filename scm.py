@@ -34,7 +34,7 @@ class SCM:
     alpha_sigma_A: float = 1.0
     alpha_mu_Y: float = 0.0
     alpha_sigma_Y: float = 0.1
-    N_E: float = 20  # Said 0.5 previously?!?
+    N_E: float = 20
     a: float = 12.0
     b: float = -0.1
     d: float = 0.125
@@ -130,23 +130,23 @@ class SCM:
         _X, _A, Y_do, *_ = self.sample(X, A=A_fixed, draws=draws, rng=rng)
         return Y_do
 
-    def sample_CATE(self, X, A1_fixed, A0_fixed, draws=1, rng=None):
+    def sample_CATE(self, X, A1_treatment, A0_treatment, draws=1, rng=None):
         """
         This method samples the CATE-distribution using treatment 1 (higher dosage)
         instead of treatment 0.
-        Given X and two treatment options A1_fixed and A0_fixed
+        Given X and two treatment options A1_treatment and A0_treatment
 
         Args:
         X (float): Feature to condition on
-        A1_fixed [float]: Dosage value of higher dose treatment
-        A0_fixed [float]: Dosage value of lower dose treatment
+        A1_treatment [float]: Dosage value of higher dose treatment
+        A0_treatment [float]: Dosage value of lower dose treatment
         draws (int): Size of sample to generate
         rng: seed or initialized random number generator for reproducibility
         """
         # Sample an outcome with treatment 1:
-        Y_do1 = self.sample_do_A(A1_fixed, X, draws, rng=rng)
+        Y_do1 = self.sample_do_A(A1_treatment, X, draws, rng=rng)
         # Sample an outcome with treatment 0:
-        Y_do0 = self.sample_do_A(A0_fixed, X, draws, rng=rng)
+        Y_do0 = self.sample_do_A(A0_treatment, X, draws, rng=rng)
         # The sample drawn from the CATE-distribution:
         CATE_samples = Y_do1 - Y_do0
         if draws > 2:
@@ -159,11 +159,11 @@ class SCM:
         return CATE_samples, CATE_mean, CATE_std
 
     # Maybe move most of this to tests.
-    def get_CATE_mu(self, A1_fixed, A0_fixed):
+    def get_CATE_mu(self, A1_treatment, A0_treatment):
         """
         This method returns the mean of the CATE-distribution given
-        X, A1_fixed, and A0_fixed. Due to how the SCM is defined,
-        this value is equivalent to (A1_fixed - A0_fixed) * self.N_E.
+        X, A1_treatment, and A0_treatment. Due to how the SCM is defined,
+        this value is equivalent to (A1_treatment - A0_treatment) * self.N_E.
 
         The SCM in this class is defined so that Y given A and X is
         normally distributed and its parameters are deterministically
@@ -173,13 +173,13 @@ class SCM:
             CATE_mu(X) = E(Y| X, do(A=A1)) - E(Y| X, do(A=A0))
 
         Args:
-        A1_fixed [float]: Dosage value of higher dose treatment
-        A0_fixed [float]: Dosage value of lower dose treatment
+        A1_treatment [float]: Dosage value of higher dose treatment
+        A0_treatment [float]: Dosage value of lower dose treatment
         """
-        # _X1, _A1, _Y1, mu_Y1, _* = self.sample(X, A1_fixed)
-        # _X0, _A0, _Y0, mu_Y0, _* = self.sample(X, A0_fixed)
+        # _X1, _A1, _Y1, mu_Y1, _* = self.sample(X, A1_treatment)
+        # _X0, _A0, _Y0, mu_Y0, _* = self.sample(X, A0_treatment)
         # assert mu_Y1 - mu_Y0 == self.N_E, "Something wrong in mu-calculations"
-        return (A1_fixed - A0_fixed) * self.N_E
+        return (A1_treatment - A0_treatment) * self.N_E
 
 
 class BinaryA_SCM(SCM):
