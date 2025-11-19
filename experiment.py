@@ -1,6 +1,5 @@
 """
 Notes:
--Include measure of uncertainty (e.g. variance) for CATE!
 """
 
 import arviz as az
@@ -73,7 +72,7 @@ def main(A1_fixed=A1_fixed, A0_fixed=A0_fixed, agent_priors=agent_priors_aligned
     agent_model.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o[0]), draws=draws)
 
     # 7. Using updated agent beliefs to come to a decision on what is the best treatment
-    posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std = \
+    posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std =\
         agent_model.sample_posterior_predictive_CATE(X_o, A1_fixed, A0_fixed)
     if posterior_CATE_mean > 0:
         selected_treatment = A1_fixed
@@ -116,12 +115,12 @@ def main(A1_fixed=A1_fixed, A0_fixed=A0_fixed, agent_priors=agent_priors_aligned
     #
 
     # Wrap into function.
-    new_row = ['experiment_parameters'] 
+    new_row = ['experiment_parameters']
     new_row += [true_CATE_mu, true_CATE_mean, true_CATE_std]
     new_row += [prior_CATE_mu, prior_CATE_mean, prior_CATE_std]
     new_row += [None, posterior_CATE_mean, posterior_CATE_std]
     # new_row += ['do_A1_outcome', 'do_A0_outcome']  # Based on data_scm
-    text = '"'
+    text = ''
     for item in new_row:
         text += '"' + str(item) + '",'
     text += '\n'
