@@ -14,6 +14,10 @@
 - tests folder:
     - Files to run the code tests for the various parts of the model
 
+## Documentation
+
+Navigate to ./docs/_build/html/index.html locally to access documentation.
+
 ## Use Case
 - Inputs: true underlying distributions, Agent's beliefs, patient characteristics
 - Outputs: AI-prediction for patient, treatment decisions based on prior (no decision
