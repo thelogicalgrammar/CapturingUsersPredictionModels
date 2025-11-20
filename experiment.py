@@ -127,22 +127,68 @@ def main(X_o, agent_priors, modified_prior,
     # This currently generates one single draw for each and the
     # SCM includes randomness.
     # Estimate mean?
-    potential_outcome_A1 = data_scm.sample_do_A(A1_treatment, X_o)
-    potential_outcome_A0 = data_scm.sample_do_A(A0_treatment, X_o)
+    potential_outcome_A1_samples_, potential_outcome_A1_mean, potential_outcome_A1_std =\
+        data_scm.sample_do_A(A1_treatment, X_o, draws=draws)
+    potential_outcome_A0_samples_, potential_outcome_A0_mean, potential_outcome_A0_std =\
+        data_scm.sample_do_A(A0_treatment, X_o, draws=draws)
 
     # 9. Compare results
-    # -When is true_CATE_mu positive and physician chose treatment A0_treatment?
-    # -When does the physician's decision change?
-    # -When does it change for the worse, when does it change for the better?
-    # 8. Generate patient outcome in the real world given the treatment decision
-    #    based on decision support (DS)
-    Y_with_DS = data_scm.sample_do_A(posterior_treatment, X_o)
-    # this concludes the calculation of what the agent does WITH decision support
+
+    # Is the physician's decision correct given the true_CATE_mu values?
+    prior_decision_correct = True if np.sign(true_CATE_mu) == np.sign(prior_CATE_mu) else False
+    posterior_decision_correct = True if np.sign(true_CATE_mu) == np.sign(posterior_CATE_mean) else False
+    # Which decision is best?
+    true_best_treatment = A1_treatment if np.sign(true_CATE_mu) > 0 else A0_treatment
+    # Did the decision change (+1 for better, 0 no change, -1 for worse)?
+    if np.sign(prior_CATE_mu) != np.sign(posterior_CATE_mean):
+        # Set to 1 if changed for the better and -1 if changed for the worse
+        decision_changed = 1 if np.sign(posterior_CATE_mean) == np.sign(true_CATE_mu) else -1
+    else:
+        # Set to 0 if no change.
+        decision_changed = 0
+
+    # For what fraction of patients is the treatment decision based on prior_CATE_mu,
+    # posterior_CATE_mean, and true_CATE_mu correct?
+    frac_correct_prior_decision = np.mean(np.sign(true_CATE_samples_) == np.sign(prior_CATE_mu))
+    frac_correct_posterior_decision = np.mean(np.sign(true_CATE_samples_) == np.sign(posterior_CATE_mean))
+    # Fraction of population that would have benefited from a
+    # decision based on the average true CATE (baseline):
+    frac_correct_true_best_treatment = np.mean(np.sign(true_CATE_samples_) == np.sign(true_CATE_mu))
+
+    # How much do the patients on average benefit?
+    # Average outcome Y under prior decision
+    Y_mean_prior_treatment = potential_outcome_A1_mean if np.sign(prior_CATE_mu) > 0 \
+        else potential_outcome_A0_mean
+    # Average outcome Y under posterior decision:
+    Y_mean_posterior_treatment = potential_outcome_A1_mean if np.sign(posterior_CATE_mean) > 0 \
+        else potential_outcome_A0_mean
+    # Average outcome under best decision based on true_CATE_mu
+    Y_mean_true_best_treatment = potential_outcome_A1_mean if np.sign(true_CATE_mu) > 0 \
+        else potential_outcome_A0_mean
+    # Also save prediction pred_o
+    outputs = {'pred_o': pred_o,
+               'prior_treatment': prior_treatment,
+               'posterior_treatment': posterior_treatment,
+               'true_best_treatment': true_best_treatment,
+               'prior_decision_correct': prior_decision_correct,
+               'posterior_decision_correct': posterior_decision_correct,
+               'decision_changed': decision_changed,
+               'frac_correct_prior_decision': frac_correct_prior_decision,
+               'frac_correct_posterior_decision': frac_correct_posterior_decision,
+               'frac_correct_true_best_treatment': frac_correct_true_best_treatment,
+               'Y_mean_prior_treatment': Y_mean_prior_treatment,
+               'Y_mean_posterior_treatment': Y_mean_posterior_treatment,
+               'Y_mean_true_best_treatment': Y_mean_true_best_treatment,
+               'potential_outcome_A1_mean': potential_outcome_A1_mean,
+               'potential_outcome_A1_std': potential_outcome_A1_std,
+               'potential_outcome_A0_mean': potential_outcome_A0_mean, 
+               'potential_outcome_A0_std': potential_outcome_A0_std,
+               }
 
     # Collect results
     # Create unique id from timestamp and random number    
     current_time = time.strftime("%Y%m%d%H%M%S")
-    experiment_id = current_time + str(np.random.randint(1000,9999))
+    experiment_id = current_time + str(np.random.randint(1000, 9999))
     # Wrap into function.
     compiled_results = {'experiment_id': experiment_id,
                         'true_CATE_mu': true_CATE_mu,
@@ -157,6 +203,7 @@ def main(X_o, agent_priors, modified_prior,
                         'X_o': X_o,
                         'A1_treatment': A1_treatment,
                         'A0_treatment': A0_treatment}
+    compiled_results.update(outputs)
     compiled_results.update(parameter_descriptions)  # Include parameter descriptions
     end_time = time.time()
     running_time = end_time - start_time

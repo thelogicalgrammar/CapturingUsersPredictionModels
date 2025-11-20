@@ -129,8 +129,8 @@ class SCM:
         #                      "or `A_treatment` must be scalar.")
         _X, _A, Y_do, *_ = self.sample(X, A=A_treatment, draws=draws, rng=rng)
         Y_do_mean = np.mean(Y_do)
-        #Y_do_std
-        return Y_do
+        Y_do_std = np.std(Y_do)
+        return Y_do, Y_do_mean, Y_do_std
 
     def sample_CATE(self, X, A1_treatment, A0_treatment, draws=1, rng=None):
         """
@@ -146,9 +146,9 @@ class SCM:
         rng: seed or initialized random number generator for reproducibility
         """
         # Sample an outcome with treatment 1:
-        Y_do1 = self.sample_do_A(A1_treatment, X, draws, rng=rng)
+        Y_do1, *_ = self.sample_do_A(A1_treatment, X, draws, rng=rng)
         # Sample an outcome with treatment 0:
-        Y_do0 = self.sample_do_A(A0_treatment, X, draws, rng=rng)
+        Y_do0, *_ = self.sample_do_A(A0_treatment, X, draws, rng=rng)
         # The sample drawn from the CATE-distribution:
         CATE_samples = Y_do1 - Y_do0
         if draws > 2:

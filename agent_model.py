@@ -340,7 +340,7 @@ class AgentModel():
             # Update scm-parameters
             self.predictive_scm.update_parameters(parameters)
             # Sample (generates CATE for that version of the scm):
-            potential_outcomes[i] = self.predictive_scm.sample_do_A(X, A_treatment, rng=rng)
+            potential_outcomes[i], *_ = self.predictive_scm.sample_do_A(X, A_treatment, rng=rng)
         return potential_outcomes
 
     def save_agent_model(self, file_name='agent_model', folder='./saved_models/'):
