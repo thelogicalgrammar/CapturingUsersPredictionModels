@@ -1,264 +1,254 @@
+"""
+This module provides functionality to run experiments that test agent decision-making
+with and without decision support systems.
+
+The script takes three command line parameters where the first one
+is the key in agent_priors to modify, the second one what value 
+agent_priors[key] should take, and the third one what value X_o
+should take.
+
+Example:
+
+.. code-block:: bash
+
+    python experiment.py N_E_mu -20 72
+
+This would set the value of the prior distribution of N_E to -20 and
+use 72kg as the feature of the observed patient.
+
+
+Notes:
+Could perhaps implement support for changing plate size and SCM parameters
+"""
+import sys
+import time
 import arviz as az
-import numpy as np
-import pandas as pd
-import pymc as pm
 import matplotlib.pyplot as plt
+import numpy as np
 from sklearn.linear_model import LinearRegression
-import agent_models
-import historical_scm
+# Project specific:
+import scm
+import utils
+import agent_model as am
 
-# Flag for quicker testing of code.
-TEST_CODE = False
-
-# Generating the historical data, the prediction model and the 
-# prediction on a specific new data point.
-# We begin by defining an SCM and generating 100 data points.
-# This is the historical SCM so the parameters are fixed
-Hist = historical_scm.BinaryA_SCM(
-        alpha_x_mu   = 2,
-        alpha_x_sigma= 1,
-        alpha_a_mu   = 0,
-        alpha_y_sigma= 0.1,
-        n_e          = -20,
-)
-
-X, A, Y = Hist.sample(n=100)
-# we check what is the mean outcome in this data
-print(np.mean(Y))  #-15.930996903688122
-df = pd.DataFrame({'X': X, 'A': A, 'Y': Y})
-
-# fig, ax = plt.subplots()
-# scatter = ax.scatter(df["X"], df["Y"], c=df["A"])
-# ax.set_xlabel("X")
-# ax.set_ylabel("Y")
-# plt.colorbar(scatter, label="A")  # optional but handy
-# plt.show()
-# plt.clf()
+# Set number of observations used to train prediction model.
+# This is also the plate size used in the agent's belief model.
+plate_size = 1000
+scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
+                        'alpha_mu_A': 10, 'alpha_sigma_A': 1.0,
+                        'alpha_mu_Y': 0.0, 'alpha_sigma_Y': 0.1,
+                        'N_E': 20}
+# Set scm agent priors to the same
+predictive_var_names = [k for k in scm_noise_parameters.keys() if k != 'alpha_sigma_A']
+scm_constants = {'a': 12.0, 'b': -0.1, 'd': 0.125}
+draws = 1000  # Number of draws for trace. Warmup is set to 1000.
+# Default values of agent priors. One value is overwritten in main().
+agent_priors =\
+    {'mu_X': 80, 'sigma_X': 1, 'lambda_X': 10, 'mu_A': 10, 'sigma_A': 1, 'lambda_A': 10,
+     'mu_Y': 0, 'sigma_Y': 1, 'lambda_Y': 1, 'N_E_mu': 20, 'N_E_sigma': 1}
+# Treatment info
+A1_treatment = 100
+A0_treatment = 50
+parameter_descriptions = {'agent_priors': 'Aligned',
+                          'scm_constants': 'Standard',
+                          'scm_noise_parameters': 'Standard'}
 
 
-# These data points are used to train a linear model
-pred_model = LinearRegression(fit_intercept=False).fit(X.reshape(-1, 1), Y)
-# given a new data point X^o, the model gives a prediction Pred^o for the user
-x_obs    = np.asarray(1)  # X° you actually saw
-pred_obs = pred_model.predict(x_obs.reshape(-1, 1))  # Pred° you actually saw
-print(pred_obs)  # [-6.73087294]
+def main(X_o, agent_priors, modified_prior,
+         A1_treatment=A1_treatment, A0_treatment=A0_treatment,
+         plate_size=plate_size, draws=1000,
+         scm_noise_parameters=scm_noise_parameters,
+         scm_constants=scm_constants):
+    """
+    Args:
+    X_o (np.array): Feature value of the observed patient (e.g. in kg).
+    agent_priors (dict): Dictionary with all values that encodes the
+     agent's prior beliefs.
+    modified_prior (dict): Information about which prior was changed
+     and how much.
+    A1_treatment (float): Value of treatment 1.
+    A0_treatment (float): Value of treatment 0.
+    plate_size (int): Size of plate / number or observations to generate
+     for regression model. Measure of "evidence" for predictions from
+     decision support model.
+    draws (int): Size of sample to generate in sampling events.
+    scm_noise_parameters (dict): Dict with keys needed in SCM-class.
+    scm_constants (dict): Constants defining the relationships in the SCM.
+    """
+    start_time = time.time()
+    # 1. SCM-instance to generate population data under the
+    #    historical treatment policy.
+    #    X is sampled from the population distribution, A
+    #    is the treatment given under the historical treatment
+    #    policy given X, and Y is the outcome given X and A.
+    data_scm = scm.SCM(**scm_noise_parameters)
+
+    # 2. Generate data. This is identical to the true
+    #    underlying generating process and the outcomes
+    #    Y are outcomes under the historical treatment
+    #    policy.
+    X, A, Y_historical, *_ = data_scm.sample(draws=plate_size)
+
+    # 3. Train prediction model on historical data. 
+    pred_model = LinearRegression(fit_intercept=False).fit(X.reshape(-1, 1), Y_historical)
+
+    # 4. The prediction model is next used for decision support. The physician
+    #    inputs the data of the patient and the prediction model produces a prediction.
+    pred_o = pred_model.predict(X_o.reshape(-1, 1))  # The observed prediction
+    # print("The predicted outcome for this patient weighing {}kg is {}.".format(X_o, pred_o[0]))
+
+    # 5. Define the agent model.
+    #    Using same _constants_ for agent's internal SCM as for data generating SCM.
+    agent_model = am.AgentModel(prior_parameters=agent_priors,
+                                scm_constants=scm_constants,
+                                predictive_var_names=predictive_var_names,
+                                plate_size=plate_size)
+
+    # 6. Predictive estimates and treatment decision under prior beliefs
+    prior_CATE_mu = agent_model.get_prior_CATE_mu(A1_treatment, A0_treatment)
+    prior_CATE_samples_, prior_CATE_mean, prior_CATE_std = \
+        agent_model.sample_prior_predictive_CATE(X_o, A1_treatment, A0_treatment)
+    prior_treatment = A1_treatment if prior_CATE_mu > 0 else A0_treatment
+
+    # 7. Predictive estimates and treatment decision under posterior beliefs
+    # The agent's beliefs are updated / the posterior given the observed data is sampled.
+    agent_model.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o[0]), draws=draws)
+    # Using updated agent beliefs to come to a decision on what is the best treatment
+    posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std =\
+        agent_model.sample_posterior_predictive_CATE(X_o, A1_treatment, A0_treatment)
+    posterior_treatment = A1_treatment if posterior_CATE_mean > 0 else A0_treatment
+
+    # 8. Ground truth of CATE and potential outcomes
+    #    based on the data generating SCM
+    true_CATE_mu = data_scm.get_CATE_mu(A1_treatment, A0_treatment)
+    true_CATE_samples_, true_CATE_mean, true_CATE_std =\
+        data_scm.sample_CATE(X_o, A1_treatment, A0_treatment, draws=draws)
+    # Potential outcomes under treatment A1 and A0
+    # This currently generates one single draw for each and the
+    # SCM includes randomness.
+    # Estimate mean?
+    potential_outcome_A1_samples_, potential_outcome_A1_mean, potential_outcome_A1_std =\
+        data_scm.sample_do_A(A1_treatment, X_o, draws=draws)
+    potential_outcome_A0_samples_, potential_outcome_A0_mean, potential_outcome_A0_std =\
+        data_scm.sample_do_A(A0_treatment, X_o, draws=draws)
+
+    # 9. Compare results
+
+    # Is the physician's decision correct given the true_CATE_mu values?
+    prior_decision_correct = True if np.sign(true_CATE_mu) == np.sign(prior_CATE_mu) else False
+    posterior_decision_correct = True if np.sign(true_CATE_mu) == np.sign(posterior_CATE_mean) else False
+    # Which decision is best?
+    true_best_treatment = A1_treatment if np.sign(true_CATE_mu) > 0 else A0_treatment
+    # Did the decision change (+1 for better, 0 no change, -1 for worse)?
+    if np.sign(prior_CATE_mu) != np.sign(posterior_CATE_mean):
+        # Set to 1 if changed for the better and -1 if changed for the worse
+        decision_changed = 1 if np.sign(posterior_CATE_mean) == np.sign(true_CATE_mu) else -1
+    else:
+        # Set to 0 if no change.
+        decision_changed = 0
+
+    # For what fraction of patients is the treatment decision based on prior_CATE_mu,
+    # posterior_CATE_mean, and true_CATE_mu correct?
+    frac_correct_prior_decision = np.mean(np.sign(true_CATE_samples_) == np.sign(prior_CATE_mu))
+    frac_correct_posterior_decision = np.mean(np.sign(true_CATE_samples_) == np.sign(posterior_CATE_mean))
+    # Fraction of population that would have benefited from a
+    # decision based on the average true CATE (baseline):
+    frac_correct_true_best_treatment = np.mean(np.sign(true_CATE_samples_) == np.sign(true_CATE_mu))
+
+    # How much do the patients on average benefit?
+    # Average outcome Y under prior decision
+    Y_mean_prior_treatment = potential_outcome_A1_mean if np.sign(prior_CATE_mu) > 0 \
+        else potential_outcome_A0_mean
+    # Average outcome Y under posterior decision:
+    Y_mean_posterior_treatment = potential_outcome_A1_mean if np.sign(posterior_CATE_mean) > 0 \
+        else potential_outcome_A0_mean
+    # Average outcome under best decision based on true_CATE_mu
+    Y_mean_true_best_treatment = potential_outcome_A1_mean if np.sign(true_CATE_mu) > 0 \
+        else potential_outcome_A0_mean
+    # Also save prediction pred_o
+    outputs = {'pred_o': pred_o,
+               'prior_treatment': prior_treatment,
+               'posterior_treatment': posterior_treatment,
+               'true_best_treatment': true_best_treatment,
+               'prior_decision_correct': prior_decision_correct,
+               'posterior_decision_correct': posterior_decision_correct,
+               'decision_changed': decision_changed,
+               'frac_correct_prior_decision': frac_correct_prior_decision,
+               'frac_correct_posterior_decision': frac_correct_posterior_decision,
+               'frac_correct_true_best_treatment': frac_correct_true_best_treatment,
+               'Y_mean_prior_treatment': Y_mean_prior_treatment,
+               'Y_mean_posterior_treatment': Y_mean_posterior_treatment,
+               'Y_mean_true_best_treatment': Y_mean_true_best_treatment,
+               'potential_outcome_A1_mean': potential_outcome_A1_mean,
+               'potential_outcome_A1_std': potential_outcome_A1_std,
+               'potential_outcome_A0_mean': potential_outcome_A0_mean, 
+               'potential_outcome_A0_std': potential_outcome_A0_std,
+               }
+
+    # Collect results
+    # Create unique id from timestamp and random number    
+    current_time = time.strftime("%Y%m%d%H%M%S")
+    experiment_id = current_time + str(np.random.randint(1000, 9999))
+    # Wrap into function.
+    compiled_results = {'experiment_id': experiment_id,
+                        'true_CATE_mu': true_CATE_mu,
+                        'true_CATE_mean': true_CATE_mean,
+                        'true_CATE_std': true_CATE_std,
+                        'prior_CATE_mu': prior_CATE_mu,
+                        'prior_CATE_mean': prior_CATE_mean,
+                        'prior_CATE_std': prior_CATE_std,
+                        'posterior_CATE_mean': posterior_CATE_mean,
+                        'posterior_CATE_std': posterior_CATE_std,
+                        'plate_size': plate_size,
+                        'X_o': X_o,
+                        'A1_treatment': A1_treatment,
+                        'A0_treatment': A0_treatment}
+    compiled_results.update(outputs)
+    compiled_results.update(parameter_descriptions)  # Include parameter descriptions
+    end_time = time.time()
+    running_time = end_time - start_time
+    current_time = time.strftime("%H:%M:%S %d.%m.%Y")
+    compiled_results['time_stamp'] = current_time
+    compiled_results['running_time'] = running_time
+    compiled_results.update(modified_prior)
+
+    # Add something general about model convergence and quality metrics.
+
+    utils.write_results_to_file(compiled_results)
+
+    # Save model to disk:
+    agent_model.save_agent_model(experiment_id)
+    
+    # Testing that loading works.
+    # tmp = am.AgentModel.load_agent_model()
+    # What is the posterior distribution of the agent's belief about N_E?
+    az.plot_posterior(agent_model.trace, var_names=['N_E'])
+    plt.title("Posterior distribution of agent's belief about N_E")
+    plt.savefig('./fig/basic_example_posterior_NE.png')
+    plt.clf()
 
 
-# Define internal model of the agent and do Bayesian update
-# ---------- constants ----------
-# latent sample size
-n         = 100
-# NOTE: If this value is too small, the model will have a lot of divergences.
-tiny      = 5e-2
-Xo_obs    = 1.37
-Predo_obs = 2.11
-m = agent_models.define_model_1(Xo_obs, Predo_obs, intercept = 12, coefficient_X = 0.1, n=n,
-                                tiny=tiny)
-if TEST_CODE:
-    # For testing purposes, we use a smaller sample size
-    # to speed up the sampling.
-    sample_size = 7
-else:
-    sample_size = 1000
-with m:
-    prior_preds = pm.sample_prior_predictive()
-
-# az.plot_pair(
-#     prior_preds,
-#     group="prior",
-#     # Only plot meaningful parameters
-#     var_names=[
-#         "NE",
-#         "N_E",
-#         "phi",
-#         "phi_hat",
-#         "αA",
-#         "βA",
-#         "αAμ",
-#         "α_Aμ",
-#         "αXμ",
-#         "αXσ",
-#         "α_Xμ",
-#         "α_Xσ",
-#         "αYσ",
-#         "α_Yσ"
-#     ]
-# )
-# plt.show()
-# plt.clf()
-
-with m:
-    trace = pm.sample(
-        sample_size,
-        target_accept=.99,
-        chains=4,
-        random_seed=42,
-        max_treedepth=15,
-        init="jitter+adapt_diag"
-    )
-#
-# pm.model_to_graphviz(m)
-# plt.show()
-#
-# az.plot_posterior(
-#     trace,
-# )
-#
-# az.plot_pair(trace)
-# plt.show()
-# plt.clf()
-#
-# # one predictive sample per posterior draw
-# rng = np.random.default_rng(123)  # FIXED VALUE RNG SEED!!
-# Xnew_samples   = rng.normal(loc=trace.posterior['αXμ'],
-#                             scale=trace.posterior['αXσ'])
-#
-# phi_samples = trace.posterior['phi']
-# Prednew_samples = phi_samples * Xnew_samples
-#
-# # Shape (chains, draws); flatten if you wish
-# pred_vec = np.asarray(Prednew_samples).ravel()
-# print("Shape of prediction vector: "  + str(Prednew_samples.shape))
-#
-# plt.plot(Xnew_samples.flatten(), pred_vec)
-#
-# trace.posterior.keys()
-#
-#
-# if False:
-#     df = trace.posterior['NE', ].to_dataframe()  # Where is NE supposed to come from??
-#
-# NE = df.reset_index(drop=True)
-# if False:
-#     Y = 0.5 * X + NE * A + N_Y  # N_Y is undefined at this point. ??
-#
-# # From update to agent decision
-# # -Analytic (exact, fastest)
-# # -Save samples from the posterior in a dataframe
-# df_params = trace.posterior.to_dataframe()
-# df_params["cate"] = df_params.apply(historical_scm.estimate_cate_from_row, axis=1)
-#
-# cate_vector = df_params["cate"].to_numpy()
-# print(cate_vector)
-#
-# plt.hist(cate_vector)
-# plt.show()
-# plt.clf()
-#
-# # What happens to the distribution of Y if different copies of the same agent act on different
-# # patients? For example if 100 agent defined as above act on 100 new data points.
-#
-# # What happens if prior of the agent on N_E are way off?
-#
-# # Version with binary A but X, Y continuous
-#
-# ##########################################
-# ### Model 2
-# ##########################################
-# # ------------------------------------------------------------------
-# #  FILL-IN: your observed values and (optionally) how many training
-# #  points you want the model to posit as latent.
-# # ------------------------------------------------------------------
-# n_train = 30  # size of the (unseen) training sample
-# eps_pred = 0.01  # tiny measurement noise for Pred°
-# eps_phi = 1e-9  # for safe division
-# rng = np.random.default_rng(0)  # for initialization of Z_X
-#
-# scm_nc = agent_models.define_model_2(x_obs, pred_obs, n_train, eps_pred, eps_phi, rng)
-#
-# with scm_nc:
-#     idata = pm.sample(3000, tune=3000, init="jitter+adapt_diag_grad",
-#                       chains = 4, mp_ctx="spawn",
-#                       target_accept=0.99, random_seed=42)
-#
-# with scm_nc:
-#     prior_preds = pm.sample_prior_predictive()
-#
-# plt.scatter(
-#     prior_preds.prior_predictive.data_vars['Pred_o'].to_numpy().flatten(),
-#     prior_preds.prior_predictive.data_vars['X_o'].to_numpy().flatten()
-# )
-# plt.xlabel('Pred_o')
-# plt.ylabel('X_o')
-#
-#
-# # ------------------------------------------------------------------
-# #  Quick look at the updated posteriors
-# # ------------------------------------------------------------------
-# print(
-#     az.summary(
-#         idata,
-#         var_names=[
-#             "α_Xμ",
-#             "α_Xσ",
-#             "α_Aμ",
-#             "α_Yσ",
-#             "N_E",
-#             "phi_hat",
-#         ],
-#         round_to=2,
-#     )
-# )
-#
-# idata  # print?
-#
-# az.plot_posterior(idata, var_names=[
-#     "α_Xμ",
-#     "α_Xσ",
-#     "α_Aμ",
-#     "α_Yσ",
-#     "N_E"
-# ])
-#
-# az.plot_pair(idata, var_names=[
-#     "α_Xμ",
-#     "α_Xσ",
-#     "α_Aμ",
-#     "α_Yσ",
-#     "N_E"
-# ])
-#
-# ##########################################
-# ### Model 3
-# ##########################################
-# # constants
-# if TEST_CODE:
-#     n = 7
-# else:
-#     n = 8000
-# Xo_obs    = 1.37
-# Predo_obs = 2.11
-# tiny      = 1e-3
-#
-# model_3 = agent_models.define_model_3(Xo_obs, Predo_obs, n, tiny)
-# with model_3:
-#     trace = pm.sample(2000, target_accept=.99, chains=4)
-#
-# trace
-#
-#
-# ##########################################
-# ### Model 4
-# ##########################################
-#
-# if TEST_CODE:
-#     n = 7  # smaller sample size for testing
-# else:
-#     n = 500
-# Xo_obs    = 1.37
-# Predo_obs = 2.11
-# sigma_P   = 0.05          # <- not 1e-3 !
-# rng       = np.random.default_rng(1)
-#
-# m = agent_models.define_model_4(Xo_obs, Predo_obs, n, sigma_P, rng)
-#
-# with m:
-#     trace = pm.sample(2_000,
-#                       target_accept=0.95,
-#                       # max_treedepth=15,
-#                       init='jitter+adapt_diag',
-#                       random_seed=42)
-#
-# trace
-#
-# az.plot_posterior(trace)
+if __name__ == '__main__':
+    try:
+        # Read in values:
+        param_name = sys.argv[1]
+        param_value = float(sys.argv[2])
+        # Value for X_o
+        X_o = np.array(float(sys.argv[3]))
+    except:
+        # Absolutely has to throw an error if input is not specified or not
+        # well specified to prevent erroneous interpretation of results.
+        raise ValueError("Use script as 'python experiment.py N_A_mu 23 72'")
+    if param_name not in agent_priors.keys():
+        print("Parameter has to exist in agent_priors. See")
+        print(agent_priors)
+        text = "{} not a valid parameter!".format(param_name)
+        raise ValueError(text)
+    agent_priors[param_name] = param_value
+    modified_prior = {'modified_prior': param_name,
+                      'modified_prior_value': param_value}
+    # Modify agent parameters
+    # Run main() with set parameters and X_o.
+    print("Running experiment with X_o set to {} and agent prior {} set to {}...".format(
+        X_o, param_name, param_value))
+    main(X_o, agent_priors, modified_prior)
