@@ -68,7 +68,7 @@ class SCM:
         and on the intervention do(A):
             Y ~ p(Y| X, do(A)).
         All of X, A, and Y are always passed. In addition, the distribution
-        parameters for Y (mu_Y_cond, and var_Y_cond) are passed. If X
+        parameters for Y (mu_Y_cond, and std_Y_cond) are passed. If X
         and/or A are provided, the distribution parameters are conditional
         on the given values. Otherwise they are "conditional" only on the
         sampled values (in contrast how the word "conditional" is normally
@@ -99,35 +99,37 @@ class SCM:
         # If X was passed, the output Y is conditional on the passed value. 
         # If A was passed, the output Y is conditional on do(A).
         mu_Y_cond = self.a + self.b * X + self.N_E * A
-        var_Y_cond = np.full_like(mu_Y_cond, self.alpha_sigma_Y)
+        std_Y_cond = np.full_like(mu_Y_cond, self.alpha_sigma_Y)
         # Model defines the treatement effect as independent of X.
         Y = mu_Y_cond + N_Y
-        # {'X': X, 'Y': Y, 'A': A, 'mu_Y_cond': mu_Y_cond, 'var_Y_cond': var_Y_cond}
-        return X, A, Y, mu_Y_cond, var_Y_cond
+        # {'X': X, 'Y': Y, 'A': A, 'mu_Y_cond': mu_Y_cond, 'std_Y_cond': std_Y_cond}
+        return X, A, Y, mu_Y_cond, std_Y_cond
 
-    def sample_do_A(self, A_fixed, X: np.ndarray, draws: int = 1,
+    def sample_do_A(self, A_treatment, X: np.ndarray, draws: int = 1,
                     rng=None) -> np.ndarray:
         """
         Generates sample from the SCM given the data and set treatments, i.e.
-            Y_i ~ p(Y|do(A_fixed), X)
+            Y_i ~ p(Y|do(A_treatment), X)
         Returns an array with shape (n, *X.shape).
         This is merely a wrapper for the interventional path in self.sample().
 
         Args:
-        A_fixed (int- or array-like): value to intervene on A, or array with X.shape
+        A_treatment (int- or array-like): value to intervene on A, or array with X.shape
         X: observed values of X
         draws (int): Size of sample to draw for every observation in A.
         rng: seed or initialized random number generator for reproducibility
         """
         # Either include checks everywhere or nowhere.
         # X = np.asarray(X)
-        # A_fixed = np.asarray(A_fixed)
-        # if A_fixed.shape == ():  # broadcast scalar
-        #     A_fixed = np.full_like(X, A_fixed)
-        # if A_fixed.shape != X.shape:
-        #     raise ValueError("`A_fixed` and `X` must have the same shape "
-        #                      "or `A_fixed` must be scalar.")
-        _X, _A, Y_do, *_ = self.sample(X, A=A_fixed, draws=draws, rng=rng)
+        # A_treatment = np.asarray(A_treatment)
+        # if A_treatment.shape == ():  # broadcast scalar
+        #     A_treatment = np.full_like(X, A_treatment)
+        # if A_treatment.shape != X.shape:
+        #     raise ValueError("`A_treatment` and `X` must have the same shape "
+        #                      "or `A_treatment` must be scalar.")
+        _X, _A, Y_do, *_ = self.sample(X, A=A_treatment, draws=draws, rng=rng)
+        Y_do_mean = np.mean(Y_do)
+        #Y_do_std
         return Y_do
 
     def sample_CATE(self, X, A1_treatment, A0_treatment, draws=1, rng=None):
@@ -150,7 +152,7 @@ class SCM:
         # The sample drawn from the CATE-distribution:
         CATE_samples = Y_do1 - Y_do0
         if draws > 2:
-            # Estimate mean and variance from sample
+            # Estimate mean and standard deviation from sample
             CATE_mean = np.mean(CATE_samples)
             CATE_std = np.std(CATE_samples)
         else:
@@ -158,7 +160,6 @@ class SCM:
             CATE_std = None
         return CATE_samples, CATE_mean, CATE_std
 
-    # Maybe move most of this to tests.
     def get_CATE_mu(self, A1_treatment, A0_treatment):
         """
         This method returns the mean of the CATE-distribution given
@@ -176,9 +177,6 @@ class SCM:
         A1_treatment [float]: Dosage value of higher dose treatment
         A0_treatment [float]: Dosage value of lower dose treatment
         """
-        # _X1, _A1, _Y1, mu_Y1, _* = self.sample(X, A1_treatment)
-        # _X0, _A0, _Y0, mu_Y0, _* = self.sample(X, A0_treatment)
-        # assert mu_Y1 - mu_Y0 == self.N_E, "Something wrong in mu-calculations"
         return (A1_treatment - A0_treatment) * self.N_E
 
 

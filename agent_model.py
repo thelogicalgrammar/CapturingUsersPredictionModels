@@ -258,7 +258,7 @@ class AgentModel():
             self.predictive_scm.update_parameters(parameters)
             # sample_CATE (generates X, Y, A, mu_A_cond, sigma_A_cond)
             CATE_samples[i], *_ = self.predictive_scm.sample_CATE(X, A1_treatment, A0_treatment, rng=rng)
-        # Estimate mean and variance from sample
+        # Estimate mean and standard deviation from sample
         CATE_mean = np.mean(CATE_samples)
         CATE_std = np.std(CATE_samples)
         return CATE_samples, CATE_mean, CATE_std
@@ -268,7 +268,7 @@ class AgentModel():
         The method returns the mean of the CATE-distribution times
         A1_treatment - A0_treatment. The current SCM is such that N_E is not
         dependent on X and the treatment effect only depends on
-        N_E and size of A_fixed.
+        N_E and size of A_treatment.
         """
         return (A1_treatment - A0_treatment) * self.prior_parameters['N_E_mu']
 
@@ -316,19 +316,20 @@ class AgentModel():
             self.predictive_scm.update_parameters(parameters)
             # Sample (generates CATE for that version of the scm):
             CATE_samples[i], *_ = self.predictive_scm.sample_CATE(X, A1_treatment, A0_treatment, rng=rng)
-        # Estimate mean and variance from sample
+        # Estimate mean and standard deviation from sample
         CATE_mean = np.mean(CATE_samples)
         CATE_std = np.std(CATE_samples)
         return CATE_samples, CATE_mean, CATE_std
 
-    def sample_posterior_do_A(self, X, A_fixed, rng=None):
+    def sample_posterior_do_A(self, X, A_treatment, rng=None):
         """
         Method for estimating the outcome for a patient with features X
-        based on the agent's posterior beliefs.
+        based on the agent's posterior beliefs. Draws one potential
+        outcome for every draw in trace.
 
         Args:
         X (np.array): Feature to condition on
-        A_fixed (float): Fixed treatment value
+        A_treatment (float): Fixed treatment value
         rng (int or rng): Random number generator or seed for reproducibility
         """
         parameter_array = {var: self.trace.posterior[var].values.flatten() for var in self.predictive_var_names}
@@ -339,7 +340,7 @@ class AgentModel():
             # Update scm-parameters
             self.predictive_scm.update_parameters(parameters)
             # Sample (generates CATE for that version of the scm):
-            potential_outcomes[i] = self.predictive_scm.sample_do_A(X, A_fixed, rng=rng)
+            potential_outcomes[i] = self.predictive_scm.sample_do_A(X, A_treatment, rng=rng)
         return potential_outcomes
 
     def save_agent_model(self, file_name='agent_model', folder='./saved_models/'):

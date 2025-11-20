@@ -104,13 +104,13 @@ def main(X_o, agent_priors, modified_prior,
                                 predictive_var_names=predictive_var_names,
                                 plate_size=plate_size)
 
-    # 6. Prior beliefs and treatment under prior beliefs
+    # 6. Predictive estimates and treatment decision under prior beliefs
     prior_CATE_mu = agent_model.get_prior_CATE_mu(A1_treatment, A0_treatment)
     prior_CATE_samples_, prior_CATE_mean, prior_CATE_std = \
         agent_model.sample_prior_predictive_CATE(X_o, A1_treatment, A0_treatment)
     prior_treatment = A1_treatment if prior_CATE_mu > 0 else A0_treatment
 
-    # 7. Posterior beliefs and treatment under posterior beliefs
+    # 7. Predictive estimates and treatment decision under posterior beliefs
     # The agent's beliefs are updated / the posterior given the observed data is sampled.
     agent_model.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o[0]), draws=draws)
     # Using updated agent beliefs to come to a decision on what is the best treatment
