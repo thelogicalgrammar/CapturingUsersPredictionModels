@@ -168,8 +168,3 @@ tmp/
 *.nc
 *.joblib
 *.csv
-# Sphinx files:
-docs/conf.py
-docs/*.rst
-docs/make.bat
-docs/Makefile
