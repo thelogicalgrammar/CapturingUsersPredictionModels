@@ -27,7 +27,7 @@ import numpy as np
 import experiment
 
 # Number of runs for every parameter value
-N_ITERATIONS = 20
+N_ITERATIONS = 50
 
 # Default data generating parameters
 scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
@@ -48,7 +48,10 @@ parameter_descriptions = {'agent_priors': 'Default',
 def main():
     # Generate parameters for individual experiments:
     deviations = [-2, -1, 0, 1, 2]
-      # Data SCM does not have a standard deviation for N_E
+    # Data SCM does not have a standard deviation for N_E
+    # mu_A is _just_the mean of the noice. Acts like a constant shift from d*X
+    # Might make sense to reparameterize d to N_d (or something) to be able to capture
+    # the belief that a historical treatment policy was the opposite of the actual.
     params = {'N_E_mu': [-20, 0, 20, 40, 60],
               'mu_X': [deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
               'mu_A': [deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
