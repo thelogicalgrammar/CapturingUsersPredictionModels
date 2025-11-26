@@ -49,9 +49,9 @@ agent_priors =\
 # Treatment info
 A1_treatment = 100
 A0_treatment = 50
-parameter_descriptions = {'agent_priors': 'Aligned',
-                          'scm_constants': 'Standard',
-                          'scm_noise_parameters': 'Standard'}
+parameter_descriptions = {'agent_priors': 'Default',
+                          'scm_constants': 'Default',
+                          'scm_noise_parameters': 'Default'}
 rng = 4  # Selected by fair die
 
 
@@ -117,6 +117,17 @@ def main(X_o, agent_priors, modified_prior,
     # 7. Predictive estimates and treatment decision under posterior beliefs
     # The agent's beliefs are updated / the posterior given the observed data is sampled.
     agent_model.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o[0]), draws=draws, rng=rng)
+    # Model diagnostics
+    rhat_values = az.rhat(agent_model.trace)
+    ess_bulk_values = az.ess(agent_model.trace, method='bulk')
+    ess_tail_values = az.ess(agent_model.trace, method='tail')
+    trace_diagnostics = {
+        'max_rhat': float(rhat_values.to_array().max().values),
+        'min_ess_bulk': float(ess_bulk_values.to_array().min().values),
+        'min_ess_tail': float(ess_tail_values.to_array().min().values),
+        'n_divergences': int(agent_model.trace.sample_stats['diverging'].sum())
+        }
+
     # Using updated agent beliefs to come to a decision on what is the best treatment
     posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std =\
         agent_model.sample_posterior_predictive_CATE(X_o, A1_treatment, A0_treatment, rng=rng)
@@ -217,6 +228,7 @@ def main(X_o, agent_priors, modified_prior,
     compiled_results['time_stamp'] = current_time
     compiled_results['running_time'] = running_time
     compiled_results.update(modified_prior)
+    compiled_results.update(trace_diagnostics)
 
     # Add something general about model convergence and quality metrics.
 

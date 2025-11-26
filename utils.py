@@ -32,7 +32,8 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
                    '"Plate Size","A1_treatment","A0_treatment",'
                    '"Agent Priors","SCM Noise Parameters",'
                    '"SCM Constants",'
-                   '"Running Time"\n')
+                   '"Running Time",'
+                   '"max(R-hat)","min(ESS), bulk","min(ESS), tail","Divergences"\n')
         with open(full_path, 'w') as f:
             f.write(headers)
     else:
@@ -54,6 +55,7 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
     key_ordering += ['agent_priors', 'scm_noise_parameters']
     key_ordering += ['scm_constants']
     key_ordering += ['running_time']
+    key_ordering += ['max_rhat', 'min_ess_bulk', 'min_ess_tail', 'n_divergences']
     text = ''
     for key in key_ordering:
         text += '"' + str(result_dict[key]) + '",'
