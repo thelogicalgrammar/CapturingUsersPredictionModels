@@ -108,7 +108,7 @@ def main(X_o, agent_priors, modified_prior,
     prior_CATE_mu = agent_model.get_prior_CATE_mu(A1_treatment, A0_treatment)
     prior_CATE_samples_, prior_CATE_mean, prior_CATE_std = \
         agent_model.sample_prior_predictive_CATE(X_o, A1_treatment, A0_treatment)
-    prior_treatment = A1_treatment if prior_CATE_mu > 0 else A0_treatment
+    prior_treatment = A1_treatment if prior_CATE_mean > 0 else A0_treatment
 
     # 7. Predictive estimates and treatment decision under posterior beliefs
     # The agent's beliefs are updated / the posterior given the observed data is sampled.
@@ -134,36 +134,36 @@ def main(X_o, agent_priors, modified_prior,
 
     # 9. Compare results
 
-    # Is the physician's decision correct given the true_CATE_mu values?
-    prior_decision_correct = True if np.sign(true_CATE_mu) == np.sign(prior_CATE_mu) else False
-    posterior_decision_correct = True if np.sign(true_CATE_mu) == np.sign(posterior_CATE_mean) else False
+    # Is the physician's decision correct given the true_CATE_mean values?
+    prior_decision_correct = True if np.sign(true_CATE_mean) == np.sign(prior_CATE_mean) else False
+    posterior_decision_correct = True if np.sign(true_CATE_mean) == np.sign(posterior_CATE_mean) else False
     # Which decision is best?
-    true_best_treatment = A1_treatment if np.sign(true_CATE_mu) > 0 else A0_treatment
+    true_best_treatment = A1_treatment if np.sign(true_CATE_mean) > 0 else A0_treatment
     # Did the decision change (+1 for better, 0 no change, -1 for worse)?
-    if np.sign(prior_CATE_mu) != np.sign(posterior_CATE_mean):
+    if np.sign(prior_CATE_mean) != np.sign(posterior_CATE_mean):
         # Set to 1 if changed for the better and -1 if changed for the worse
-        decision_changed = 1 if np.sign(posterior_CATE_mean) == np.sign(true_CATE_mu) else -1
+        decision_changed = 1 if np.sign(posterior_CATE_mean) == np.sign(true_CATE_mean) else -1
     else:
         # Set to 0 if no change.
         decision_changed = 0
 
-    # For what fraction of patients is the treatment decision based on prior_CATE_mu,
-    # posterior_CATE_mean, and true_CATE_mu correct?
-    frac_correct_prior_decision = np.mean(np.sign(true_CATE_samples_) == np.sign(prior_CATE_mu))
+    # For what fraction of patients is the treatment decision based on prior_CATE_mean,
+    # posterior_CATE_mean, and true_CATE_mean correct?
+    frac_correct_prior_decision = np.mean(np.sign(true_CATE_samples_) == np.sign(prior_CATE_mean))
     frac_correct_posterior_decision = np.mean(np.sign(true_CATE_samples_) == np.sign(posterior_CATE_mean))
     # Fraction of population that would have benefited from a
     # decision based on the average true CATE (baseline):
-    frac_correct_true_best_treatment = np.mean(np.sign(true_CATE_samples_) == np.sign(true_CATE_mu))
+    frac_correct_true_best_treatment = np.mean(np.sign(true_CATE_samples_) == np.sign(true_CATE_mean))
 
     # How much do the patients on average benefit?
     # Average outcome Y under prior decision
-    Y_mean_prior_treatment = potential_outcome_A1_mean if np.sign(prior_CATE_mu) > 0 \
+    Y_mean_prior_treatment = potential_outcome_A1_mean if np.sign(prior_CATE_mean) > 0 \
         else potential_outcome_A0_mean
     # Average outcome Y under posterior decision:
     Y_mean_posterior_treatment = potential_outcome_A1_mean if np.sign(posterior_CATE_mean) > 0 \
         else potential_outcome_A0_mean
-    # Average outcome under best decision based on true_CATE_mu
-    Y_mean_true_best_treatment = potential_outcome_A1_mean if np.sign(true_CATE_mu) > 0 \
+    # Average outcome under best decision based on true_CATE_mean
+    Y_mean_true_best_treatment = potential_outcome_A1_mean if np.sign(true_CATE_mean) > 0 \
         else potential_outcome_A0_mean
     # Also save prediction pred_o
     outputs = {'pred_o': pred_o,
