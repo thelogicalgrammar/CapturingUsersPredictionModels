@@ -53,8 +53,9 @@ def main():
     # Might make sense to reparameterize d to N_d (or something) to be able to capture
     # the belief that a historical treatment policy was the opposite of the actual.
     params = {'N_E_mu': [-20, 0, 20, 40, 60],
+              'mu_A': [-10, 0, 10, 20, 30],  # Enable prior belief of treatment policy to be opposite to reality
               'mu_X': [deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
-              'mu_A': [deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
+              #'mu_A': [deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
               'mu_Y': [deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations]
               }
     # Flatten:
