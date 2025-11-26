@@ -52,13 +52,15 @@ A0_treatment = 50
 parameter_descriptions = {'agent_priors': 'Aligned',
                           'scm_constants': 'Standard',
                           'scm_noise_parameters': 'Standard'}
+rng = 4  # Selected by fair die
 
 
 def main(X_o, agent_priors, modified_prior,
          A1_treatment=A1_treatment, A0_treatment=A0_treatment,
          plate_size=plate_size, draws=1000,
          scm_noise_parameters=scm_noise_parameters,
-         scm_constants=scm_constants):
+         scm_constants=scm_constants,
+         rng=rng):
     """
     Args:
     X_o (np.array): Feature value of the observed patient (e.g. in kg).
@@ -74,6 +76,7 @@ def main(X_o, agent_priors, modified_prior,
     draws (int): Size of sample to generate in sampling events.
     scm_noise_parameters (dict): Dict with keys needed in SCM-class.
     scm_constants (dict): Constants defining the relationships in the SCM.
+    rng (int or rng): Seed or rng for reproducibility.
     """
     start_time = time.time()
     # 1. SCM-instance to generate population data under the
@@ -87,9 +90,10 @@ def main(X_o, agent_priors, modified_prior,
     #    underlying generating process and the outcomes
     #    Y are outcomes under the historical treatment
     #    policy.
-    X, A, Y_historical, *_ = data_scm.sample(draws=plate_size)
+    X, A, Y_historical, *_ = data_scm.sample(draws=plate_size, rng=rng)
 
     # 3. Train prediction model on historical data. 
+    #    Calculated as the Moore-Penrose pseudo-inverse. No randomness.
     pred_model = LinearRegression(fit_intercept=False).fit(X.reshape(-1, 1), Y_historical)
 
     # 4. The prediction model is next used for decision support. The physician
@@ -112,25 +116,25 @@ def main(X_o, agent_priors, modified_prior,
 
     # 7. Predictive estimates and treatment decision under posterior beliefs
     # The agent's beliefs are updated / the posterior given the observed data is sampled.
-    agent_model.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o[0]), draws=draws)
+    agent_model.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o[0]), draws=draws, rng=rng)
     # Using updated agent beliefs to come to a decision on what is the best treatment
     posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std =\
-        agent_model.sample_posterior_predictive_CATE(X_o, A1_treatment, A0_treatment)
+        agent_model.sample_posterior_predictive_CATE(X_o, A1_treatment, A0_treatment, rng=rng)
     posterior_treatment = A1_treatment if posterior_CATE_mean > 0 else A0_treatment
 
     # 8. Ground truth of CATE and potential outcomes
     #    based on the data generating SCM
     true_CATE_mu = data_scm.get_CATE_mu(A1_treatment, A0_treatment)
     true_CATE_samples_, true_CATE_mean, true_CATE_std =\
-        data_scm.sample_CATE(X_o, A1_treatment, A0_treatment, draws=draws)
+        data_scm.sample_CATE(X_o, A1_treatment, A0_treatment, draws=draws, rng=rng)
     # Potential outcomes under treatment A1 and A0
     # This currently generates one single draw for each and the
     # SCM includes randomness.
     # Estimate mean?
     potential_outcome_A1_samples_, potential_outcome_A1_mean, potential_outcome_A1_std =\
-        data_scm.sample_do_A(A1_treatment, X_o, draws=draws)
+        data_scm.sample_do_A(A1_treatment, X_o, draws=draws, rng=rng)
     potential_outcome_A0_samples_, potential_outcome_A0_mean, potential_outcome_A0_std =\
-        data_scm.sample_do_A(A0_treatment, X_o, draws=draws)
+        data_scm.sample_do_A(A0_treatment, X_o, draws=draws, rng=rng)
 
     # 9. Compare results
 
@@ -188,6 +192,8 @@ def main(X_o, agent_priors, modified_prior,
     # Collect results
     # Create unique id from timestamp and random number    
     current_time = time.strftime("%Y%m%d%H%M%S")
+    # Uses its own rng without seed to not have all experiments
+    # get identical IDs:
     experiment_id = current_time + str(np.random.randint(1000, 9999))
     # Wrap into function.
     compiled_results = {'experiment_id': experiment_id,
@@ -247,8 +253,12 @@ if __name__ == '__main__':
     agent_priors[param_name] = param_value
     modified_prior = {'modified_prior': param_name,
                       'modified_prior_value': param_value}
+    # Helper variable for easy view of experiment parameters:
+    parameter_descriptions['agent_priors'] = 'Modified'
     # Modify agent parameters
     # Run main() with set parameters and X_o.
     print("Running experiment with X_o set to {} and agent prior {} set to {}...".format(
         X_o, param_name, param_value))
-    main(X_o, agent_priors, modified_prior)
+    # Initialize rng:
+    rng = np.random.default_rng(rng)
+    main(X_o, agent_priors, modified_prior, rng=rng)
