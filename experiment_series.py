@@ -27,7 +27,7 @@ import numpy as np
 import experiment
 
 # Number of runs for every parameter value
-N_ITERATIONS = 20
+N_ITERATIONS = 50
 
 # Default data generating parameters
 scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
@@ -50,8 +50,9 @@ def main():
     deviations = [-2, -1, 0, 1, 2]
       # Data SCM does not have a standard deviation for N_E
     params = {'N_E_mu': [-20, 0, 20, 40, 60],
+              'mu_A': [-10, 0, 10, 20, 30],  # Enable prior belief of treatment policy to be opposite to reality
               'mu_X': [deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
-              'mu_A': [deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
+              #'mu_A': [deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
               'mu_Y': [deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations]
               }
     # Flatten:
