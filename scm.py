@@ -91,17 +91,18 @@ class SCM:
             N_A = rng.normal(self.alpha_mu_A, self.alpha_sigma_A, size=draws)
             # Calculate A
             A = self.d * X + N_A
-        # Sample N_Y
-        N_Y = rng.normal(self.alpha_mu_Y, self.alpha_sigma_Y, size=draws)
+        # Sample N_Y, center around zero and add self.alpha_mu_Y later
+        # to also be able to extract parameter mu_Y_cond.
+        N_Y_0_centered = rng.normal(0, self.alpha_sigma_Y, size=draws)
         # Estimate conditional parameters for Y|X,do(A) ~ N(mu_Y, sigma_Y)
         # If neither X nor A was passed, the generated Y is "conditional" on
         # the sampled values (this is not what "conditional" usually refers to).
         # If X was passed, the output Y is conditional on the passed value. 
         # If A was passed, the output Y is conditional on do(A).
-        mu_Y_cond = self.a + self.b * X + self.N_E * A
+        mu_Y_cond = self.a + self.b * X + self.N_E * A + self.alpha_mu_Y
         std_Y_cond = np.full_like(mu_Y_cond, self.alpha_sigma_Y)
         # Model defines the treatement effect as independent of X.
-        Y = mu_Y_cond + N_Y
+        Y = mu_Y_cond + N_Y_0_centered
         # {'X': X, 'Y': Y, 'A': A, 'mu_Y_cond': mu_Y_cond, 'std_Y_cond': std_Y_cond}
         return X, A, Y, mu_Y_cond, std_Y_cond
 
