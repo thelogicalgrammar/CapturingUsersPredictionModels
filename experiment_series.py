@@ -33,12 +33,13 @@ N_ITERATIONS = 50
 scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
                         'alpha_mu_A': 10, 'alpha_sigma_A': 1.0,
                         'alpha_mu_Y': 0.0, 'alpha_sigma_Y': 0.1,
-                        'N_E': 20}
+                        'N_E': 20, 'N_CC': 0.125, 'N_RC': -0.1}
 
 # DEFAULT Agent priors
 agent_priors =\
     {'mu_X': 80, 'sigma_X': 1, 'lambda_X': 10, 'mu_A': 10, 'sigma_A': 1, 'lambda_A': 10,
-     'mu_Y': 0, 'sigma_Y': 1, 'lambda_Y': 1, 'N_E_mu': 20, 'N_E_sigma': 1}
+     'mu_Y': 0, 'sigma_Y': 1, 'lambda_Y': 1, 'N_E_mu': 20, 'N_E_sigma': 1, 
+     'N_CC_mu': 0.125, 'N_CC_sigma': 0.1, 'N_RC_mu': -0.1, 'N_RC_sigma': 0.1}
 
 parameter_descriptions = {'agent_priors': 'Default',
                           'scm_constants': 'Default',
@@ -53,10 +54,11 @@ def main():
     # Might make sense to reparameterize d to N_d (or something) to be able to capture
     # the belief that a historical treatment policy was the opposite of the actual.
     params = {'N_E_mu': [-20, 0, 20, 40, 60],
-              'mu_A': [-10, 0, 10, 20, 30],  # Enable prior belief of treatment policy to be opposite to reality
               'mu_X': [deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
-              #'mu_A': [deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
-              'mu_Y': [deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations]
+              'mu_A': [deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
+              'mu_Y': [deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
+              'N_CC_mu': [deviation * 0.1 for deviation in deviations],
+              'N_RC_mu': [deviation * 0.1 for deviation in deviations]
               }
     # Flatten:
     parameter_list = [(key, value) for key, values in params.items() for value in values]

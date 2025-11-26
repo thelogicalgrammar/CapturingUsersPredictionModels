@@ -35,9 +35,11 @@ class SCM:
     alpha_mu_Y: float = 0.0
     alpha_sigma_Y: float = 0.1
     N_E: float = 20
+    N_CC: float = 0.125
+    N_RC: float = -0.1
     a: float = 12.0
-    b: float = -0.1
-    d: float = 0.125
+    # b: float = -0.1
+    # d: float = 0.125
 
     def update_parameters(self, parameter_dict):
         """
@@ -90,7 +92,7 @@ class SCM:
             # Sample N_A and calculate A
             N_A = rng.normal(self.alpha_mu_A, self.alpha_sigma_A, size=draws)
             # Calculate A
-            A = self.d * X + N_A
+            A = self.N_CC * X + N_A
         # Sample N_Y, center around zero and add self.alpha_mu_Y later
         # to also be able to extract parameter mu_Y_cond.
         N_Y_0_centered = rng.normal(0, self.alpha_sigma_Y, size=draws)
@@ -99,7 +101,7 @@ class SCM:
         # the sampled values (this is not what "conditional" usually refers to).
         # If X was passed, the output Y is conditional on the passed value. 
         # If A was passed, the output Y is conditional on do(A).
-        mu_Y_cond = self.a + self.b * X + self.N_E * A + self.alpha_mu_Y
+        mu_Y_cond = self.a + self.N_RC * X + self.N_E * A + self.alpha_mu_Y
         std_Y_cond = np.full_like(mu_Y_cond, self.alpha_sigma_Y)
         # Model defines the treatement effect as independent of X.
         Y = mu_Y_cond + N_Y_0_centered
@@ -221,12 +223,12 @@ class BinaryA_SCM(SCM):
             # Binary treatment A
             # p(A = 1 | X, N_A) = sigmoid(d * X**2 + N_A)
             # 'd' controls the strength of the relationship between X and A.
-            p_A = sigmoid(self.d * X**2 + N_A)  # P(A = 1 | X, N_A)
+            p_A = sigmoid(self.N_CC * X**2 + N_A)  # P(A = 1 | X, N_A)
             A = rng.binomial(1, p_A)  # binary treatment
         # Sample N_y
         N_Y = rng.normal(self.alpha_mu_Y, self.alpha_sigma_Y, size=draws)
         # Agent assumes the treatement effect is independent of X and constant.
-        Y = self.a + self.b * X + self.N_E * A + N_Y
+        Y = self.a + self.N_RC * X + self.N_E * A + N_Y
         return X, A, Y
 
 
