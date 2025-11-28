@@ -1,5 +1,6 @@
 """
-
+Functions for writing results to file, for reading
+results from said file, and for plotting results.
 """
 import csv
 from pathlib import Path
@@ -89,6 +90,7 @@ def read_outcomes_from_file(file_name='./results/results.csv'):
     results = []
     with open(file_name, 'r') as f:
         reader = csv.reader(f)
+        # Separate headers from contents
         headers = next(reader)
         for row in reader:
             results.append(row)
