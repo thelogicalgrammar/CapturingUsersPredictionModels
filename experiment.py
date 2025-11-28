@@ -64,6 +64,7 @@ def main(X_o, agent_priors, modified_prior,
          plate_size=plate_size, draws=1000,
          scm_noise_parameters=scm_noise_parameters,
          scm_constants=scm_constants,
+         parameter_descriptions=parameter_descriptions,
          rng=rng):
     """
     Args:
