@@ -31,6 +31,8 @@ import scm
 import utils
 import agent_model as am
 
+
+
 # Set number of observations used to train prediction model.
 # This is also the plate size used in the agent's belief model.
 plate_size = 1000
@@ -38,6 +40,7 @@ scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
                         'alpha_mu_A': 10, 'alpha_sigma_A': 1.0,
                         'alpha_mu_Y': 0.0, 'alpha_sigma_Y': 0.1,
                         'N_E': 20, 'N_CC': 0.125, 'N_RC': -0.1}
+
 # Set scm agent priors to the same
 predictive_var_names = [k for k in scm_noise_parameters.keys() if k != 'alpha_sigma_A']
 scm_constants = {'a': 12.0}  #, 'b': -0.1} #, 'd': 0.125}
@@ -48,8 +51,8 @@ agent_priors =\
      'mu_Y': 0, 'sigma_Y': 1, 'lambda_Y': 1, 'N_E_mu': 20, 'N_E_sigma': 1, 
      'N_CC_mu': 0.125, 'N_CC_sigma': 0.1, 'N_RC_mu': -0.1, 'N_RC_sigma': 0.1}
 # Treatment info
-A1_treatment = 100
-A0_treatment = 50
+A1_treatment = 20
+A0_treatment = 10
 parameter_descriptions = {'agent_priors': 'Default',
                           'scm_constants': 'Default',
                           'scm_noise_parameters': 'Default'}
@@ -275,3 +278,4 @@ if __name__ == '__main__':
     # Initialize rng:
     rng = np.random.default_rng(rng)
     main(X_o, agent_priors, modified_prior, rng=rng)
+
