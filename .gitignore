@@ -167,3 +167,4 @@ tmp_env/
 tmp/
 *.nc
 *.joblib
+*.bak
