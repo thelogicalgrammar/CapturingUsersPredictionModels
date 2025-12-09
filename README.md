@@ -14,6 +14,12 @@
 - tests folder:
     - Files to run the code tests for the various parts of the model
 
+## Quickstart
+
+Run `python experiment.py N_E_mu 17 80` to draw posterior samples given that the
+agent has default priors with the exception of N_E_mu which takes value 17, and
+X_o takes value 80.
+
 ## Documentation
 
 Navigate to ./docs/_build/html/index.html locally to access documentation.
