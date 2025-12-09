@@ -1,10 +1,9 @@
 """
-Functions for writing results to file, for reading
-results from said file, and for plotting results.
+
 """
 import csv
+import numpy as np
 from pathlib import Path
-import matplotlib.pyplot as plt
 
 
 def write_results_to_file(result_dict, file_name='results.csv', path='./results/'):
@@ -69,85 +68,108 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
     print("Results saved to {}".format(full_path))
 
 
-def read_outcomes_from_file(file_name='./results/results.csv'):
+def read_and_summarise_results(file_name='./results/results.csv'):
     """
-    This function reads in results from the results.csv file. The 
-    function extracts the outcome under the true SCM given the
-    agent's decision based on their posterior beliefs, and separates
-    this by name of modified prior and groups the results by unique
-    values of the modified prior.
-    E.g. 
-    results_summary['N_E_mu']['parameter_values'] contains a list of
-     unique values that N_E_mu have taken in the results.csv-file, and
-    results_summary['N_E_mu']['value_lists'] contains lists of outcomes
-     where every list corresponds to the parameter value at corresponding
-     index and every item in the list is the outcome for one randomly
-     sample X_o.
-
-    Args:
-    file_name (str): Path and file name of results file. 
     """
     results = []
     with open(file_name, 'r') as f:
         reader = csv.reader(f)
-        # Separate headers from contents
         headers = next(reader)
         for row in reader:
             results.append(row)
 
-    # Separate results by modified parameter name and new value:
+    # Separate results by modified value, estimate means and standard deviations
+    # keys = ['N_E_mu', 'mu_X', 'mu_A', 'mu_Y']
+    results_summary = {'N_E_mu': None, 'mu_X': None, 'mu_A': None, 'mu_Y': None}
+
     # Find column 
     var_name_idx = headers.index('Modified prior')
-    # Find unique row names:
-    modified_var_names = set([row[var_name_idx] for row in results])
-    # Create dict to store the results in:
-    results_summary = {item: None for item in modified_var_names}
-    # Find index of column with value of modified prior:
     var_value_idx = headers.index('New value of modified prior')
-    posterior_Y_var_idx = headers.index('Y_mean_posterior_treatment')
     prior_Y_var_idx = headers.index('Y_mean_prior_treatment')
+    posterior_Y_var_idx = headers.index('Y_mean_posterior_treatment')
     true_Y_var_idx = headers.index('Y_mean_true_best_treatment')
-    # For e.g. the different values that 'N_E_mu' takes we want the
-    # mean outcome Y over all sampled X_o.
+    true_Y_list = []
     for key in results_summary.keys():
-        # Pick out all rows that matches key:
-        tmp_samples = [row for row in results if row[var_name_idx] == key]
-        # Finding unique values of modified row:
-        unique_values = list(set([float(item[var_value_idx]) for item in tmp_samples]))
-        unique_values.sort()
-        # Group the rows by the value of the modified prior and extract the outcome:
-        results_summary[key] = {'parameter_values': unique_values}
-        results_summary[key]['value_lists'] = [
-            [float(row[posterior_Y_var_idx]) for row in tmp_samples
-             if float(row[var_value_idx]) == param_value] for param_value in unique_values]
-            # Could add calculation of mean, standard deviation etc. here.
+        # Subset results on matching rows:
+        tmp_rows = []
+        for row in results:
+            if key == row[var_name_idx]:
+                tmp_rows.append(row)
+                # Practical to store true_Y here:
+                true_Y_list.append(float(row[true_Y_var_idx]))
+        # Bin results based on matching values for the changed parameter
+        tmp_prior_values = []
+        tmp_posterior_values = []
+        for value in np.unique(tmp_rows[var_value_idx]):
+            results_for_var_name = {}  # Reset
+            for row in tmp_rows:
+                if row[var_value_idx] == value:
+                    tmp_prior_values.append(float(row[prior_Y_var_idx]))
+                    tmp_posterior_values.append(float(row[posterior_Y_var_idx]))
+            # Calculate summaries:
+            prior_mean_Y = np.mean(tmp_prior_values)
+            prior_std_Y = np.std(tmp_prior_values)
+            posterior_mean_Y = np.mean(tmp_posterior_values)
+            posterior_std_Y = np.std(tmp_posterior_values)
+            # Reset tmp and add results to dict
+            results_for_value = {}
+            results_for_value['value'] = value
+            results_for_value['prior_mean_Y'] = prior_mean_Y
+            results_for_value['posterior_mean_Y'] = posterior_mean_Y
+            results_for_value['prior_std_Y'] = prior_std_Y
+            results_for_value['posterior_std_Y'] = posterior_std_Y
+
+            results_for_var_name[str(value)] = results_for_value
+        results_summary[key] = results_for_var_name
+    results_summary['true_mean_Y'] = np.mean(true_Y_list)
+    results_summary['true_std_Y'] = np.std(true_Y_list)
     return results_summary
 
 
-def plot_graph(categories, outcomes, variable_name):
+def visualize():
     """
-    categorires ([]): Labels for categories
-    outcomes ([[]]): List of lists with outcomes as vaues
-    variable_name (str): Name of modified prior parameter
-     that the outcomes are associated with.
+    Unchecked code produced by Claude. Absolutely needs to be looked through.
     """
-    file_name = './fig/{}_boxplot.pdf'.format(variable_name)
-    plt.figure(figsize=(6, 4))
-    plt.boxplot(outcomes, labels=categories)
-    plt.xlabel("Belief in {}".format(variable_name))
-    plt.ylabel("Outcome Y")
-    plt.title("Influence of belief on treatment effect on real-world outcomes")
+    print("This cannot be correct. Priors and posteriors align perfectly. FIX!")
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    # Read data
+    df = pd.read_csv('./results/results.csv')
+
+    # Get all unique parameters
+    params = df['Modified prior'].unique()
+
+    # Create subplot for each parameter
+    fig, axes = plt.subplots(len(params), 1, figsize=(12, 6*len(params)))
+    if len(params) == 1:
+        axes = [axes]
+
+    for ax, param_name in zip(axes, params):
+        # Filter data
+        df_filtered = df[df['Modified prior'] == param_name]
+        
+        # Reshape
+        df_long = pd.melt(
+            df_filtered,
+            id_vars=['New value of modified prior'],
+            value_vars=['Y_mean_prior_treatment', 'Y_mean_posterior_treatment'],
+            var_name='decision_type',
+            value_name='Y_mean'
+        )
+        df_long['decision_type'] = df_long['decision_type'].map({
+            'Y_mean_prior_treatment': 'Prior',
+            'Y_mean_posterior_treatment': 'Posterior'
+        })
+        
+        # Plot
+        sns.boxplot(data=df_long, x='New value of modified prior', y='Y_mean',
+                    hue='decision_type', palette=['lightblue', 'lightcoral'], ax=ax)
+        ax.set_xlabel(f'{param_name} value')
+        ax.set_ylabel('Mean Outcome (Y)')
+        ax.set_title(f'{param_name}')
+
     plt.tight_layout()
-    plt.savefig(file_name)
-    plt.clf()
-
-
-def read_and_plot():
-    print("Reading in results from ./results/results.csv...")
-    results = read_outcomes_from_file()
-    print("Creating boxplots and writing to file...")
-    print("Existing boxplot-files are overwritten.")
-    for key in results.keys():
-        plot_graph(categories=results[key]['parameter_values'],
-                   outcomes=results[key]['value_lists'],
-                   variable_name=key)
+    plt.savefig('./fig/all_boxplots.png', dpi=300)
+    #plt.show()
