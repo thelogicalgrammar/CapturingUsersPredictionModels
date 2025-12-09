@@ -277,5 +277,7 @@ if __name__ == '__main__':
         X_o, param_name, param_value))
     # Initialize rng:
     rng = np.random.default_rng(rng)
-    main(X_o, agent_priors, modified_prior, rng=rng)
+    main(X_o, agent_priors, modified_prior, 
+         parameter_descriptions=parameter_descriptions,
+         rng=rng)
 

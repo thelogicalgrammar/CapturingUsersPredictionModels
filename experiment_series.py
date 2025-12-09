@@ -31,9 +31,9 @@ N_ITERATIONS = 50
 
 # Default data generating parameters
 scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
-                        'alpha_mu_A': 10, 'alpha_sigma_A': 1.0,
+                        'alpha_mu_A': 2, 'alpha_sigma_A': 1.0,
                         'alpha_mu_Y': 0.0, 'alpha_sigma_Y': 0.1,
-                        'N_E': 20}
+                        'N_E': 1.0}
 
 # DEFAULT Agent priors
 agent_priors =\
@@ -57,8 +57,6 @@ def main():
               'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
               'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
               'mu_Y': [scm_noise_parameters['alpha_mu_Y'] + deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
-              'N_CC_mu': [agent_priors['N_CC_mu'] + deviation * 0.1 for deviation in deviations],
-              'N_RC_mu': [agent_priors['N_RC_mu'] + deviation * 0.1 for deviation in deviations]
               }
     # Flatten:
     parameter_list = [(key, value) for key, values in params.items() for value in values]
@@ -83,7 +81,9 @@ def main():
             print("=" * 40)
             print("Iteration {}".format(iteration))
             print("Running experiment with {} set to {}. X_o is {}".format(param_name, value, X_o))
-            experiment.main(X_o, tmp_agent_priors, modified_prior, rng=rng)
+            experiment.main(X_o, tmp_agent_priors, modified_prior,
+                            parameter_descriptions=parameter_descriptions,
+                            rng=rng)
 
 
 if __name__ == '__main__':
