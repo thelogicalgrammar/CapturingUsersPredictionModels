@@ -44,8 +44,9 @@ scm_constants = {'a': 12.0, 'b': -0.1, 'd': 0.125}
 draws = 1000  # Number of draws for trace. Warmup is set to 1000.
 # Default values of agent priors. One value is overwritten in main().
 agent_priors =\
-    {'mu_X': 80, 'sigma_X': 1, 'lambda_X': 10, 'mu_A': 10, 'sigma_A': 1, 'lambda_A': 10,
-     'mu_Y': 0, 'sigma_Y': 1, 'lambda_Y': 1, 'N_E_mu': 20, 'N_E_sigma': 1}
+    {'mu_X': 80, 'sigma_X': 1, 'lambda_X': 10, 'mu_A': 2, 'sigma_A': 1, #'lambda_A': 10,
+     'mu_Y': 0, 'sigma_Y': 1, 'lambda_Y': 1, 'N_E_mu': 1.0, 'N_E_sigma': 1}
+
 # Treatment info
 A1_treatment = 100
 A0_treatment = 50
