@@ -267,12 +267,19 @@ if __name__ == '__main__':
         # Read in values:
         param_name = sys.argv[1]
         param_value = float(sys.argv[2])
-        # Value for X_o
-        X_o = np.array(float(sys.argv[3]))
     except:
         # Absolutely has to throw an error if input is not specified or not
         # well specified to prevent erroneous interpretation of results.
         raise ValueError("Use script as 'python experiment.py N_A_mu 23 72'")
+    try:
+        # Value for X_o
+        X_o = np.array(float(sys.argv[3]))
+    except:
+        # Sample X_o if not provided.
+        # Don't set seed here.
+        X_o = np.random.normal(loc=scm_noise_parameters['alpha_mu_X'],
+                               scale=scm_noise_parameters['alpha_sigma_X'])
+        X_o = np.array(X_o)
     if param_name not in agent_priors.keys():
         print("Parameter has to exist in agent_priors. See")
         print(agent_priors)
