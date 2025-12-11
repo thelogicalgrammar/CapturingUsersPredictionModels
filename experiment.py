@@ -52,6 +52,10 @@ agent_priors =\
 # Treatment info
 A1_treatment = 20
 A0_treatment = 10
+# Only if treatment A1 is expected to produce an outcome that is threshold=2 above
+# the expected outcome with A0 is A1 used. This corresponds to e.g. A1 being more
+# expensive or to A1 having larger side effects.
+threshold = 2
 parameter_descriptions = {'agent_priors': 'Default',
                           'scm_constants': 'Default',
                           'scm_noise_parameters': 'Default'}
@@ -116,7 +120,8 @@ def main(X_o, agent_priors, modified_prior,
     prior_CATE_mu = agent_model.get_prior_CATE_mu(A1_treatment, A0_treatment)
     prior_CATE_samples_, prior_CATE_mean, prior_CATE_std = \
         agent_model.sample_prior_predictive_CATE(X_o, A1_treatment, A0_treatment)
-    prior_treatment = A1_treatment if prior_CATE_mean > 0 else A0_treatment
+    prior_treatment = A1_treatment if prior_CATE_mean > threshold else A0_treatment
+    prior_predictive_summaries = agent_model.sample_prior_predictive_summaries(rng=rng)
 
     # 7. Predictive estimates and treatment decision under posterior beliefs
     # The agent's beliefs are updated / the posterior given the observed data is sampled.
@@ -135,7 +140,8 @@ def main(X_o, agent_priors, modified_prior,
     # Using updated agent beliefs to come to a decision on what is the best treatment
     posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std =\
         agent_model.sample_posterior_predictive_CATE(X_o, A1_treatment, A0_treatment, rng=rng)
-    posterior_treatment = A1_treatment if posterior_CATE_mean > 0 else A0_treatment
+    posterior_treatment = A1_treatment if posterior_CATE_mean > threshold else A0_treatment
+    posterior_predictive_summaries = agent_model.sample_posterior_predictive_summaries(rng=rng)
 
     # 8. Ground truth of CATE and potential outcomes
     #    based on the data generating SCM
@@ -154,38 +160,39 @@ def main(X_o, agent_priors, modified_prior,
     # 9. Compare results
 
     # Is the physician's decision correct given the true_CATE_mean values?
-    prior_decision_correct = True if np.sign(true_CATE_mean) == np.sign(prior_CATE_mean) else False
-    posterior_decision_correct = True if np.sign(true_CATE_mean) == np.sign(posterior_CATE_mean) else False
-    # Which decision is best?
-    true_best_treatment = A1_treatment if np.sign(true_CATE_mean) > 0 else A0_treatment
+    prior_decision_correct = True if np.sign(true_CATE_mean - threshold) == np.sign(prior_CATE_mean - threshold) else False
+    posterior_decision_correct = True if np.sign(true_CATE_mean - threshold) == np.sign(posterior_CATE_mean - threshold) else False
+    # Which decision is best? Assuming that threshold accounts for negative side effects.
+    true_best_treatment = A1_treatment if np.sign(true_CATE_mean - threshold) > 0 else A0_treatment
     # Did the decision change (+1 for better, 0 no change, -1 for worse)?
-    if np.sign(prior_CATE_mean) != np.sign(posterior_CATE_mean):
+    if np.sign(prior_CATE_mean  - threshold) != np.sign(posterior_CATE_mean - threshold):
         # Set to 1 if changed for the better and -1 if changed for the worse
-        decision_changed = 1 if np.sign(posterior_CATE_mean) == np.sign(true_CATE_mean) else -1
+        decision_changed = 1 if np.sign(posterior_CATE_mean - threshold) == np.sign(true_CATE_mean - threshold) else -1
     else:
         # Set to 0 if no change.
         decision_changed = 0
 
     # For what fraction of patients is the treatment decision based on prior_CATE_mean,
     # posterior_CATE_mean, and true_CATE_mean correct?
-    frac_correct_prior_decision = np.mean(np.sign(true_CATE_samples_) == np.sign(prior_CATE_mean))
-    frac_correct_posterior_decision = np.mean(np.sign(true_CATE_samples_) == np.sign(posterior_CATE_mean))
+    frac_correct_prior_decision = np.mean(np.sign(true_CATE_samples_ - threshold) == np.sign(prior_CATE_mean - threshold))
+    frac_correct_posterior_decision = np.mean(np.sign(true_CATE_samples_ - threshold) == np.sign(posterior_CATE_mean - threshold))
     # Fraction of population that would have benefited from a
     # decision based on the average true CATE (baseline):
-    frac_correct_true_best_treatment = np.mean(np.sign(true_CATE_samples_) == np.sign(true_CATE_mean))
+    frac_correct_true_best_treatment = np.mean(np.sign(true_CATE_samples_ - threshold) == np.sign(true_CATE_mean - threshold))
 
     # How much do the patients on average benefit?
     # Average outcome Y under prior decision
-    Y_mean_prior_treatment = potential_outcome_A1_mean if np.sign(prior_CATE_mean) > 0 \
+    Y_mean_prior_treatment = potential_outcome_A1_mean if np.sign(prior_CATE_mean - threshold) > 0 \
         else potential_outcome_A0_mean
     # Average outcome Y under posterior decision:
-    Y_mean_posterior_treatment = potential_outcome_A1_mean if np.sign(posterior_CATE_mean) > 0 \
+    Y_mean_posterior_treatment = potential_outcome_A1_mean if np.sign(posterior_CATE_mean - threshold) > 0 \
         else potential_outcome_A0_mean
     # Average outcome under best decision based on true_CATE_mean
-    Y_mean_true_best_treatment = potential_outcome_A1_mean if np.sign(true_CATE_mean) > 0 \
+    Y_mean_true_best_treatment = potential_outcome_A1_mean if np.sign(true_CATE_mean - threshold) > 0 \
         else potential_outcome_A0_mean
     # Also save prediction pred_o
-    outputs = {'pred_o': pred_o,
+    outputs = {'pred_o': pred_o[0],
+               'threshold': threshold,
                'prior_treatment': prior_treatment,
                'posterior_treatment': posterior_treatment,
                'true_best_treatment': true_best_treatment,
@@ -233,6 +240,11 @@ def main(X_o, agent_priors, modified_prior,
     compiled_results['running_time'] = running_time
     compiled_results.update(modified_prior)
     compiled_results.update(trace_diagnostics)
+
+    # Add prior predictive summaries
+    compiled_results.update(prior_predictive_summaries)
+    # Add posterior predictive summaries
+    compiled_results.update(posterior_predictive_summaries)
 
     # Add something general about model convergence and quality metrics.
 
