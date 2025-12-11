@@ -1,0 +1,7 @@
+hostname
+source ~/.bashrc
+export PYTHONPATH=$PYTHONPATH:.
+n=$SLURM_ARRAY_TASK_ID
+line=`sed "${n}q;d" ./slurm/tmp/parameters.txt`
+echo $line
+srun python experiment.py $line
