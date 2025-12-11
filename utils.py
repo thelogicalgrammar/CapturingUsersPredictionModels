@@ -22,6 +22,7 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
         # Create file and write header to file
         headers = ('"Experiment ID","Time Stamp",'
                    '"X_o","pred_o","Modified prior","New value of modified prior",'
+                   '"Threshold",'
                    '"True CATE (sample mean)","Prior CATE (sample mean)","Posterior CATE (sample mean)",'
                    '"True CATE Standard Deviation (sample estimate)",'
                    '"Prior CATE Standard Deviation (sample estimate)",'
@@ -36,15 +37,22 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
                    '"Agent Priors","SCM Noise Parameters",'
                    '"SCM Constants",'
                    '"Running Time",'
-                   '"max(R-hat)","min(ESS), bulk","min(ESS), tail","Divergences"\n')
+                   '"max(R-hat)","min(ESS), bulk","min(ESS), tail","Divergences",'
+                   '"pri_X_mean","pri_A_mean","pri_Y_mean","pri_X_std",'
+                   '"pri_A_std","pri_Y_std","pri_X_skew","pri_A_skew",'
+                   '"pri_Y_skew","pri_X_kurtosis","pri_A_kurtosis","pri_Y_kurtosis",'
+                   '"post_X_mean","post_A_mean","post_Y_mean","post_X_std",'
+                   '"post_A_std","post_Y_std","post_X_skew","post_A_skew",'
+                   '"post_Y_skew","post_X_kurtosis","post_A_kurtosis","post_Y_kurtosis"\n')
         with open(full_path, 'w') as f:
             f.write(headers)
     else:
-        print("Result-saving changed 26.11.2025. Delete result files created before that for correct headers.")
+        print("Result-saving changed 11.12.2025. Delete result files created before that for extended headers.")
 
     # Write contents to file:
     key_ordering = ['experiment_id', 'time_stamp']
     key_ordering += ['X_o', 'pred_o', 'modified_prior', 'modified_prior_value']
+    key_ordering += ['threshold']
     key_ordering += ['true_CATE_mean', 'prior_CATE_mean', 'posterior_CATE_mean']
     key_ordering += ['true_CATE_std', 'prior_CATE_std', 'posterior_CATE_std']
     key_ordering += ['true_CATE_mu', 'prior_CATE_mu', ]
@@ -59,6 +67,12 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
     key_ordering += ['scm_constants']
     key_ordering += ['running_time']
     key_ordering += ['max_rhat', 'min_ess_bulk', 'min_ess_tail', 'n_divergences']
+    key_ordering += ['pri_X_mean', 'pri_A_mean', 'pri_Y_mean', 'pri_X_std']
+    key_ordering += ['pri_A_std', 'pri_Y_std', 'pri_X_skew', 'pri_A_skew']
+    key_ordering += ['pri_Y_skew', 'pri_X_kurtosis', 'pri_A_kurtosis', 'pri_Y_kurtosis']
+    key_ordering += ['post_X_mean', 'post_A_mean', 'post_Y_mean', 'post_X_std']
+    key_ordering += ['post_A_std', 'post_Y_std', 'post_X_skew', 'post_A_skew']
+    key_ordering += ['post_Y_skew', 'post_X_kurtosis', 'post_A_kurtosis', 'post_Y_kurtosis']
     text = ''
     for key in key_ordering:
         text += '"' + str(result_dict[key]) + '",'
