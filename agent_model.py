@@ -28,11 +28,12 @@ as we should expect correlation between E(Y|X,do(A1)) and E(Y|X,do(A0))
 but do not know how large that is.
 This applies to both prior and posterior.
 """
-import joblib
-import pymc as pm
-import numpy as np
-import pytensor.tensor as at
 import arviz as az
+import joblib
+import numpy as np
+import pymc as pm
+import pytensor.tensor as at
+from scipy.stats import skew, kurtosis
 import scm
 
 DEBUGGING = False
@@ -96,6 +97,8 @@ class AgentModel():
         self.predictive_var_names = predictive_var_names
         self.trace = None  # Placeholder for trace
         self.prior_samples = None  # Placeholder for prior samples
+        self.prior_predictive_samples = None  # Placeholder for prior predictive samples
+        self.posterior_predictive_samples = None  # Placeholder for posterior predictive samples
         self.posterior_draws = None  # Number of draws in trace
         self.prior_draws = None  # Number of draws in prior samples
         self.X_o = None  # Placeholder for observed observation.
@@ -219,11 +222,11 @@ class AgentModel():
         self.prior_draws = draws
         with self.model:
             tmp = pm.sample_prior_predictive(draws=self.prior_draws,
-                                             var_names=self.predictive_var_names,
-                                             random_seed=rng)
+                                            var_names=self.predictive_var_names,
+                                            random_seed=rng)
         self.prior_samples = tmp
         parameter_array = {var: tmp.prior[var].values.flatten() for var in self.predictive_var_names}
-        sample = []
+        samples = []
         for i in range(self.prior_draws):
             # Pick parameters from row i
             parameters = {key: column[i] for key, column in parameter_array.items()}
@@ -231,8 +234,9 @@ class AgentModel():
             self.predictive_scm.update_parameters(parameters)
             # sample() (generates X, Y, A, mu_A_cond, sigma_A_cond):
             X, A, Y, *_ = self.predictive_scm.sample(rng=rng)
-            sample.append([X, A, Y])
-        return sample
+            samples.append([X, A, Y])
+        self.prior_predictive_samples = samples
+        return samples
     
     def sample_prior_predictive_CATE(self, X, A1_treatment, A0_treatment, rng=None):
         """
@@ -271,6 +275,35 @@ class AgentModel():
         N_E and size of A_treatment.
         """
         return (A1_treatment - A0_treatment) * self.prior_parameters['N_E_mu']
+    
+    def sample_prior_predictive_summaries(self, rng=None):
+        """
+        Method that estimates mean, variance, skewness, and kurtosis
+        of the variables X, A, and Y in the prior samples.
+        
+        Args:
+        rng (int or rng): Seed or initialized random number generator for
+         reproducibility. Used only if prior samples were not drawn earlier.
+        """
+        if self.prior_predictive_samples is None:
+            self.sample_prior_predictive(rng=rng)
+        tmp_X = [item[0] for item in self.prior_predictive_samples]
+        tmp_A = [item[1] for item in self.prior_predictive_samples]
+        tmp_Y = [item[2] for item in self.prior_predictive_samples]
+        results = {}
+        results['pri_X_mean'] = np.mean(tmp_X)
+        results['pri_A_mean'] = np.mean(tmp_A)
+        results['pri_Y_mean'] = np.mean(tmp_Y)
+        results['pri_X_std'] = np.std(tmp_X)
+        results['pri_A_std'] = np.std(tmp_A)
+        results['pri_Y_std'] = np.std(tmp_Y)
+        results['pri_X_skew'] = skew(tmp_X)[0]
+        results['pri_A_skew'] = skew(tmp_A)[0]
+        results['pri_Y_skew'] = skew(tmp_Y)[0]
+        results['pri_X_kurtosis'] = kurtosis(tmp_X)[0]
+        results['pri_A_kurtosis'] = kurtosis(tmp_A)[0]
+        results['pri_Y_kurtosis'] = kurtosis(tmp_Y)[0]
+        return results
 
     def sample_posterior_predictive(self, rng=None):
         """
@@ -294,6 +327,7 @@ class AgentModel():
             self.predictive_scm.update_parameters(parameters)
             # sample() (generates X, Y, A, mu_A_cond, sigma_A_cond):
             samples.append(self.predictive_scm.sample(rng=rng))
+        self.posterior_predictive_samples = samples
         return samples
 
     def sample_posterior_predictive_CATE(self, X, A1_treatment, A0_treatment, rng=None):
@@ -342,6 +376,32 @@ class AgentModel():
             # Sample (generates CATE for that version of the scm):
             potential_outcomes[i], *_ = self.predictive_scm.sample_do_A(X, A_treatment, rng=rng)
         return potential_outcomes
+    
+    def sample_posterior_predictive_summaries(self, rng=None):
+        """
+        Docstring for sample_posterior_predictive_summaries
+        
+        :param self: Description
+        """
+        if self.posterior_predictive_samples is None:
+            self.sample_posterior_predictive(rng=rng)
+        tmp_X = [item[0] for item in self.posterior_predictive_samples]
+        tmp_A = [item[1] for item in self.posterior_predictive_samples]
+        tmp_Y = [item[2] for item in self.posterior_predictive_samples]
+        results = {}
+        results['post_X_mean'] = np.mean(tmp_X)
+        results['post_A_mean'] = np.mean(tmp_A)
+        results['post_Y_mean'] = np.mean(tmp_Y)
+        results['post_X_std'] = np.std(tmp_X)
+        results['post_A_std'] = np.std(tmp_A)
+        results['post_Y_std'] = np.std(tmp_Y)
+        results['post_X_skew'] = skew(tmp_X)[0]
+        results['post_A_skew'] = skew(tmp_A)[0]
+        results['post_Y_skew'] = skew(tmp_Y)[0]
+        results['post_X_kurtosis'] = kurtosis(tmp_X)[0]
+        results['post_A_kurtosis'] = kurtosis(tmp_A)[0]
+        results['post_Y_kurtosis'] = kurtosis(tmp_Y)[0]
+        return results
 
     def save_agent_model(self, file_name='agent_model', folder='./saved_models/'):
         """
