@@ -5,6 +5,7 @@ results from said file, and for plotting results.
 import csv
 from pathlib import Path
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 def write_results_to_file(result_dict, file_name='results.csv', path='./results/'):
@@ -121,6 +122,9 @@ def read_outcomes_from_file(file_name='./results/results.csv'):
     posterior_Y_var_idx = headers.index('Y_mean_posterior_treatment')
     prior_Y_var_idx = headers.index('Y_mean_prior_treatment')
     true_Y_var_idx = headers.index('Y_mean_true_best_treatment')
+    prior_CATE_idx = headers.index('Prior CATE (sample mean)')
+    posterior_CATE_idx = headers.index('Posterior CATE (sample mean)')
+    true_CATE_idx = headers.index('True CATE (sample mean)')
     # For e.g. the different values that 'N_E_mu' takes we want the
     # mean outcome Y over all sampled X_o.
     for key in results_summary.keys():
@@ -131,8 +135,20 @@ def read_outcomes_from_file(file_name='./results/results.csv'):
         unique_values.sort()
         # Group the rows by the value of the modified prior and extract the outcome:
         results_summary[key] = {'parameter_values': unique_values}
-        results_summary[key]['value_lists'] = [
+        results_summary[key]['prior_value_lists'] = [
+            [float(row[prior_Y_var_idx]) for row in tmp_samples
+             if float(row[var_value_idx]) == param_value] for param_value in unique_values]
+        results_summary[key]['posterior_value_lists'] = [
             [float(row[posterior_Y_var_idx]) for row in tmp_samples
+             if float(row[var_value_idx]) == param_value] for param_value in unique_values]
+        results_summary[key]['prior_CATE_lists'] = [
+            [float(row[prior_CATE_idx]) for row in tmp_samples
+             if float(row[var_value_idx]) == param_value] for param_value in unique_values]
+        results_summary[key]['posterior_CATE_lists'] = [
+            [float(row[posterior_CATE_idx]) for row in tmp_samples
+             if float(row[var_value_idx]) == param_value] for param_value in unique_values]
+        results_summary[key]['true_CATE_lists'] = [
+            [float(row[true_CATE_idx]) for row in tmp_samples
              if float(row[var_value_idx]) == param_value] for param_value in unique_values]
             # Could add calculation of mean, standard deviation etc. here.
     return results_summary
@@ -156,12 +172,41 @@ def plot_graph(categories, outcomes, variable_name):
     plt.clf()
 
 
+def plot_prior_and_posterior_CATE(summary, variable_name):
+    prior_values = summary['prior_CATE_lists']
+    posterior_values = summary['posterior_CATE_lists']
+    values = summary['prior_CATE_lists'] + summary['posterior_CATE_lists']
+
+    categories = summary['parameter_values']
+    prior_categories = [[category] * len(prior_values[i]) for i, category in enumerate(categories)]
+    posterior_categories = [[category] * len(posterior_values[i]) for i, category in enumerate(categories)]
+    categories = prior_categories + posterior_categories
+    categories = [item for row in categories for item in row]
+    prior_series = [['Prior'] * len(val) for val in prior_values]
+    prior_series = [item for row in prior_series for item in row]
+    posterior_series = [['Posterior'] * len(val) for val in posterior_values]
+    posterior_series = [item for row in posterior_series for item in row]
+    series = prior_series + posterior_series
+    values = [item for row in values for item in row]
+
+    data = {'Prior belief': categories,
+            'series': series,
+            'CATE': values}
+    sns.boxplot(data=data, x='Prior belief', y='CATE', hue='series')
+    plt.tight_layout()
+    file_name = './fig/{}_boxplot.pdf'.format(variable_name)
+    plt.savefig(file_name)
+    plt.clf()
+
+
+
 def read_and_plot():
     print("Reading in results from ./results/results.csv...")
     results = read_outcomes_from_file()
     print("Creating boxplots and writing to file...")
     print("Existing boxplot-files are overwritten.")
     for key in results.keys():
-        plot_graph(categories=results[key]['parameter_values'],
-                   outcomes=results[key]['value_lists'],
-                   variable_name=key)
+        plot_prior_and_posterior_CATE(results[key], key)
+        # plot_graph(categories=results[key]['parameter_values'],
+        #            outcomes=results[key]['prior_value_lists'],
+        #            variable_name=key)
