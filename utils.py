@@ -182,17 +182,17 @@ def plot_prior_and_posterior_CATE(summary, variable_name):
     posterior_categories = [[category] * len(posterior_values[i]) for i, category in enumerate(categories)]
     categories = prior_categories + posterior_categories
     categories = [item for row in categories for item in row]
-    prior_series = [['Prior'] * len(val) for val in prior_values]
+    prior_series = [['Prior predictive'] * len(val) for val in prior_values]
     prior_series = [item for row in prior_series for item in row]
-    posterior_series = [['Posterior'] * len(val) for val in posterior_values]
+    posterior_series = [['Posterior predictive'] * len(val) for val in posterior_values]
     posterior_series = [item for row in posterior_series for item in row]
     series = prior_series + posterior_series
     values = [item for row in values for item in row]
 
     data = {'Prior belief': categories,
-            'series': series,
+            'CATE estimates': series,
             'CATE': values}
-    sns.boxplot(data=data, x='Prior belief', y='CATE', hue='series')
+    sns.boxplot(data=data, x='Prior belief', y='CATE', hue='CATE estimates')
     plt.tight_layout()
     file_name = './fig/{}_boxplot.pdf'.format(variable_name)
     plt.savefig(file_name)
