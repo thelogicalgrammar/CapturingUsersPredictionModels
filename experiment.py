@@ -48,7 +48,7 @@ draws = 1000  # Number of draws for trace. Warmup is set to 1000.
 # Default values of agent priors. One value is overwritten in main().
 agent_priors =\
     {'mu_X': 80, 'sigma_X': 0.1, 'mu_sigma_X': 10, 'sigma_sigma_X':0.1,
-     'mu_A': 2, 'sigma_A': 1,
+     'mu_A': 2, 'sigma_A': 1, 'mu_sigma_A': 1, 'sigma_sigma_A':0.1,
     # 'lambda_A': 10,
      'mu_Y': 0, 'sigma_Y': 0.01, 'mu_sigma_Y': 0.1, 'sigma_sigma_Y' : 0.01,
      'N_E_mu': 1.0, 'N_E_sigma': 1}
@@ -162,12 +162,14 @@ def main(X_o, agent_priors, modified_prior,
     # 9. Compare results
 
     # Is the physician's decision correct given the true_CATE_mean values?
-    prior_decision_correct = True if np.sign(true_CATE_mean) == np.sign(prior_CATE_mean) else False
-    posterior_decision_correct = True if np.sign(true_CATE_mean) == np.sign(posterior_CATE_mean) else False
+    prior_decision_correct = True if np.sign(true_CATE_mean) == np.sign(prior_CATE_mean) else\
+    False # TODO: change this to account for utility threshold
+    posterior_decision_correct = True if np.sign(true_CATE_mean) == np.sign(posterior_CATE_mean) \
+        else False # TODO: change this to account for utility threshold
     # Which decision is best?
     true_best_treatment = A1_treatment if np.sign(true_CATE_mean) > 0 else A0_treatment
     # Did the decision change (+1 for better, 0 no change, -1 for worse)?
-    if np.sign(prior_CATE_mean) != np.sign(posterior_CATE_mean):
+    if np.sign(prior_CATE_mean) != np.sign(posterior_CATE_mean): # TODO: change this to account for utility threshold
         # Set to 1 if changed for the better and -1 if changed for the worse
         decision_changed = 1 if np.sign(posterior_CATE_mean) == np.sign(true_CATE_mean) else -1
     else:
@@ -182,13 +184,16 @@ def main(X_o, agent_priors, modified_prior,
     # decision based on the average true CATE (baseline):
     frac_correct_true_best_treatment = np.mean(np.sign(true_CATE_samples_) == np.sign(true_CATE_mean))
 
-    # How much do the patients on average benefit?
+    # How much do the patients on average benefit? # TODO: change this to account for utility threshold
     # Average outcome Y under prior decision
     Y_mean_prior_treatment = potential_outcome_A1_mean if np.sign(prior_CATE_mean) > 0 \
         else potential_outcome_A0_mean
     # Average outcome Y under posterior decision:
-    Y_mean_posterior_treatment = potential_outcome_A1_mean if np.sign(posterior_CATE_mean) > 0 \
-        else potential_outcome_A0_mean
+    Y_mean_posterior_treatment = (
+            potential_outcome_A1_mean
+            if posterior_treatment == A1_treatment
+            else potential_outcome_A0_mean
+    )
     # Average outcome under best decision based on true_CATE_mean
     Y_mean_true_best_treatment = potential_outcome_A1_mean if np.sign(true_CATE_mean) > 0 \
         else potential_outcome_A0_mean
