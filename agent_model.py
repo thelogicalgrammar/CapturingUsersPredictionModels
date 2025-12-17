@@ -74,32 +74,62 @@ class AgentModel():
          data points to be input. This is mainly for testing that the model works as intended.
         """
         self.plate_size = plate_size
-        if scm_constants is None:
-            scm_constants = {'a': 12, 'b': -0.1, 'd': 0.125}
-            # N_{E} is essentially replacing "c"
+
         default_prior_parameters = {'mu_X': 80, 'sigma_X': 1, 'lambda_X': 10,
                                     'mu_A': 10, 'sigma_A': 1, 'lambda_A': 10,
                                     'mu_Y': 0, 'sigma_Y': 1, 'lambda_Y': 1,
                                     'N_E_mu': 20, 'N_E_sigma': 1}
         if prior_parameters is None:
             # Use default values.
-            prior_parameters = default_prior_parameters
-        # Validate input parameters:
-        extra_items = [item for item in prior_parameters.keys()
-                       if item not in default_prior_parameters.keys()]
-        err_msg = "{} passed with prior_parameters, " \
-            "but not part of model specification.".format(extra_items)
-        assert len(extra_items) < 1, err_msg
-        self.prior_parameters = prior_parameters
+            self.prior_parameters = default_prior_parameters
+        else:
+            # Validate input parameters:
+            extra_items = [item for item in prior_parameters.keys()
+                        if item not in default_prior_parameters.keys()]
+            err_msg = "{} passed with prior_parameters, " \
+                "but not part of model specification.".format(extra_items)
+            assert len(extra_items) < 1, err_msg
+            self.prior_parameters = prior_parameters
 
         self.low_dim_aux_plate = low_dim_aux_plate
         self.test = test
+
+        # Variable names of the predictive variables.
+        default_predictive_var_names =\
+            ['alpha_mu_X', 'alpha_sigma_X', 'alpha_mu_A', 'alpha_sigma_A', 
+             'alpha_mu_Y', 'alpha_sigma_Y', 'N_E']
+        if predictive_var_names is None:
+            self.predictive_var_names = default_predictive_var_names
+        else:
+            # Validate input
+            extra_items = [item for item in predictive_var_names
+                        if item not in default_predictive_var_names]
+            err_msg = "{} passed with predictive_var_names, " \
+                "but not part of model specification.".format(extra_items)
+            assert len(extra_items) < 1, err_msg
+            self.predictive_var_names = predictive_var_names
+
+        # SCM parameters. These change during runtime for prior and posterior
+        # predictive sampling (samples from the agent's beliefs replaces the
+        # original values).
+        # Note that N_{E} is essentially replacing "c"
+        default_scm_constants = {'a': 12, 'b': -0.1, 'd': 0.125}
+        if scm_constants is None:
+            self.scm_constants = default_scm_constants
+        else:
+            # Validate input
+            extra_scm_items = [item for item in scm_constants.keys() 
+                            if item not in default_scm_constants.keys()]
+            err_msg = "{} passed with scm_constants, " \
+                "but not part of model specification.".format(extra_scm_items)
+            assert len(extra_items) < 1, err_msg
+            self.scm_constants = scm_constants
         # SCM parameters to update in prior predictive and posterior predictive sampling
         # and an SCM which variables are updated with samples from the agent's beliefs
         # for predictive sampling:
-        self.scm_constants = scm_constants
         self.predictive_scm = scm.SCM(**scm_constants)
-        self.predictive_var_names = predictive_var_names
+
+        # Placeholders
         self.trace = None  # Placeholder for trace
         self.prior_samples = None  # Placeholder for prior samples
         self.prior_predictive_samples = None  # Placeholder for prior predictive samples
