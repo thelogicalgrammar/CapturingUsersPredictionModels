@@ -77,16 +77,21 @@ class AgentModel():
         if scm_constants is None:
             scm_constants = {'a': 12, 'b': -0.1, 'd': 0.125}
             # N_{E} is essentially replacing "c"
+        default_prior_parameters = {'mu_X': 80, 'sigma_X': 1, 'lambda_X': 10,
+                                    'mu_A': 10, 'sigma_A': 1, 'lambda_A': 10,
+                                    'mu_Y': 0, 'sigma_Y': 1, 'lambda_Y': 1,
+                                    'N_E_mu': 20, 'N_E_sigma': 1}
         if prior_parameters is None:
             # Use default values.
-            prior_parameters = {'mu_X': 80, 'sigma_X': 1,
-                                'lambda_X': 10,
-                                'mu_A': 10, 'sigma_A': 1,
-                                'lambda_A': 10,
-                                'mu_Y': 0, 'sigma_Y': 1,
-                                'lambda_Y': 1,
-                                'N_E_mu': 20, 'N_E_sigma': 1}
+            prior_parameters = default_prior_parameters
+        # Validate input parameters:
+        extra_items = [item for item in prior_parameters.keys()
+                       if item not in default_prior_parameters.keys()]
+        err_msg = "{} passed with prior_parameters, " \
+            "but not part of model specification.".format(extra_items)
+        assert len(extra_items) < 1, err_msg
         self.prior_parameters = prior_parameters
+
         self.low_dim_aux_plate = low_dim_aux_plate
         self.test = test
         # SCM parameters to update in prior predictive and posterior predictive sampling
