@@ -55,7 +55,7 @@ A0_treatment = 10
 # Only if treatment A1 is expected to produce an outcome that is threshold=2 above
 # the expected outcome with A0 is A1 used. This corresponds to e.g. A1 being more
 # expensive or to A1 having larger side effects.
-threshold = 2
+threshold = 5
 parameter_descriptions = {'agent_priors': 'Default',
                           'scm_constants': 'Default',
                           'scm_noise_parameters': 'Default'}
