@@ -37,8 +37,10 @@ scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
 
 # DEFAULT Agent priors
 agent_priors =\
-    {'mu_X': 80, 'sigma_X': 1, 'lambda_X': 10, 'mu_A': 2, 'sigma_A': 1, #'lambda_A': 10,
-     'mu_Y': 0, 'sigma_Y': 1, 'lambda_Y': 1, 'N_E_mu': 1.0, 'N_E_sigma': 1}
+    {'mu_X': 80, 'sigma_X': 0.1, 'mu_sigma_X': 10, 'sigma_sigma_X':0.1,
+     'mu_A': 2, 'sigma_A': 1, 'mu_sigma_A': 1, 'sigma_sigma_A':0.1,
+     'mu_Y': 0, 'sigma_Y': 0.01, 'mu_sigma_Y': 0.1, 'sigma_sigma_Y' : 0.01,
+     'N_E_mu': 1.0, 'N_E_sigma': 1}
 
 
 parameter_descriptions = {'agent_priors': 'Default',

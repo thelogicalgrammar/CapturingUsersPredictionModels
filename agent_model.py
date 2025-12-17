@@ -74,11 +74,13 @@ class AgentModel():
          data points to be input. This is mainly for testing that the model works as intended.
         """
         self.plate_size = plate_size
-
-        default_prior_parameters = {'mu_X': 80, 'sigma_X': 1, 'lambda_X': 10,
-                                    'mu_A': 10, 'sigma_A': 1, 'lambda_A': 10,
-                                    'mu_Y': 0, 'sigma_Y': 1, 'lambda_Y': 1,
-                                    'N_E_mu': 20, 'N_E_sigma': 1}
+        
+        # Prior parameters
+        default_prior_parameters =\
+            {'mu_X': 80, 'sigma_X': 0.1, 'mu_sigma_X': 10, 'sigma_sigma_X':0.1,
+             'mu_A': 2, 'sigma_A': 1, 'mu_sigma_A': 1, 'sigma_sigma_A':0.1,
+             'mu_Y': 0, 'sigma_Y': 0.01, 'mu_sigma_Y': 0.1, 'sigma_sigma_Y' : 0.01,
+             'N_E_mu': 1.0, 'N_E_sigma': 1}
         if prior_parameters is None:
             # Use default values.
             self.prior_parameters = default_prior_parameters
