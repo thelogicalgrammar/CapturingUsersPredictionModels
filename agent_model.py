@@ -157,11 +157,17 @@ class AgentModel():
             # Outside of the plate:
             alpha_mu_X = pm.Normal('alpha_mu_X', self.prior_parameters['mu_X'], self.prior_parameters['sigma_X'])
             # Is an exponential distribution well-behaved as a prior?
-            alpha_sigma_X = pm.Exponential('alpha_sigma_X', self.prior_parameters['lambda_X'])
+            alpha_sigma_X = pm.TruncatedNormal('alpha_sigma_X', mu = self.prior_parameters[
+                'mu_sigma_X'], sigma = self.prior_parameters['sigma_sigma_X'], lower = 0) #
+            # changed from Exponential to truncated normal
             alpha_mu_A = pm.Normal('alpha_mu_A', self.prior_parameters['mu_A'], self.prior_parameters['sigma_A'])
-            alpha_sigma_A = 1  # pm.Exponential('sigma_A', 10)  # sigma_A is not learned.
+            # alpha_sigma_A = 1  # pm.Exponential('sigma_A', 10)  # sigma_A is not learned.
+            alpha_sigma_A = pm.TruncatedNormal('alpha_sigma_A', mu = self.prior_parameters[
+                'mu_sigma_A'], sigma = self.prior_parameters['sigma_sigma_A'], lower = 0)
             alpha_mu_Y = pm.Normal('alpha_mu_Y', self.prior_parameters['mu_Y'], self.prior_parameters['sigma_Y'])
-            alpha_sigma_Y = pm.Exponential('alpha_sigma_Y', self.prior_parameters['lambda_Y'])
+            alpha_sigma_Y = pm.TruncatedNormal('alpha_sigma_Y', mu = self.prior_parameters[
+                'mu_sigma_Y'], sigma = self.prior_parameters['sigma_sigma_Y'], lower = 0)
+            # changed from Exponential to truncated normal
             N_E = pm.Normal('N_E', self.prior_parameters['N_E_mu'], self.prior_parameters['N_E_sigma'])
 
             if not low_dim_aux_plate:

@@ -47,8 +47,13 @@ scm_constants = {'a': 12.0, 'b': -0.1, 'd': 0.125}
 draws = 1000  # Number of draws for trace. Warmup is set to 1000.
 # Default values of agent priors. One value is overwritten in main().
 agent_priors =\
-    {'mu_X': 80, 'sigma_X': 1, 'lambda_X': 10, 'mu_A': 2, 'sigma_A': 1,  # 'lambda_A': 10,
-     'mu_Y': 0, 'sigma_Y': 1, 'lambda_Y': 1, 'N_E_mu': 1.0, 'N_E_sigma': 1}
+    {'mu_X': 80, 'sigma_X': 0.1, 'mu_sigma_X': 10, 'sigma_sigma_X':0.1,
+     'mu_A': 2, 'sigma_A': 1, 'mu_sigma_A': 1, 'sigma_sigma_A':0.1,
+    # 'lambda_A': 10,
+     'mu_Y': 0, 'sigma_Y': 0.01, 'mu_sigma_Y': 0.1, 'sigma_sigma_Y' : 0.01,
+     'N_E_mu': 1.0, 'N_E_sigma': 1}
+# changed agent prior sigma_Y from 1 to 0.1, this is a choice
+# changed prior of lambda_X from 10 to 0.1, this was a mistake
 # Treatment info
 A1_treatment = 20
 A0_treatment = 10
@@ -60,7 +65,6 @@ parameter_descriptions = {'agent_priors': 'Default',
                           'scm_constants': 'Default',
                           'scm_noise_parameters': 'Default'}
 rng = 4  # Selected by fair die
-
 
 def main(X_o, agent_priors, modified_prior,
          A1_treatment=A1_treatment, A0_treatment=A0_treatment,
@@ -106,7 +110,9 @@ def main(X_o, agent_priors, modified_prior,
 
     # 4. The prediction model is next used for decision support. The physician
     #    inputs the data of the patient and the prediction model produces a prediction.
+
     pred_o = pred_model.predict(X_o.reshape(-1, 1))  # The observed prediction
+
     # print("The predicted outcome for this patient weighing {}kg is {}.".format(X_o, pred_o[0]))
 
     # 5. Define the agent model.
@@ -180,7 +186,7 @@ def main(X_o, agent_priors, modified_prior,
     # decision based on the average true CATE (baseline):
     frac_correct_true_best_treatment = np.mean(np.sign(true_CATE_samples_ - threshold) == np.sign(true_CATE_mean - threshold))
 
-    # How much do the patients on average benefit?
+    # How much do the patients on average benefit? # TODO: change this to account for utility threshold
     # Average outcome Y under prior decision
     Y_mean_prior_treatment = potential_outcome_A1_mean if np.sign(prior_CATE_mean - threshold) > 0 \
         else potential_outcome_A0_mean
@@ -256,9 +262,14 @@ def main(X_o, agent_priors, modified_prior,
     # Testing that loading works.
     # tmp = am.AgentModel.load_agent_model()
     # What is the posterior distribution of the agent's belief about N_E?
-    az.plot_posterior(agent_model.trace, var_names=['N_E'])
-    plt.title("Posterior distribution of agent's belief about N_E")
-    plt.savefig('./fig/basic_example_posterior_NE.png')
+    # az.plot_posterior(agent_model.trace, var_names=['N_E'])
+    # plt.title("Posterior distribution of agent's belief about N_E")
+    # plt.savefig('./fig/basic_example_posterior_NE.png')
+    # added plot to save the posterior distribution of pairwise correlations
+    az.plot_pair(agent_model.trace, #var_names=['N_E', 'alpha_mu_A', 'alpha_mu_Y'],
+                 kind='scatter')
+    plt.title("Posterior distribution of correlation between mu_A and N_E")
+    plt.savefig('./fig/basic_example_posterior_corr_all_vars.png')
     plt.clf()
 
 
@@ -296,7 +307,4 @@ if __name__ == '__main__':
         X_o, param_name, param_value))
     # Initialize rng:
     rng = np.random.default_rng(rng)
-    main(X_o, agent_priors, modified_prior, 
-         parameter_descriptions=parameter_descriptions,
-         rng=rng)
-
+    main(X_o, agent_priors, modified_prior, parameter_descriptions=parameter_descriptions, rng=rng)
