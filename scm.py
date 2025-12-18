@@ -25,16 +25,35 @@ def sigmoid(z):
 @dataclass
 class SCM:
     """
-    Class for SCM with continuous A, continuous X,
-    and continuous Y.
+    Class for SCM with continuous A, continuous X, and continuous Y.
+    This SCM encodes information so that \n
+    N_Xi ~ N(alpha_mu_X, alpha_sigma_X) \n
+    N_Yi ~ N(alpha_mu_Y, alpha_sigma_Y) \n
+    N_Ai ~ N(alpha_mu_A, alpha_sigma_A) \n
+    Y_i = a + b * X_i + N_E * A_i + N_Yi \n
+    A_i = d * X_i + N_Ai \n
+    X_i = N_Xi
+
+    Args:
+        alpha_mu_X (float): Mean of X
+        alpha_sigma_X (float): Standard deviation of X
+        alpha_mu_A (float): Mean of A
+        alpha_sigma_A (float): Standard deviation of A
+        alpha_mu_Y (float): Mean of Y
+        alpha_sigma_Y (float): Standard deviation of Y
+        N_E (float): Effect size. The effect size is a fixed number. All
+            variability is explained by variance in other RVs.
+        a (float): Constant for SCM
+        b (float): Constant for SCM
+        d (float): Constant for SCM
     """
     alpha_mu_X: float = 80
     alpha_sigma_X: float = 10
-    alpha_mu_A: float = 10
+    alpha_mu_A: float = 2
     alpha_sigma_A: float = 1.0
     alpha_mu_Y: float = 0.0
     alpha_sigma_Y: float = 0.1
-    N_E: float = 20
+    N_E: float = 1.0
     a: float = 12.0
     b: float = -0.1
     d: float = 0.125
@@ -44,8 +63,8 @@ class SCM:
         Method to update chosen parameters in SCM
 
         Args:
-        parameter_dict (dict): Dictionary of parameters
-         where the keys match parameter names in the scm.
+            parameter_dict (dict): Dictionary of parameters
+                where the keys match parameter names in the scm.
         """
         for key, value in parameter_dict.items():
             if hasattr(self, key):
@@ -57,16 +76,16 @@ class SCM:
         """
         This method encodes the structure of the SCM and generates 
         samples of X, Y and A:
-            X, A, Y ~ p(X, Y, A).
+        :math:`X, A, Y \sim p(X, Y, A)`
         If X is passed, then the output A and Y are conditional on
         the value of X:
-            A, Y ~ p(A, Y| X).
+        :math:`A, Y \sim p(A, Y| X)`
         If A is passed, the output Y is conditional on the
         intervention do(A):
-            X, Y ~ p(X, Y| do(A)).
+        :math:`X, Y \sim p(X, Y| do(A))`
         If both X and Y are passed, the output is conditional on X
         and on the intervention do(A):
-            Y ~ p(Y| X, do(A)).
+        :math:`Y \sim p(Y| X, do(A))`
         All of X, A, and Y are always passed. In addition, the distribution
         parameters for Y (mu_Y_cond, and std_Y_cond) are passed. If X
         and/or A are provided, the distribution parameters are conditional
@@ -75,10 +94,10 @@ class SCM:
         used).
 
         Args:
-        X: Optional input. If provided, output will be conditional on X.
-        A: Optional input. If provided, output will be conditional on do(A).
-        draws (int): Size of sample to generate.
-        rng: seed or initialized random number generator for reproducibility
+            X: Optional input. If provided, output will be conditional on X.
+            A: Optional input. If provided, output will be conditional on do(A).
+            draws (int): Size of sample to generate.
+            rng: seed or initialized random number generator for reproducibility
         """
         # Sample noise when needed:
         rng = np.random.default_rng(rng)
@@ -110,15 +129,15 @@ class SCM:
                     rng=None) -> np.ndarray:
         """
         Generates sample from the SCM given the data and set treatments, i.e.
-            Y_i ~ p(Y|do(A_treatment), X)
+        :math:`Y_i \sim p(Y|do(A_treatment), X)`
         Returns an array with shape (n, *X.shape).
         This is merely a wrapper for the interventional path in self.sample().
 
         Args:
-        A_treatment (int- or array-like): value to intervene on A, or array with X.shape
-        X: observed values of X
-        draws (int): Size of sample to draw for every observation in A.
-        rng: seed or initialized random number generator for reproducibility
+            A_treatment (int- or array-like): value to intervene on A, or array with X.shape
+            X: observed values of X
+            draws (int): Size of sample to draw for every observation in A.
+            rng: seed or initialized random number generator for reproducibility
         """
         # Either include checks everywhere or nowhere.
         # X = np.asarray(X)
@@ -140,11 +159,11 @@ class SCM:
         Given X and two treatment options A1_treatment and A0_treatment
 
         Args:
-        X (float): Feature to condition on
-        A1_treatment [float]: Dosage value of higher dose treatment
-        A0_treatment [float]: Dosage value of lower dose treatment
-        draws (int): Size of sample to generate
-        rng: seed or initialized random number generator for reproducibility
+            X (float): Feature to condition on
+            A1_treatment [float]: Dosage value of higher dose treatment
+            A0_treatment [float]: Dosage value of lower dose treatment
+            draws (int): Size of sample to generate
+            rng: seed or initialized random number generator for reproducibility
         """
         # Sample an outcome with treatment 1:
         Y_do1, *_ = self.sample_do_A(A1_treatment, X, draws, rng=rng)
@@ -172,11 +191,11 @@ class SCM:
         determined by the values of A and X. This results in the CATE-
         distibution also being normal and allows for deterministic
         calculation of the mean as:
-            CATE_mu(X) = E(Y| X, do(A=A1)) - E(Y| X, do(A=A0))
+        :math:`CATE_mu(X) = E(Y| X, do(A=A1)) - E(Y| X, do(A=A0))`
 
         Args:
-        A1_treatment [float]: Dosage value of higher dose treatment
-        A0_treatment [float]: Dosage value of lower dose treatment
+            A1_treatment [float]: Dosage value of higher dose treatment
+            A0_treatment [float]: Dosage value of lower dose treatment
         """
         return (A1_treatment - A0_treatment) * self.N_E
 
@@ -203,10 +222,10 @@ class BinaryA_SCM(SCM):
         it is used as is.
 
         Args:
-        X (float): Optional input. If provided, output will be conditional on X.
-        A (float): Optional input. If provided, output will be conditional on do(A).
-        draws (int): Size of sample to generate.
-        rng (int or rng): seed or initialized random number generator for reproducibility
+            X (float): Optional input. If provided, output will be conditional on X.
+            A (float): Optional input. If provided, output will be conditional on do(A).
+            draws (int): Size of sample to generate.
+            rng (int or rng): seed or initialized random number generator for reproducibility
         """
         # Sample noise when needed:
         rng = np.random.default_rng(rng)
