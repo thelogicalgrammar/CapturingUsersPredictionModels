@@ -17,7 +17,7 @@ def generate_slurm_parameter_file(parameters_file='./slurm/tmp/parameters.txt'):
     Function for generating parameters for slurm script
 
     Args:
-    parameters_file (str): File name of file to write parameters to.
+        parameters_file (str): File name of file to write parameters to.
     """
     # Check if tmp exists:
     if not os.path.exists('./slurm/tmp/'):

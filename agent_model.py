@@ -1,32 +1,16 @@
 """
-Better name: bayesian_agent?
--Could initialize with an SCM that represents the
-agent's internal representation of the world.
--Class could store the trace and perhaps using this
-model the predictions based on the SCM.
--This would make the class contain both the agent's
-beliefs and thought processes (how to update beliefs
-based on new data).
+The AgentModel encapsulates both the agent's beliefs and
+thought processes that an ideal Bayesian agent would use
+in the context of decision support. The agent has priors,
+can make a decision based on those, can update his beliefs
+when presented with new information in the form of an
+observation and a prediction for it, and can make
+decisions based on his posterior beliefs.
 
 The Bayesian models specified here correspond to how an ideal
 Bayesian agent would update his beliefs given that he sees
 one or several observations and receives their predictions
 that are based on an OLS regression model without intercept.
-
-The agent is considered to have a separate SCM which uses
-the agent's (prior or posterior) beliefs to choose the best
-treatment for a patient.
-
-Technically only one value of X should be allowed after update.
--Is there any point of allowing for sampling for other X-values?
--The model is NOT VALID for other X values.
--Don't block this (yet), because that would prevent updating with
-e.g. 100 patients' info.
-
-Could be interesting to estimate variance for CATE using sampling
-as we should expect correlation between E(Y|X,do(A1)) and E(Y|X,do(A0))
-but do not know how large that is.
-This applies to both prior and posterior.
 """
 import arviz as az
 import joblib
@@ -39,7 +23,9 @@ import scm
 DEBUGGING = False
 
 def printing_callback(trace, draw):
-    # For debugging.
+    """
+    Function for debugging pymc-sampling.
+    """
     if DEBUGGING:
         print(f"Completed draw {draw.draw_idx} from chain {draw.chain}.")
         print("Shape of X: {}".format(trace.get_values('X').shape))

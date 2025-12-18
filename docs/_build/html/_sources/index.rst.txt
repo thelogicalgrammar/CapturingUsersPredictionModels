@@ -3,10 +3,13 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-2-Step Agent documentation
-==========================
+Inverse Learning with Causal Agent
+==================================
 
-This package provides tools for Bayesian agent modeling and structural causal models (SCM).
+This package provides tools for modeling how a Bayesian Agent changes beliefs
+when presented with a new observation and a prediction for this observation
+based on OLS-regression. The package also contains an SCM that represents the
+true data generating process and can be used to generate data.
 
 .. toctree::
    :maxdepth: 3

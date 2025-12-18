@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Agent Model &mdash; 2-Step Agent 0.1 documentation</title>
+  <title>Agent Model &mdash; Inverse Learning with Causal Agent 0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
@@ -21,7 +21,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Structural Causal Model (SCM)" href="scm.html" />
-    <link rel="prev" title="2-Step Agent documentation" href="index.html" /> 
+    <link rel="prev" title="Inverse Learning with Causal Agent" href="index.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -33,7 +33,7 @@
           
           
           <a href="index.html" class="icon icon-home">
-            2-Step Agent
+            Inverse Learning with Causal Agent
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
@@ -75,7 +75,7 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">2-Step Agent</a>
+          <a href="index.html">Inverse Learning with Causal Agent</a>
       </nav>
 
       <div class="wy-nav-content">
@@ -95,30 +95,17 @@
              
   <section id="module-agent_model">
 <span id="agent-model"></span><h1>Agent Model<a class="headerlink" href="#module-agent_model" title="Link to this heading"></a></h1>
-<p>Better name: bayesian_agent?
--Could initialize with an SCM that represents the
-agent’s internal representation of the world.
--Class could store the trace and perhaps using this
-model the predictions based on the SCM.
--This would make the class contain both the agent’s
-beliefs and thought processes (how to update beliefs
-based on new data).</p>
+<p>The AgentModel encapsulates both the agent’s beliefs and
+thought processes that an ideal Bayesian agent would use
+in the context of decision support. The agent has priors,
+can make a decision based on those, can update his beliefs
+when presented with new information in the form of an
+observation and a prediction for it, and can make
+decisions based on his posterior beliefs.</p>
 <p>The Bayesian models specified here correspond to how an ideal
 Bayesian agent would update his beliefs given that he sees
 one or several observations and receives their predictions
 that are based on an OLS regression model without intercept.</p>
-<p>The agent is considered to have a separate SCM which uses
-the agent’s (prior or posterior) beliefs to choose the best
-treatment for a patient.</p>
-<p>Technically only one value of X should be allowed after update.
--Is there any point of allowing for sampling for other X-values?
--The model is NOT VALID for other X values.
--Don’t block this (yet), because that would prevent updating with
-e.g. 100 patients’ info.</p>
-<p>Could be interesting to estimate variance for CATE using sampling
-as we should expect correlation between E(Y|X,do(A1)) and E(Y|X,do(A0))
-but do not know how large that is.
-This applies to both prior and posterior.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="agent_model.AgentModel">
 <em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agent_model.</span></span><span class="sig-name descname"><span class="pre">AgentModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">plate_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prior_parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scm_constants</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">predictive_var_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">low_dim_aux_plate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel" title="Link to this definition"></a></dt>
@@ -339,7 +326,8 @@ Will create two files:
 <dl class="py function">
 <dt class="sig sig-object py" id="agent_model.printing_callback">
 <span class="sig-prename descclassname"><span class="pre">agent_model.</span></span><span class="sig-name descname"><span class="pre">printing_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trace</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draw</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.printing_callback" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Function for debugging pymc-sampling.</p>
+</dd></dl>
 
 </section>
 
@@ -347,7 +335,7 @@ Will create two files:
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="index.html" class="btn btn-neutral float-left" title="2-Step Agent documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="index.html" class="btn btn-neutral float-left" title="Inverse Learning with Causal Agent" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="scm.html" class="btn btn-neutral float-right" title="Structural Causal Model (SCM)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

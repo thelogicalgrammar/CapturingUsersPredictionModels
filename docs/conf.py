@@ -13,7 +13,7 @@ autodoc_mock_imports = ['pymc', 'pytensor', 'arviz', 'joblib', 'numpy', 'scipy',
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = '2-Step Agent'
+project = 'Inverse Learning with Causal Agent'
 copyright = '2025, Carcassi, Cinà, Nyberg'
 author = 'Carcassi, Cinà, Nyberg'
 release = '0.1'
