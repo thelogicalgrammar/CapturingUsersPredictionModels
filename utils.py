@@ -86,21 +86,21 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
 
 def read_outcomes_from_file(file_name='./results/results.csv'):
     """
-    This function reads in results from the results.csv file. The 
+    This function reads in results from the results.csv file. The
     function extracts the outcome under the true SCM given the
     agent's decision based on their posterior beliefs, and separates
     this by name of modified prior and groups the results by unique
     values of the modified prior.
-    E.g. 
-    results_summary['N_E_mu']['parameter_values'] contains a list of
-     unique values that N_E_mu have taken in the results.csv-file, and
+
+    E.g. results_summary['N_E_mu']['parameter_values'] contains a list of
+    unique values that N_E_mu have taken in the results.csv-file, and
     results_summary['N_E_mu']['value_lists'] contains lists of outcomes
-     where every list corresponds to the parameter value at corresponding
-     index and every item in the list is the outcome for one randomly
-     sample X_o.
+    where every list corresponds to the parameter value at corresponding
+    index and every item in the list is the outcome for one randomly
+    sample X_o.
 
     Args:
-    file_name (str): Path and file name of results file. 
+        file_name (str): Path and file name of results file.
     """
     results = []
     with open(file_name, 'r') as f:
@@ -156,10 +156,11 @@ def read_outcomes_from_file(file_name='./results/results.csv'):
 
 def plot_graph(categories, outcomes, variable_name):
     """
-    categorires ([]): Labels for categories
-    outcomes ([[]]): List of lists with outcomes as vaues
-    variable_name (str): Name of modified prior parameter
-     that the outcomes are associated with.
+    Args:
+        categorires ([]): Labels for categories
+        outcomes ([[]]): List of lists with outcomes as values
+        variable_name (str): Name of modified prior parameter that the
+            outcomes are associated with.
     """
     file_name = './fig/{}_boxplot.pdf'.format(variable_name)
     plt.figure(figsize=(6, 4))
@@ -201,6 +202,10 @@ def plot_prior_and_posterior_CATE(summary, variable_name):
 
 
 def read_and_plot():
+    """
+    Function that reads in all results from ./results/results.csv and
+    creates boxplots for all variables found in column "Modified variables".
+    """
     print("Reading in results from ./results/results.csv...")
     results = read_outcomes_from_file()
     print("Creating boxplots and writing to file...")

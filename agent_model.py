@@ -1,12 +1,12 @@
 """
 Better name: bayesian_agent?
 -Could initialize with an SCM that represents the
- agent's internal representation of the world.
+agent's internal representation of the world.
 -Class could store the trace and perhaps using this
- model the predictions based on the SCM.
+model the predictions based on the SCM.
 -This would make the class contain both the agent's
- beliefs and thought processes (how to update beliefs
- based on new data).
+beliefs and thought processes (how to update beliefs
+based on new data).
 
 The Bayesian models specified here correspond to how an ideal
 Bayesian agent would update his beliefs given that he sees
@@ -21,7 +21,7 @@ Technically only one value of X should be allowed after update.
 -Is there any point of allowing for sampling for other X-values?
 -The model is NOT VALID for other X values.
 -Don't block this (yet), because that would prevent updating with
- e.g. 100 patients' info.
+e.g. 100 patients' info.
 
 Could be interesting to estimate variance for CATE using sampling
 as we should expect correlation between E(Y|X,do(A1)) and E(Y|X,do(A0))
@@ -452,10 +452,10 @@ class AgentModel():
 
         Args:
         file_name (str): Base filename without extension (e.g., 'agent_model')
-            Will create two files:
-            - {file_name}.joblib (model configuration)
-            - {file_name}_trace.nc (trace data)
-            - {file_name}_prior_samples.nc (prior sample data)
+        Will create two files:
+        - {file_name}.joblib (model configuration)
+        - {file_name}_trace.nc (trace data)
+        - {file_name}_prior_samples.nc (prior sample data)
         folder (str): Folder to save models into.
         """
         from pathlib import Path
@@ -493,10 +493,10 @@ class AgentModel():
 
         Args:
         file_name: Base filename without extension (e.g., 'agent_model')
-            Expects to find:
-            - {file_name}.joblib (model configuration)
-            - {file_name}_trace.nc (trace data, optional)
-            - {file_name}_prior_samples.nc (prior sample data, optional)
+        Expects to find:
+        - {file_name}.joblib (model configuration)
+        - {file_name}_trace.nc (trace data, optional)
+        - {file_name}_prior_samples.nc (prior sample data, optional)
         folder (str): Folder the models are saved in
 
         Returns:

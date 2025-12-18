@@ -49,7 +49,6 @@ draws = 1000  # Number of draws for trace. Warmup is set to 1000.
 agent_priors =\
     {'mu_X': 80, 'sigma_X': 0.1, 'mu_sigma_X': 10, 'sigma_sigma_X':0.1,
      'mu_A': 2, 'sigma_A': 1, 'mu_sigma_A': 1, 'sigma_sigma_A':0.1,
-    # 'lambda_A': 10,
      'mu_Y': 0, 'sigma_Y': 0.01, 'mu_sigma_Y': 0.1, 'sigma_sigma_Y' : 0.01,
      'N_E_mu': 1.0, 'N_E_sigma': 1}
 # changed agent prior sigma_Y from 1 to 0.1, this is a choice
@@ -77,14 +76,14 @@ def main(X_o, agent_priors, modified_prior,
     Args:
     X_o (np.array): Feature value of the observed patient (e.g. in kg).
     agent_priors (dict): Dictionary with all values that encodes the
-     agent's prior beliefs.
+    agent's prior beliefs.
     modified_prior (dict): Information about which prior was changed
-     and how much.
+    and how much.
     A1_treatment (float): Value of treatment 1.
     A0_treatment (float): Value of treatment 0.
     plate_size (int): Size of plate / number or observations to generate
-     for regression model. Measure of "evidence" for predictions from
-     decision support model.
+    for regression model. Measure of "evidence" for predictions from
+    decision support model.
     draws (int): Size of sample to generate in sampling events.
     scm_noise_parameters (dict): Dict with keys needed in SCM-class.
     scm_constants (dict): Constants defining the relationships in the SCM.
