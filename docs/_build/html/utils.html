@@ -47,6 +47,10 @@
 <li class="toctree-l1"><a class="reference internal" href="agent_model.html">Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="scm.html">Structural Causal Model (SCM)</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#utils.plot_graph"><code class="docutils literal notranslate"><span class="pre">plot_graph()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.plot_prior_and_posterior_CATE"><code class="docutils literal notranslate"><span class="pre">plot_prior_and_posterior_CATE()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.read_and_plot"><code class="docutils literal notranslate"><span class="pre">read_and_plot()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.read_outcomes_from_file"><code class="docutils literal notranslate"><span class="pre">read_outcomes_from_file()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#utils.write_results_to_file"><code class="docutils literal notranslate"><span class="pre">write_results_to_file()</span></code></a></li>
 </ul>
 </li>
@@ -79,6 +83,56 @@
              
   <section id="module-utils">
 <span id="utilities"></span><h1>Utilities<a class="headerlink" href="#module-utils" title="Link to this heading"></a></h1>
+<p>Functions for writing results to file, for reading
+results from said file, and for plotting results.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.plot_graph">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_graph</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">categories</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outcomes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#utils.plot_graph" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>categorires</strong> (<em>[</em><em>]</em>) – Labels for categories</p></li>
+<li><p><strong>outcomes</strong> (<em>[</em><em>[</em><em>]</em><em>]</em>) – List of lists with outcomes as values</p></li>
+<li><p><strong>variable_name</strong> (<em>str</em>) – Name of modified prior parameter that the
+outcomes are associated with.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.plot_prior_and_posterior_CATE">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_prior_and_posterior_CATE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">summary</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#utils.plot_prior_and_posterior_CATE" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.read_and_plot">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">read_and_plot</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#utils.read_and_plot" title="Link to this definition"></a></dt>
+<dd><p>Function that reads in all results from ./results/results.csv and
+creates boxplots for all variables found in column “Modified variables”.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.read_outcomes_from_file">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">read_outcomes_from_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/results.csv'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#utils.read_outcomes_from_file" title="Link to this definition"></a></dt>
+<dd><p>This function reads in results from the results.csv file. The
+function extracts the outcome under the true SCM given the
+agent’s decision based on their posterior beliefs, and separates
+this by name of modified prior and groups the results by unique
+values of the modified prior.</p>
+<p>E.g. results_summary[‘N_E_mu’][‘parameter_values’] contains a list of
+unique values that N_E_mu have taken in the results.csv-file, and
+results_summary[‘N_E_mu’][‘value_lists’] contains lists of outcomes
+where every list corresponds to the parameter value at corresponding
+index and every item in the list is the outcome for one randomly
+sample X_o.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>file_name</strong> (<em>str</em>) – Path and file name of results file.</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="utils.write_results_to_file">
 <span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">write_results_to_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">result_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'results.csv'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#utils.write_results_to_file" title="Link to this definition"></a></dt>

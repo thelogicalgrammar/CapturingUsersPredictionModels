@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, os.path.abspath('..'))
 
 # Mock imports for modules that aren't needed during doc build
-autodoc_mock_imports = ['pymc', 'pytensor', 'arviz', 'joblib', 'numpy', 'scipy', 'matplotlib', 'sklearn']
+autodoc_mock_imports = ['pymc', 'pytensor', 'arviz', 'joblib', 'numpy', 'scipy', 'matplotlib', 'sklearn', 'pandas', 'seaborn']
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information

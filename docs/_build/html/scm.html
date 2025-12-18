@@ -191,10 +191,10 @@ and continuous Y.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="scm.SCM.get_CATE_mu">
-<span class="sig-name descname"><span class="pre">get_CATE_mu</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A1_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_fixed</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scm.SCM.get_CATE_mu" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">get_CATE_mu</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A1_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_treatment</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scm.SCM.get_CATE_mu" title="Link to this definition"></a></dt>
 <dd><p>This method returns the mean of the CATE-distribution given
-X, A1_fixed, and A0_fixed. Due to how the SCM is defined,
-this value is equivalent to (A1_fixed - A0_fixed) * self.N_E.</p>
+X, A1_treatment, and A0_treatment. Due to how the SCM is defined,
+this value is equivalent to (A1_treatment - A0_treatment) * self.N_E.</p>
 <p>The SCM in this class is defined so that Y given A and X is
 normally distributed and its parameters are deterministically
 determined by the values of A and X. This results in the CATE-
@@ -204,8 +204,8 @@ calculation of the mean as:</p>
 <div><p>CATE_mu(X) = E(Y| X, do(A=A1)) - E(Y| X, do(A=A0))</p>
 </div></blockquote>
 <p>Args:
-A1_fixed [float]: Dosage value of higher dose treatment
-A0_fixed [float]: Dosage value of lower dose treatment</p>
+A1_treatment [float]: Dosage value of higher dose treatment
+A0_treatment [float]: Dosage value of lower dose treatment</p>
 </dd></dl>
 
 <dl class="py method">
@@ -232,7 +232,7 @@ and on the intervention do(A):</p>
 <div><p>Y ~ p(Y| X, do(A)).</p>
 </div></blockquote>
 <p>All of X, A, and Y are always passed. In addition, the distribution
-parameters for Y (mu_Y_cond, and var_Y_cond) are passed. If X
+parameters for Y (mu_Y_cond, and std_Y_cond) are passed. If X
 and/or A are provided, the distribution parameters are conditional
 on the given values. Otherwise they are “conditional” only on the
 sampled values (in contrast how the word “conditional” is normally
@@ -246,29 +246,29 @@ rng: seed or initialized random number generator for reproducibility</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="scm.SCM.sample_CATE">
-<span class="sig-name descname"><span class="pre">sample_CATE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scm.SCM.sample_CATE" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">sample_CATE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#scm.SCM.sample_CATE" title="Link to this definition"></a></dt>
 <dd><p>This method samples the CATE-distribution using treatment 1 (higher dosage)
 instead of treatment 0.
-Given X and two treatment options A1_fixed and A0_fixed</p>
+Given X and two treatment options A1_treatment and A0_treatment</p>
 <p>Args:
 X (float): Feature to condition on
-A1_fixed [float]: Dosage value of higher dose treatment
-A0_fixed [float]: Dosage value of lower dose treatment
+A1_treatment [float]: Dosage value of higher dose treatment
+A0_treatment [float]: Dosage value of lower dose treatment
 draws (int): Size of sample to generate
 rng: seed or initialized random number generator for reproducibility</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="scm.SCM.sample_do_A">
-<span class="sig-name descname"><span class="pre">sample_do_A</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A_fixed</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">numpy.ndarray</span></span></span><a class="headerlink" href="#scm.SCM.sample_do_A" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">sample_do_A</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">numpy.ndarray</span></span></span><a class="headerlink" href="#scm.SCM.sample_do_A" title="Link to this definition"></a></dt>
 <dd><dl class="simple">
-<dt>Generates sample from the SCM given the data and set treatments, i.e.</dt><dd><p>Y_i ~ p(Y|do(A_fixed), X)</p>
+<dt>Generates sample from the SCM given the data and set treatments, i.e.</dt><dd><p>Y_i ~ p(Y|do(A_treatment), X)</p>
 </dd>
 </dl>
 <p>Returns an array with shape (n, <a href="#id1"><span class="problematic" id="id2">*</span></a>X.shape).
 This is merely a wrapper for the interventional path in self.sample().</p>
 <p>Args:
-A_fixed (int- or array-like): value to intervene on A, or array with X.shape
+A_treatment (int- or array-like): value to intervene on A, or array with X.shape
 X: observed values of X
 draws (int): Size of sample to draw for every observation in A.
 rng: seed or initialized random number generator for reproducibility</p>

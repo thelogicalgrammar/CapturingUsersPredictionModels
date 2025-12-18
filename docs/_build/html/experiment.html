@@ -46,7 +46,10 @@
 <li class="toctree-l1"><a class="reference internal" href="agent_model.html">Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="scm.html">Structural Causal Model (SCM)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="utils.html">Utilities</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Experiment</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Experiment</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#experiment.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+</ul>
+</li>
 </ul>
 
         </div>
@@ -73,8 +76,42 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="experiment">
-<h1>Experiment<a class="headerlink" href="#experiment" title="Link to this heading"></a></h1>
+  <section id="module-experiment">
+<span id="experiment"></span><h1>Experiment<a class="headerlink" href="#module-experiment" title="Link to this heading"></a></h1>
+<p>This module provides functionality to run experiments that test agent decision-making
+with and without decision support systems.</p>
+<p>The script takes three command line parameters where the first one
+is the key in agent_priors to modify, the second one what value
+agent_priors[key] should take, and the third one what value X_o
+should take.</p>
+<p>Example:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>experiment.py<span class="w"> </span>N_E_mu<span class="w"> </span>-20<span class="w"> </span><span class="m">72</span>
+</pre></div>
+</div>
+<p>This would set the value of the prior distribution of N_E to -20 and
+use 72kg as the feature of the observed patient.</p>
+<p>Notes:
+Could perhaps implement support for changing plate size and SCM parameters</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="experiment.main">
+<span class="sig-prename descclassname"><span class="pre">experiment.</span></span><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">agent_priors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modified_prior</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_treatment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_treatment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plate_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scm_noise_parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'N_E':</span> <span class="pre">1.0,</span> <span class="pre">'alpha_mu_A':</span> <span class="pre">2,</span> <span class="pre">'alpha_mu_X':</span> <span class="pre">80,</span> <span class="pre">'alpha_mu_Y':</span> <span class="pre">0.0,</span> <span class="pre">'alpha_sigma_A':</span> <span class="pre">1.0,</span> <span class="pre">'alpha_sigma_X':</span> <span class="pre">10,</span> <span class="pre">'alpha_sigma_Y':</span> <span class="pre">0.1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scm_constants</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'a':</span> <span class="pre">12.0,</span> <span class="pre">'b':</span> <span class="pre">-0.1,</span> <span class="pre">'d':</span> <span class="pre">0.125}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameter_descriptions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'agent_priors':</span> <span class="pre">'Default',</span> <span class="pre">'scm_constants':</span> <span class="pre">'Default',</span> <span class="pre">'scm_noise_parameters':</span> <span class="pre">'Default'}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#experiment.main" title="Link to this definition"></a></dt>
+<dd><p>Args:
+X_o (np.array): Feature value of the observed patient (e.g. in kg).
+agent_priors (dict): Dictionary with all values that encodes the
+agent’s prior beliefs.
+modified_prior (dict): Information about which prior was changed
+and how much.
+A1_treatment (float): Value of treatment 1.
+A0_treatment (float): Value of treatment 0.
+plate_size (int): Size of plate / number or observations to generate
+for regression model. Measure of “evidence” for predictions from
+decision support model.
+draws (int): Size of sample to generate in sampling events.
+scm_noise_parameters (dict): Dict with keys needed in SCM-class.
+scm_constants (dict): Constants defining the relationships in the SCM.
+rng (int or rng): Seed or rng for reproducibility.</p>
+</dd></dl>
+
 </section>
 
 
