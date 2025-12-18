@@ -19,6 +19,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Experiment Series" href="experiment_series.html" />
     <link rel="prev" title="Utilities" href="utils.html" /> 
 </head>
 
@@ -50,6 +51,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#experiment.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_series.html">Experiment Series</a></li>
 </ul>
 
         </div>
@@ -95,21 +97,26 @@ Could perhaps implement support for changing plate size and SCM parameters</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="experiment.main">
 <span class="sig-prename descclassname"><span class="pre">experiment.</span></span><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">agent_priors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modified_prior</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_treatment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_treatment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plate_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scm_noise_parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'N_E':</span> <span class="pre">1.0,</span> <span class="pre">'alpha_mu_A':</span> <span class="pre">2,</span> <span class="pre">'alpha_mu_X':</span> <span class="pre">80,</span> <span class="pre">'alpha_mu_Y':</span> <span class="pre">0.0,</span> <span class="pre">'alpha_sigma_A':</span> <span class="pre">1.0,</span> <span class="pre">'alpha_sigma_X':</span> <span class="pre">10,</span> <span class="pre">'alpha_sigma_Y':</span> <span class="pre">0.1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scm_constants</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'a':</span> <span class="pre">12.0,</span> <span class="pre">'b':</span> <span class="pre">-0.1,</span> <span class="pre">'d':</span> <span class="pre">0.125}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameter_descriptions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'agent_priors':</span> <span class="pre">'Default',</span> <span class="pre">'scm_constants':</span> <span class="pre">'Default',</span> <span class="pre">'scm_noise_parameters':</span> <span class="pre">'Default'}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#experiment.main" title="Link to this definition"></a></dt>
-<dd><p>Args:
-X_o (np.array): Feature value of the observed patient (e.g. in kg).
-agent_priors (dict): Dictionary with all values that encodes the
-agent’s prior beliefs.
-modified_prior (dict): Information about which prior was changed
-and how much.
-A1_treatment (float): Value of treatment 1.
-A0_treatment (float): Value of treatment 0.
-plate_size (int): Size of plate / number or observations to generate
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X_o</strong> (<em>np.array</em>) – Feature value of the observed patient (e.g. in kg).</p></li>
+<li><p><strong>agent_priors</strong> (<em>dict</em>) – Dictionary with all values that encodes the
+agent’s prior beliefs.</p></li>
+<li><p><strong>modified_prior</strong> (<em>dict</em>) – Information about which prior was changed
+and how much.</p></li>
+<li><p><strong>A1_treatment</strong> (<em>float</em>) – Value of treatment 1.</p></li>
+<li><p><strong>A0_treatment</strong> (<em>float</em>) – Value of treatment 0.</p></li>
+<li><p><strong>plate_size</strong> (<em>int</em>) – Size of plate / number or observations to generate
 for regression model. Measure of “evidence” for predictions from
-decision support model.
-draws (int): Size of sample to generate in sampling events.
-scm_noise_parameters (dict): Dict with keys needed in SCM-class.
-scm_constants (dict): Constants defining the relationships in the SCM.
-rng (int or rng): Seed or rng for reproducibility.</p>
+decision support model.</p></li>
+<li><p><strong>draws</strong> (<em>int</em>) – Size of sample to generate in sampling events.</p></li>
+<li><p><strong>scm_noise_parameters</strong> (<em>dict</em>) – Dict with keys needed in SCM-class.</p></li>
+<li><p><strong>scm_constants</strong> (<em>dict</em>) – Constants defining the relationships in the SCM.</p></li>
+<li><p><strong>rng</strong> (<em>int</em><em> or </em><em>rng</em>) – Seed or rng for reproducibility.</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 </section>
@@ -119,6 +126,7 @@ rng (int or rng): Seed or rng for reproducibility.</p>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="utils.html" class="btn btn-neutral float-left" title="Utilities" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="experiment_series.html" class="btn btn-neutral float-right" title="Experiment Series" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

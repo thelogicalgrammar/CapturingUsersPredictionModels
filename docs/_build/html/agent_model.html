@@ -16,6 +16,7 @@
       <script src="_static/documentation_options.js?v=2709fde1"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -65,6 +66,7 @@
 <li class="toctree-l1"><a class="reference internal" href="scm.html">Structural Causal Model (SCM)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="utils.html">Utilities</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment.html">Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_series.html">Experiment Series</a></li>
 </ul>
 
         </div>
@@ -121,6 +123,32 @@ This applies to both prior and posterior.</p>
 <dt class="sig sig-object py" id="agent_model.AgentModel">
 <em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agent_model.</span></span><span class="sig-name descname"><span class="pre">AgentModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">plate_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prior_parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scm_constants</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">predictive_var_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">low_dim_aux_plate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Class for agent models with structural equations:</p>
+<p><span class="math notranslate nohighlight">\(Y_i = a + b X_i + N_{E} A_i + N_{Yi}\)</span></p>
+<p><span class="math notranslate nohighlight">\(A_i = d X_i + N_{Ai}\)</span></p>
+<p><span class="math notranslate nohighlight">\(X_i = N_{Xi}\)</span></p>
+<p>where N_{Xi}, N_{Ai}, N_{Yi} are normal noise variables drawn J times
+for every instantiation of the plate and N_{E} is a normal variable
+drawn once per instantiation of the plate.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>plate_size</strong> (<em>int</em>) – size of the plate (number of i.i.d. samples).</p></li>
+<li><p><strong>scm_constants</strong> (<em>dict</em>) – dictionary with structural equation scm_constants ‘a’, ‘b’, and ‘d’.
+If scm_constants is None, then it defaults to values in the paper (28.8.2025).</p></li>
+<li><p><strong>prior_parameters</strong> (<em>dict</em>) – dictionary with parameters for prior distributions
+If prior_parameters is None, then it defaults to values in the paper (28.8.2025).</p></li>
+<li><p><strong>low_dim_aux_plate</strong> (<em>bool</em>) – If true the plate is estimated using low-dimensional
+auxiliary variables. This speeds up inference. If false, the plate is explicitly
+modeled.</p></li>
+<li><p><strong>test</strong> (<em>bool</em>) – If true, the model is set up in testing mode enabling multiple observed
+data points to be input. This is mainly for testing that the model works as intended.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="agent_model.AgentModel.get_prior_CATE_mu">
 <span class="sig-name descname"><span class="pre">get_prior_CATE_mu</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A1_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_treatment</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.get_prior_CATE_mu" title="Link to this definition"></a></dt>
@@ -128,21 +156,35 @@ This applies to both prior and posterior.</p>
 A1_treatment - A0_treatment. The current SCM is such that N_E is not
 dependent on X and the treatment effect only depends on
 N_E and size of A_treatment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>A1_treatment</strong> (<em>float</em>) – Dosage value of higher dose treatment</p></li>
+<li><p><strong>A0_treatment</strong> (<em>float</em>) – Dosage value of lower dose treatment</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agent_model.AgentModel.load_agent_model">
 <em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load_agent_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./agent_model'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">folder</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./saved_models/'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.load_agent_model" title="Link to this definition"></a></dt>
 <dd><p>Load a saved agent model.</p>
-<p>Args:
-file_name: Base filename without extension (e.g., ‘agent_model’)
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_name</strong> – Base filename without extension (e.g., ‘agent_model’)
 Expects to find:
 - {file_name}.joblib (model configuration)
 - {file_name}_trace.nc (trace data, optional)
-- {file_name}_prior_samples.nc (prior sample data, optional)
-folder (str): Folder the models are saved in</p>
-<p>Returns:
-AgentModel instance</p>
+- {file_name}_prior_samples.nc (prior sample data, optional)</p></li>
+<li><p><strong>folder</strong> (<em>str</em>) – Folder the models are saved in</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>agent_model.AgentModel</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -150,10 +192,18 @@ AgentModel instance</p>
 <span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample" title="Link to this definition"></a></dt>
 <dd><p>Sample from the posterior given observed data.
 Stores latest trace in self.</p>
-<p>Args:
-X_o (np.ndarray): Vector of observed features.
-pred_o (np.ndarray): Vector of observed predictions.
-draws (int): Size of sample to draw from the posterior.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X_o</strong> (<em>np.ndarray</em>) – Vector of observed features.</p></li>
+<li><p><strong>pred_o</strong> (<em>np.ndarray</em>) – Vector of observed predictions.</p></li>
+<li><p><strong>draws</strong> (<em>int</em>) – Size of sample to draw from the posterior.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -162,10 +212,15 @@ draws (int): Size of sample to draw from the posterior.</p>
 <dd><p>Method for estimating the outcome for a patient with features X
 based on the agent’s posterior beliefs. Draws one potential
 outcome for every draw in trace.</p>
-<p>Args:
-X (np.array): Feature to condition on
-A_treatment (float): Fixed treatment value
-rng (int or rng): Random number generator or seed for reproducibility</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>np.array</em>) – Feature to condition on</p></li>
+<li><p><strong>A_treatment</strong> (<em>float</em>) – Fixed treatment value</p></li>
+<li><p><strong>rng</strong> (<em>int</em><em> or </em><em>rng</em>) – Random number generator or seed for reproducibility</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -175,8 +230,11 @@ rng (int or rng): Random number generator or seed for reproducibility</p>
 Using the trace stored in self, this method replaces the parameter
 values in self.predictive_scm and draws a posterior predictive
 sample from this.</p>
-<p>Args:
-rng (int or rng): Random number generator or seed for reproducibility</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>rng</strong> (<em>int</em><em> or </em><em>rng</em>) – Random number generator or seed for reproducibility</p>
+</dd>
+</dl>
 <p>Notes:
 Consider VECTORIZING this method.</p>
 </dd></dl>
@@ -186,11 +244,16 @@ Consider VECTORIZING this method.</p>
 <span class="sig-name descname"><span class="pre">sample_posterior_predictive_CATE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample_posterior_predictive_CATE" title="Link to this definition"></a></dt>
 <dd><p>This method returns a sample from the posterior predictive
 CATE-distribution, and its sample mean and standard deviation.</p>
-<p>Args:
-X (np.array): Feature to condition on
-A1_treatment (float): Higher dose treatment value
-A0_treatment (float): Lower dose treatment value
-rng (int or rng): Random number generator or seed for reproducibility</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>np.array</em>) – Feature to condition on</p></li>
+<li><p><strong>A1_treatment</strong> (<em>float</em>) – Higher dose treatment value</p></li>
+<li><p><strong>A0_treatment</strong> (<em>float</em>) – Lower dose treatment value</p></li>
+<li><p><strong>rng</strong> (<em>int</em><em> or </em><em>rng</em>) – Random number generator or seed for reproducibility</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -209,9 +272,14 @@ rng (int or rng): Random number generator or seed for reproducibility</p>
 <span class="sig-name descname"><span class="pre">sample_prior_predictive</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample_prior_predictive" title="Link to this definition"></a></dt>
 <dd><p>Method for sampling from distribution based on the
 agent’s prior beliefs.</p>
-<p>Args:
-draws (int): Size of sample to draw
-rng (int): Random number generator or seed for reproducibility</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>draws</strong> (<em>int</em>) – Size of sample to draw</p></li>
+<li><p><strong>rng</strong> (<em>int</em>) – Random number generator or seed for reproducibility</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -221,11 +289,16 @@ rng (int): Random number generator or seed for reproducibility</p>
 and its sample mean and standard deviation.
 Currently CATE is not dependent on X and is hence ATE. It also does
 not require conditioning on X.</p>
-<p>Args:
-A1_treatment (float): Dosage value of higher dose treatment
-A0_treatment (float): Dosage value of lower dose treatment
-X (np.array): Feature to condition on.
-rng: seed or initialized random number generator for reproducibility</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>A1_treatment</strong> (<em>float</em>) – Dosage value of higher dose treatment</p></li>
+<li><p><strong>A0_treatment</strong> (<em>float</em>) – Dosage value of lower dose treatment</p></li>
+<li><p><strong>X</strong> (<em>np.array</em>) – Feature to condition on.</p></li>
+<li><p><strong>rng</strong> – seed or initialized random number generator for reproducibility</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -233,24 +306,32 @@ rng: seed or initialized random number generator for reproducibility</p>
 <span class="sig-name descname"><span class="pre">sample_prior_predictive_summaries</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.sample_prior_predictive_summaries" title="Link to this definition"></a></dt>
 <dd><p>Method that estimates mean, variance, skewness, and kurtosis
 of the variables X, A, and Y in the prior samples.</p>
-<p>Args:
-rng (int or rng): Seed or initialized random number generator for</p>
-<blockquote>
-<div><p>reproducibility. Used only if prior samples were not drawn earlier.</p>
-</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rng</strong> (<em>int</em><em> or </em><em>rng</em>) – Seed or initialized random number generator for</p></li>
+<li><p><strong>earlier.</strong> (<em>reproducibility. Used only if prior samples were not drawn</em>)</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="agent_model.AgentModel.save_agent_model">
 <span class="sig-name descname"><span class="pre">save_agent_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'agent_model'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">folder</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./saved_models/'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#agent_model.AgentModel.save_agent_model" title="Link to this definition"></a></dt>
 <dd><p>Save the entire agent model (trace + configuration).</p>
-<p>Args:
-file_name (str): Base filename without extension (e.g., ‘agent_model’)
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_name</strong> (<em>str</em>) – Base filename without extension (e.g., ‘agent_model’)
 Will create two files:
 - {file_name}.joblib (model configuration)
 - {file_name}_trace.nc (trace data)
-- {file_name}_prior_samples.nc (prior sample data)
-folder (str): Folder to save models into.</p>
+- {file_name}_prior_samples.nc (prior sample data)</p></li>
+<li><p><strong>folder</strong> (<em>str</em>) – Folder to save models into.</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 </dd></dl>
