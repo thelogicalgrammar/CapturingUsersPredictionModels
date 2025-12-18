@@ -75,19 +75,19 @@ class SCM:
     def sample(self, X=None, A=None, draws=1, rng=None):
         """
         This method encodes the structure of the SCM and generates 
-        samples of X, Y and A:
-        :math:`X, A, Y \sim p(X, Y, A)`
+        samples of X, Y, and A: \n
+        :math:`X, A, Y \sim p(X, Y, A)` \n
         If X is passed, then the output A and Y are conditional on
-        the value of X:
-        :math:`A, Y \sim p(A, Y| X)`
+        the value of X: \n
+        :math:`A, Y \sim p(A, Y| X)` \n
         If A is passed, the output Y is conditional on the
-        intervention do(A):
-        :math:`X, Y \sim p(X, Y| do(A))`
+        intervention do(A): \n
+        :math:`X, Y \sim p(X, Y| do(A))` \n
         If both X and Y are passed, the output is conditional on X
-        and on the intervention do(A):
-        :math:`Y \sim p(Y| X, do(A))`
-        All of X, A, and Y are always passed. In addition, the distribution
-        parameters for Y (mu_Y_cond, and std_Y_cond) are passed. If X
+        and on the intervention do(A): \n
+        :math:`Y \sim p(Y| X, do(A))` \n
+        All of X, A, and Y are always returned. In addition, the distribution
+        parameters for Y (mu_Y_cond, and std_Y_cond) are returned. If X
         and/or A are provided, the distribution parameters are conditional
         on the given values. Otherwise they are "conditional" only on the
         sampled values (in contrast how the word "conditional" is normally
@@ -128,8 +128,8 @@ class SCM:
     def sample_do_A(self, A_treatment, X: np.ndarray, draws: int = 1,
                     rng=None) -> np.ndarray:
         """
-        Generates sample from the SCM given the data and set treatments, i.e.
-        :math:`Y_i \sim p(Y|do(A_treatment), X)`
+        Generates sample from the SCM given the data and set treatments, i.e. \n
+        Y_i ~ p(Y|do(A_treatment), X) \n
         Returns an array with shape (n, *X.shape).
         This is merely a wrapper for the interventional path in self.sample().
 
@@ -160,8 +160,8 @@ class SCM:
 
         Args:
             X (float): Feature to condition on
-            A1_treatment [float]: Dosage value of higher dose treatment
-            A0_treatment [float]: Dosage value of lower dose treatment
+            A1_treatment (float): Dosage value of higher dose treatment
+            A0_treatment (float): Dosage value of lower dose treatment
             draws (int): Size of sample to generate
             rng: seed or initialized random number generator for reproducibility
         """
@@ -190,12 +190,12 @@ class SCM:
         normally distributed and its parameters are deterministically
         determined by the values of A and X. This results in the CATE-
         distibution also being normal and allows for deterministic
-        calculation of the mean as:
-        :math:`CATE_mu(X) = E(Y| X, do(A=A1)) - E(Y| X, do(A=A0))`
+        calculation of the mean as: \n
+        CATE_mu(X) = E(Y| X, do(A=A1)) - E(Y| X, do(A=A0))
 
         Args:
-            A1_treatment [float]: Dosage value of higher dose treatment
-            A0_treatment [float]: Dosage value of lower dose treatment
+            A1_treatment (float): Dosage value of higher dose treatment
+            A0_treatment (float): Dosage value of lower dose treatment
         """
         return (A1_treatment - A0_treatment) * self.N_E
 

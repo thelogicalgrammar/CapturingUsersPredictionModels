@@ -13,7 +13,8 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
     Function for writing results to file.
 
     Args:
-    result_dict [dict]: Dict of results to store.
+        result_dict [dict]: Dict of results to store.
+        
     """
     # Check for existence of folder. Create if it does not exist.
     Path(path).mkdir(parents=True, exist_ok=True)

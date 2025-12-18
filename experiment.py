@@ -74,20 +74,20 @@ def main(X_o, agent_priors, modified_prior,
          rng=rng):
     """
     Args:
-    X_o (np.array): Feature value of the observed patient (e.g. in kg).
-    agent_priors (dict): Dictionary with all values that encodes the
-    agent's prior beliefs.
-    modified_prior (dict): Information about which prior was changed
-    and how much.
-    A1_treatment (float): Value of treatment 1.
-    A0_treatment (float): Value of treatment 0.
-    plate_size (int): Size of plate / number or observations to generate
-    for regression model. Measure of "evidence" for predictions from
-    decision support model.
-    draws (int): Size of sample to generate in sampling events.
-    scm_noise_parameters (dict): Dict with keys needed in SCM-class.
-    scm_constants (dict): Constants defining the relationships in the SCM.
-    rng (int or rng): Seed or rng for reproducibility.
+        X_o (np.array): Feature value of the observed patient (e.g. in kg).
+        agent_priors (dict): Dictionary with all values that encodes the
+            agent's prior beliefs.
+        modified_prior (dict): Information about which prior was changed
+            and how much.
+        A1_treatment (float): Value of treatment 1.
+        A0_treatment (float): Value of treatment 0.
+        plate_size (int): Size of plate / number or observations to generate
+            for regression model. Measure of "evidence" for predictions from
+            decision support model.
+        draws (int): Size of sample to generate in sampling events.
+        scm_noise_parameters (dict): Dict with keys needed in SCM-class.
+        scm_constants (dict): Constants defining the relationships in the SCM.
+        rng (int or rng): Seed or rng for reproducibility.
     """
     start_time = time.time()
     # 1. SCM-instance to generate population data under the

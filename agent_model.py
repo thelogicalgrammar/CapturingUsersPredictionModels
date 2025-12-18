@@ -47,32 +47,37 @@ def printing_callback(trace, draw):
 
 
 class AgentModel():
+    """
+    Class for agent models with structural equations:
+
+    :math:`Y_i = a + b X_i + N_{E} A_i + N_{Yi}`
+
+    :math:`A_i = d X_i + N_{Ai}`
+
+    :math:`X_i = N_{Xi}`
+
+    where N_{Xi}, N_{Ai}, N_{Yi} are normal noise variables drawn J times
+    for every instantiation of the plate and N_{E} is a normal variable
+    drawn once per instantiation of the plate.
+
+    Args:
+        plate_size (int): size of the plate (number of i.i.d. samples).
+        scm_constants (dict): dictionary with structural equation scm_constants 'a', 'b', and 'd'.
+            If scm_constants is None, then it defaults to values in the paper (28.8.2025).
+        prior_parameters (dict): dictionary with parameters for prior distributions
+            If prior_parameters is None, then it defaults to values in the paper (28.8.2025).
+        low_dim_aux_plate (bool): If true the plate is estimated using low-dimensional
+            auxiliary variables. This speeds up inference. If false, the plate is explicitly 
+            modeled.
+        test (bool): If true, the model is set up in testing mode enabling multiple observed
+            data points to be input. This is mainly for testing that the model works as intended.
+    
+    Returns:
+        None
+    """
     def __init__(self, plate_size, prior_parameters=None, 
                  scm_constants=None, predictive_var_names=None,
                  low_dim_aux_plate=True, test=False):
-        """
-        Class for agent models.
-
-        The structural equations are:
-        X_i = N_{Xi}
-        A_i = d X_i + N_{Ai}
-        Y_i = a + b X_i + N_{E} A_i + N_{Yi}
-        where N_{Xi}, N_{Ai}, N_{Yi} are normal noise variables drawn J times
-        for every instantiation of the plate and N_{E} is a normal variable
-        drawn once per instantiation of the plate.
-
-        Args:
-        plate_size (int): size of the plate (number of i.i.d. samples).
-        scm_constants (dict): dictionary with structural equation scm_constants 'a', 'b', and 'd'.
-         If scm_constants is None, then it defaults to values in the paper (28.8.2025).
-        prior_parameters (dict): dictionary with parameters for prior distributions
-         If prior_parameters is None, then it defaults to values in the paper (28.8.2025).
-        low_dim_aux_plate (bool): If true the plate is estimated using low-dimensional
-         auxiliary variables. This speeds up inference. If false, the plate is explicitly 
-         modeled.
-        test (bool): If true, the model is set up in testing mode enabling multiple observed
-         data points to be input. This is mainly for testing that the model works as intended.
-        """
         self.plate_size = plate_size
         
         # Prior parameters
@@ -231,9 +236,12 @@ class AgentModel():
         Stores latest trace in self.
 
         Args:
-        X_o (np.ndarray): Vector of observed features.
-        pred_o (np.ndarray): Vector of observed predictions.
-        draws (int): Size of sample to draw from the posterior.
+            X_o (np.ndarray): Vector of observed features.
+            pred_o (np.ndarray): Vector of observed predictions.
+            draws (int): Size of sample to draw from the posterior.
+        
+        Returns:
+            None
         """
         self.posterior_draws = draws
         # Replace placeholders with actual data:
@@ -259,8 +267,8 @@ class AgentModel():
         agent's prior beliefs.
 
         Args:
-        draws (int): Size of sample to draw
-        rng (int): Random number generator or seed for reproducibility
+            draws (int): Size of sample to draw
+            rng (int): Random number generator or seed for reproducibility
         """
         self.prior_draws = draws
         with self.model:
@@ -289,10 +297,10 @@ class AgentModel():
         not require conditioning on X.
 
         Args:
-        A1_treatment (float): Dosage value of higher dose treatment
-        A0_treatment (float): Dosage value of lower dose treatment
-        X (np.array): Feature to condition on.
-        rng: seed or initialized random number generator for reproducibility
+            A1_treatment (float): Dosage value of higher dose treatment
+            A0_treatment (float): Dosage value of lower dose treatment
+            X (np.array): Feature to condition on.
+            rng: seed or initialized random number generator for reproducibility
         """
         if self.prior_samples is None:
             self.sample_prior_predictive(rng=rng)
@@ -316,6 +324,10 @@ class AgentModel():
         A1_treatment - A0_treatment. The current SCM is such that N_E is not
         dependent on X and the treatment effect only depends on
         N_E and size of A_treatment.
+
+        Args:
+            A1_treatment (float): Dosage value of higher dose treatment
+            A0_treatment (float): Dosage value of lower dose treatment
         """
         return (A1_treatment - A0_treatment) * self.prior_parameters['N_E_mu']
     
@@ -325,8 +337,8 @@ class AgentModel():
         of the variables X, A, and Y in the prior samples.
         
         Args:
-        rng (int or rng): Seed or initialized random number generator for
-         reproducibility. Used only if prior samples were not drawn earlier.
+            rng (int or rng): Seed or initialized random number generator for
+            reproducibility. Used only if prior samples were not drawn earlier.
         """
         if self.prior_predictive_samples is None:
             self.sample_prior_predictive(rng=rng)
@@ -356,7 +368,7 @@ class AgentModel():
         sample from this.
 
         Args:
-        rng (int or rng): Random number generator or seed for reproducibility
+            rng (int or rng): Random number generator or seed for reproducibility
 
         Notes:
         Consider VECTORIZING this method.
@@ -379,10 +391,10 @@ class AgentModel():
         CATE-distribution, and its sample mean and standard deviation.
 
         Args:
-        X (np.array): Feature to condition on
-        A1_treatment (float): Higher dose treatment value
-        A0_treatment (float): Lower dose treatment value
-        rng (int or rng): Random number generator or seed for reproducibility
+            X (np.array): Feature to condition on
+            A1_treatment (float): Higher dose treatment value
+            A0_treatment (float): Lower dose treatment value
+            rng (int or rng): Random number generator or seed for reproducibility
         """
         parameter_array = {var: self.trace.posterior[var].values.flatten() for var in self.predictive_var_names}
         CATE_samples = np.zeros(shape=(self.posterior_draws,))
@@ -405,9 +417,9 @@ class AgentModel():
         outcome for every draw in trace.
 
         Args:
-        X (np.array): Feature to condition on
-        A_treatment (float): Fixed treatment value
-        rng (int or rng): Random number generator or seed for reproducibility
+            X (np.array): Feature to condition on
+            A_treatment (float): Fixed treatment value
+            rng (int or rng): Random number generator or seed for reproducibility
         """
         parameter_array = {var: self.trace.posterior[var].values.flatten() for var in self.predictive_var_names}
         potential_outcomes = np.zeros(shape=(self.posterior_draws,))
@@ -451,12 +463,12 @@ class AgentModel():
         Save the entire agent model (trace + configuration).
 
         Args:
-        file_name (str): Base filename without extension (e.g., 'agent_model')
-        Will create two files:
-        - {file_name}.joblib (model configuration)
-        - {file_name}_trace.nc (trace data)
-        - {file_name}_prior_samples.nc (prior sample data)
-        folder (str): Folder to save models into.
+            file_name (str): Base filename without extension (e.g., 'agent_model')
+                Will create two files:
+                - {file_name}.joblib (model configuration)
+                - {file_name}_trace.nc (trace data)
+                - {file_name}_prior_samples.nc (prior sample data)
+            folder (str): Folder to save models into.
         """
         from pathlib import Path
         Path('./saved_models').mkdir(parents=True, exist_ok=True)
@@ -492,15 +504,15 @@ class AgentModel():
         Load a saved agent model.
 
         Args:
-        file_name: Base filename without extension (e.g., 'agent_model')
-        Expects to find:
-        - {file_name}.joblib (model configuration)
-        - {file_name}_trace.nc (trace data, optional)
-        - {file_name}_prior_samples.nc (prior sample data, optional)
-        folder (str): Folder the models are saved in
+            file_name: Base filename without extension (e.g., 'agent_model')
+                Expects to find:
+                - {file_name}.joblib (model configuration)
+                - {file_name}_trace.nc (trace data, optional)
+                - {file_name}_prior_samples.nc (prior sample data, optional)
+            folder (str): Folder the models are saved in
 
         Returns:
-        AgentModel instance
+            agent_model.AgentModel
         """
         file_name = folder + file_name
         # Load the model structure

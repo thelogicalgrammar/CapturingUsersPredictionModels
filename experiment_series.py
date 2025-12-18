@@ -1,27 +1,17 @@
 """
-Code to run a series of experiments consequtively.
+Code to run multiple experiments consequtively in series.
 
-Basic setup: Keep everything else at default values, change one
-Treatment effect N_E_mu 
--include negative values
--include zero
--N_E_mu: -20, 0, 20, 40, 60
+Basic setup: Everything else is kept at default values except for one
+variable. X_o is sampled from the true distribution. Select which
+parameters to sweep in main() by uncommenting or adding items to the
+dict. Run series by:
 
-Basic parameter sensitivity
--mu_X: -2std, -1 std, 0, +1 std, +2 std
--mu_Y: -2std, -1 std, 0, +1 std, +2 std
--mu_A: -2std, -1 std, 0, +1 std, +2 std
+.. code-block:: bash
+
+    python experiment_series.py
 
 
-Run experiments: Sample X_o from SCM_{Hist} (underlying distribution)
--5(?) runs for each parameter combination
--Run more if time allows
-
-
-Visualization: Read in more results automatically if present in results.csv
--Read in from results.csv, parse (match values, calculate mean and std)
--Plot
-
+Use utils.read_and_plot() for plotting.
 """
 import numpy as np
 import experiment
