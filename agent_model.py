@@ -324,7 +324,7 @@ class AgentModel():
         
         Args:
             rng (int or rng): Seed or initialized random number generator for
-            reproducibility. Used only if prior samples were not drawn earlier.
+                reproducibility. Used only if prior samples were not drawn earlier.
         """
         if self.prior_predictive_samples is None:
             self.sample_prior_predictive(rng=rng)
@@ -450,7 +450,7 @@ class AgentModel():
 
         Args:
             file_name (str): Base filename without extension (e.g., 'agent_model')
-                Will create two files:
+                Will create three files:
                 - {file_name}.joblib (model configuration)
                 - {file_name}_trace.nc (trace data)
                 - {file_name}_prior_samples.nc (prior sample data)
