@@ -41,3 +41,24 @@ To run code tests, use the following commands:
 python -m tests.test_scm
 python -m tests.test_agent_models
 ```
+
+## Slurm
+Pre-compile code to speed up runs with 
+```
+python -m compileall .
+```
+Define parameters to scan over in generate_parameter_file.py and run
+```
+python generate_parameter_file.py
+```
+OR populate ```./slurm/tmp/parameters.txt``` with desired parameter names and values.
+
+Set ```#SBATCH --array=0-99``` to a range that starts at 0 and ends at 1/4 of the number
+of lines in parameters.txt rounded up.
+
+Run by submitting on cluster with the command
+```
+sbatch slurm/array_job.sh
+```
+
+
