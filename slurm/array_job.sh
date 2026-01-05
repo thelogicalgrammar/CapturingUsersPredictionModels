@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH -p thin
-#SBATCH --array=0-99  # 100 jobs. Should be 1/4 of #lines in parameters
+#SBATCH -p rome
+#SBATCH --array=0-19  # 100 jobs. Should be 1/4 of #lines in parameters
 #SBATCH --cpus-per-task=16  # Minimum allocation. Might make sense to up this to 128 (on thin node) for file transfers.
 #SBATCH --mem=28G  # Minimum allocation
 #SBATCH --time=30:00
