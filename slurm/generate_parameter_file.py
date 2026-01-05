@@ -24,7 +24,7 @@ def generate_slurm_parameter_file(parameters_file='./slurm/tmp/parameters.txt'):
         # Create path:
         os.mkdir('./slurm/tmp/')
     # Define parameter values to scan
-    n_iterations = 50
+    n_iterations = 8
     deviations = [i for i in range(-5, 5)]
     params = {#'N_E_mu': [-20, 0, 20, 40, 60],
             #'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
