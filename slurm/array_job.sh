@@ -12,8 +12,8 @@
 sleep $((SLURM_ARRAY_TASK_ID * 4))
 
 # Load suitable modules
-module load 2022
-module load Python/3.10.4-GCCcore-11.3.0
+module load 2025
+module load Python/3.13.1-GCCcore-14.2.0
 # Load virtualenvironment with appropriate libraries
 source ~/venv/bin/activate
 
