@@ -295,10 +295,8 @@ not require conditioning on X.</p>
 of the variables X, A, and Y in the prior samples.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>rng</strong> (<em>int</em><em> or </em><em>rng</em>) – Seed or initialized random number generator for</p></li>
-<li><p><strong>earlier.</strong> (<em>reproducibility. Used only if prior samples were not drawn</em>)</p></li>
-</ul>
+<dd class="field-odd"><p><strong>rng</strong> (<em>int</em><em> or </em><em>rng</em>) – Seed or initialized random number generator for
+reproducibility. Used only if prior samples were not drawn earlier.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -311,7 +309,7 @@ of the variables X, A, and Y in the prior samples.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>file_name</strong> (<em>str</em>) – Base filename without extension (e.g., ‘agent_model’)
-Will create two files:
+Will create three files:
 - {file_name}.joblib (model configuration)
 - {file_name}_trace.nc (trace data)
 - {file_name}_prior_samples.nc (prior sample data)</p></li>
