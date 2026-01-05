@@ -28,7 +28,7 @@ START_LINE=$((SLURM_ARRAY_TASK_ID * 4 + 1))
 # Parameter values for this batch
 PARAMS=()
 for i in {0..3}; do
-    PARAMS[$i]=$(sed -n "$((START_LINE + i))p" ./slurm/tmp/parameters.txt)
+    PARAMS[$i]=$(sed -n "$((START_LINE + i))p" ~/CapturingUsersPredictionModels/slurm/tmp/parameters.txt)
 done
 
 # Run experiment batch
