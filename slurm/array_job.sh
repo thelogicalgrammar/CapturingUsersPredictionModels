@@ -2,7 +2,6 @@
 #SBATCH -p thin
 #SBATCH --array=0-99  # 100 jobs. Should be 1/4 of #lines in parameters
 #SBATCH --cpus-per-task=16  # Minimum allocation. Might make sense to up this to 128 (on thin node) for file transfers.
-#SBATCH --mem-per-task=2G
 #SBATCH --mem=28G  # Minimum allocation
 #SBATCH --time=30:00
 #SBATCH --requeue  # Resubmit job if crashed due to system
