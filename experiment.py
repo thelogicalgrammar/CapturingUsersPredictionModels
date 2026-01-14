@@ -162,6 +162,26 @@ def main(X_o, agent_priors, modified_prior,
     potential_outcome_A0_samples_, potential_outcome_A0_mean, potential_outcome_A0_std =\
         data_scm.sample_do_A(A0_treatment, X_o, draws=draws, rng=rng)
 
+    # 9. Expected outcomes given agent's prior and posterior beliefs
+    # given under treatment A0 and A1:
+    _, expected_prior_outcome_A1_mean, expected_prior_outcome_A1_std =\
+        agent_model.sample_prior_predictive_do_A(X_o, A1_treatment, rng=rng)
+    _, expected_prior_outcome_A0_mean, expected_prior_outcome_A0_std =\
+        agent_model.sample_prior_predictive_do_A(X_o, A0_treatment, rng=rng)
+    _, expected_posterior_outcome_A1_mean, expected_posterior_outcome_A1_std =\
+        agent_model.sample_posterior_predictive_do_A(X_o, A1_treatment, rng=rng)
+    _, expected_posterior_outcome_A0_mean, expected_posterior_outcome_A0_std =\
+        agent_model.sample_posterior_predictive_do_A(X_o, A0_treatment, rng=rng)
+    expected_outcomes = {
+        'expected_prior_outcome_A1_mean': expected_prior_outcome_A1_mean, 
+        'expected_prior_outcome_A1_std': expected_prior_outcome_A1_std,
+        'expected_prior_outcome_A0_mean': expected_prior_outcome_A0_mean, 
+        'expected_prior_outcome_A0_std': expected_prior_outcome_A0_std,
+        'expected_posterior_outcome_A1_mean': expected_posterior_outcome_A1_mean, 
+        'expected_posterior_outcome_A1_std': expected_posterior_outcome_A1_std,
+        'expected_posterior_outcome_A0_mean': expected_posterior_outcome_A0_mean, 
+        'expected_posterior_outcome_A0_std': expected_posterior_outcome_A0_std
+    }
     # 9. Compare results
 
     # Is the physician's decision correct given the true_CATE_mean values?
@@ -250,6 +270,8 @@ def main(X_o, agent_priors, modified_prior,
     compiled_results.update(prior_predictive_summaries)
     # Add posterior predictive summaries
     compiled_results.update(posterior_predictive_summaries)
+    # Add expected predictive outputs:
+    compiled_results.update(expected_outcomes)
 
     # Add something general about model convergence and quality metrics.
 
