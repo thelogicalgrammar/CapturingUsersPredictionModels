@@ -274,7 +274,39 @@ class AgentModel():
             samples.append([X, A, Y])
         self.prior_predictive_samples = samples
         return samples
-    
+
+    def sample_prior_predictive_do_A(self, X, A_treatment, rng=None):
+        """
+        Method for estimating the outcome for a patient with features X
+        based on the agent's prior beliefs. Draws one potential
+        outcome for every draw in trace.
+
+        Args:
+            X (np.array): Feature to condition on
+            A_treatment (float): Fixed treatment value
+            rng (int or rng): Random number generator or seed for reproducibility
+        """
+        if self.prior_samples is None:
+            self.sample_prior_predictive(rng=rng)
+        parameter_array = {var: self.prior_samples.prior[var].values.flatten() for var in self.predictive_var_names}
+        do_A_samples = np.zeros(shape=(self.prior_draws,))
+        for i in range(self.prior_draws):
+            # Pick parameters from row i
+            parameters = {key: column[i] for key, column in parameter_array.items()}
+            # Update scm-parameters
+            self.predictive_scm.update_parameters(parameters)
+            # Sample prior predictive given do(A)
+            # Returns tuple with samples, mean, and standard deviation
+            # First (array) will not fall into an array nicely with the second (value) and third (value)
+            tmp = self.predictive_scm.sample_do_A(X, A_treatment, rng=rng)
+            # Only one sample, hence standard deviation will be zero and mean will equal sample value.
+            # Should be sample 1000?
+            do_A_samples[i] = tmp[0][0]
+        # Estimate mean and standard deviation from sample
+        do_A_mean = np.mean(do_A_samples)
+        do_A_std = np.std(do_A_samples)
+        return do_A_samples, do_A_mean, do_A_std
+
     def sample_prior_predictive_CATE(self, X, A1_treatment, A0_treatment, rng=None):
         """
         This method returns a sample from the prior CATE-distribution,
@@ -396,7 +428,7 @@ class AgentModel():
         CATE_std = np.std(CATE_samples)
         return CATE_samples, CATE_mean, CATE_std
 
-    def sample_posterior_do_A(self, X, A_treatment, rng=None):
+    def sample_posterior_predictive_do_A(self, X, A_treatment, rng=None):
         """
         Method for estimating the outcome for a patient with features X
         based on the agent's posterior beliefs. Draws one potential
@@ -416,7 +448,10 @@ class AgentModel():
             self.predictive_scm.update_parameters(parameters)
             # Sample (generates CATE for that version of the scm):
             potential_outcomes[i], *_ = self.predictive_scm.sample_do_A(X, A_treatment, rng=rng)
-        return potential_outcomes
+        # Estimate mean and standard deviation
+        do_A_mean = np.mean(potential_outcomes)
+        do_A_std = np.std(potential_outcomes)
+        return potential_outcomes, do_A_mean, do_A_std
     
     def sample_posterior_predictive_summaries(self, rng=None):
         """
