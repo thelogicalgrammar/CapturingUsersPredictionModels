@@ -3,6 +3,7 @@ Functions for writing results to file, for reading
 results from said file, and for plotting results.
 """
 import csv
+import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -45,7 +46,11 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
                    '"pri_Y_skew","pri_X_kurtosis","pri_A_kurtosis","pri_Y_kurtosis",'
                    '"post_X_mean","post_A_mean","post_Y_mean","post_X_std",'
                    '"post_A_std","post_Y_std","post_X_skew","post_A_skew",'
-                   '"post_Y_skew","post_X_kurtosis","post_A_kurtosis","post_Y_kurtosis"\n')
+                   '"post_Y_skew","post_X_kurtosis","post_A_kurtosis","post_Y_kurtosis"'
+                   '"expected_prior_outcome_A1_mean","expected_prior_outcome_A1_std",'
+                   '"expected_prior_outcome_A0_mean","expected_prior_outcome_A0_std",'
+                   '"expected_posterior_outcome_A1_mean","expected_posterior_outcome_A1_std",'
+                   '"expected_posterior_outcome_A0_mean","expected_posterior_outcome_A0_std"\n')
         with open(full_path, 'w') as f:
             f.write(headers)
     else:
@@ -75,6 +80,10 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
     key_ordering += ['post_X_mean', 'post_A_mean', 'post_Y_mean', 'post_X_std']
     key_ordering += ['post_A_std', 'post_Y_std', 'post_X_skew', 'post_A_skew']
     key_ordering += ['post_Y_skew', 'post_X_kurtosis', 'post_A_kurtosis', 'post_Y_kurtosis']
+    key_ordering += ['expected_prior_outcome_A1_mean', 'expected_prior_outcome_A1_std',
+                     'expected_prior_outcome_A0_mean', 'expected_prior_outcome_A0_std',
+                     'expected_posterior_outcome_A1_mean', 'expected_posterior_outcome_A1_std',
+                     'expected_posterior_outcome_A0_mean', 'expected_posterior_outcome_A0_std']
     text = ''
     for key in key_ordering:
         text += '"' + str(result_dict[key]) + '",'
@@ -153,6 +162,86 @@ def read_outcomes_from_file(file_name='./results/results.csv'):
              if float(row[var_value_idx]) == param_value] for param_value in unique_values]
             # Could add calculation of mean, standard deviation etc. here.
     return results_summary
+
+
+def parse_results(variable_name='N_E_mu', file_name='./results/results.csv',
+                  field_names=['pri_Y_mean',
+                               'pri_Y_std', 'post_Y_mean', 'post_Y_std',
+                               'potential_outcome_A1_mean', 'potential_outcome_A1_std',
+                               'potential_outcome_A0_mean', 'potential_outcome_A0_std']):
+    """
+    Reads result-file and extracts the requested fields to
+    a numpy-array for e.g. easy plotting. By default, these
+    are the expected Y-values given the agent's prior and
+    posterior beliefs, the true Y values with and without
+    treatment, and the standard deviations for all of these.
+
+    Args:
+        variable_name (str): Name of variable of interest. Selects only corresponding
+         rows from from the result-file.
+        file_name (str): Path and file name of result-file.
+        field_names ([str]): List of strings containing the column names of interest to extract
+            from the result-file.
+    """
+    # Read file
+    results = []
+    with open(file_name, 'r') as f:
+        reader = csv.reader(f)
+        # Separate headers from contents
+        headers = next(reader)
+        for row in reader:
+            results.append(row)
+    # Find column index for column with modified variable name:
+    var_name_idx = headers.index('Modified prior')
+    var_value_idx = headers.index('New value of modified prior')
+    # Find column indices matching field names:
+    field_idx = [headers.index(name) for name in field_names]
+    field_idx = [var_value_idx] + field_idx  # Add modified value to head
+    field_names = ['New value of modified prior'] + field_names
+    # Make list of lists with all relevant values
+    values = [[float(row[idx]) for idx in field_idx] for row \
+              in results if row[var_name_idx] == variable_name]
+    values = np.array(values)
+    # Sort array by value of variable
+    sort_idx = np.argsort(values[:, 0])
+    values = values[sort_idx, :]
+    # Aggregate
+    unique_values = np.unique(values[:, 0])
+    aggregated_values = np.zeros(shape=(unique_values.shape[0], len(field_idx) * 2 - 1))
+    for i, value in enumerate(unique_values):
+        mask = values[:, 0] == value
+        subset = values[mask, 1:]
+        aggregated_values[i, 0] = value
+        aggregated_values[i, 1:] = np.concat((subset.mean(axis=0), subset.std(axis=0)))
+        #aggregated_values.append([value, subset.mean(axis=0), subset.std(axis=0)])
+    # Return
+    return (aggregated_values, values, field_names)
+
+
+def plot_something():
+    fields = ['Prior CATE (sample mean)', 'Posterior CATE (sample mean)',
+              'True CATE (sample mean)',
+              'True CATE Standard Deviation (sample estimate)',
+              'Prior CATE Standard Deviation (sample estimate)',
+              'Posterior CATE Standard Deviation (sample estimate)']
+
+    tmp = parse_results(variable_name='mu_X', field_names=fields)
+    values = tmp[0]
+    plt.errorbar(x=values[:, 0], y=values[:, 1], yerr=values[:, 7], alpha=.3, label='Prior predictive CATE')
+    plt.errorbar(x=values[:, 0], y=values[:, 2], yerr=values[:, 8], alpha=.3, label='Posterior predictive CATE')
+    plt.errorbar(x=values[:, 0], y=values[:, 3], yerr=values[:, 9], alpha=.3, label='True CATE')
+    # Add legend, title, units for axes etc.
+
+    # Something essential is missing.
+    # We have CATE under prior and posterior beliefs (and true CATE), and we have
+    # true Y under treatments A0 and A1, but we don't have any Y's under the prior or
+    # posterior beliefs under either treatment. 
+    # Note that pri_Y_mean, pri_Y_* etc. are distributions for N_Y, not Y.
+    # Fix.
+    # Hmm. pri_Y_mean is not _under_ either treatment, it is under the distribution
+    # of A (or more like N_A) given the agent's beliefs.
+
+    plt.show()
 
 
 def plot_graph(categories, outcomes, variable_name):
