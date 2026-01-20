@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH -p rome
-#SBATCH --array=0-209  # 100 jobs. Should be 1/4 of #lines in parameters
+#SBATCH --array=0-158  # 210 jobs. Should be 1/4 of #lines in parameters
 #SBATCH --cpus-per-task=16  # Minimum allocation. Might make sense to up this to 128 (on thin node) for file transfers.
 #SBATCH --mem=28G  # Minimum allocation
-#SBATCH --time=05:00  # Five minute allocation to start.
+#SBATCH --time=20:00
 #SBATCH --requeue  # Resubmit job if crashed due to system
 #SBATCH --output=logs/job_%A_%a.out
 #SBATCH --error=logs/job_%A_%a.err
