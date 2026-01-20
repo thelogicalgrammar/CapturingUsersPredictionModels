@@ -26,10 +26,10 @@ def generate_slurm_parameter_file(parameters_file='./slurm/tmp/parameters.txt'):
     # Define parameter values to scan
     n_iterations = 10
     #deviations = [i for i in range(-5, 5)]
-    params = {'N_E_mu': [float(i) for i in range(-100, 101, 10)],
-              'mu_A': [float(i) for i in range(-50, 51, 10)],
-              'mu_X': [float(i) for i in range(-100, 201, 10)],
-              'mu_Y': [float(i) for i in range(-100, 101, 10)]
+    params = {#'N_E_mu': [float(i) for i in range(-100, 101, 10)],  # Get back to this. Scan only close to mean.
+              'mu_A': [float(i) for i in range(-100, 101, 2)],
+              'mu_X': [float(i) for i in range(-200, 301, 2)],
+              'mu_Y': [float(i) for i in range(-400, 401, 10)]
             #'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
             #'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
             #'mu_Y': [scm_noise_parameters['alpha_mu_Y'] + deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
