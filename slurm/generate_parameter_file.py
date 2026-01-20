@@ -41,7 +41,8 @@ def generate_slurm_parameter_file(parameters_file='./slurm/tmp/parameters.txt'):
             for value in params[key]:
                 # Generate parameter line
                 txt = key + ' ' + str(value) + '\n'
-                parameters_file.write(txt)
+                parameters_file.write(f'{key} {value:.1f}\n')
+                # parameters_file.write(txt)
     parameters_file.close()
     print("Slurm job parameters for noise parameters {} created successfully".format(params.keys()))
 
