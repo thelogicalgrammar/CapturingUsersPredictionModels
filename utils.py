@@ -46,15 +46,13 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
                    '"pri_Y_skew","pri_X_kurtosis","pri_A_kurtosis","pri_Y_kurtosis",'
                    '"post_X_mean","post_A_mean","post_Y_mean","post_X_std",'
                    '"post_A_std","post_Y_std","post_X_skew","post_A_skew",'
-                   '"post_Y_skew","post_X_kurtosis","post_A_kurtosis","post_Y_kurtosis"'
+                   '"post_Y_skew","post_X_kurtosis","post_A_kurtosis","post_Y_kurtosis",'
                    '"expected_prior_outcome_A1_mean","expected_prior_outcome_A1_std",'
                    '"expected_prior_outcome_A0_mean","expected_prior_outcome_A0_std",'
                    '"expected_posterior_outcome_A1_mean","expected_posterior_outcome_A1_std",'
                    '"expected_posterior_outcome_A0_mean","expected_posterior_outcome_A0_std"\n')
         with open(full_path, 'w') as f:
             f.write(headers)
-    else:
-        print("Result-saving changed 11.12.2025. Delete result files created before that for extended headers.")
 
     # Write contents to file:
     key_ordering = ['experiment_id', 'time_stamp']
@@ -164,11 +162,10 @@ def read_outcomes_from_file(file_name='./results/results.csv'):
     return results_summary
 
 
-def parse_results(variable_name='N_E_mu', file_name='./results/results.csv',
-                  field_names=['pri_Y_mean',
-                               'pri_Y_std', 'post_Y_mean', 'post_Y_std',
-                               'potential_outcome_A1_mean', 'potential_outcome_A1_std',
-                               'potential_outcome_A0_mean', 'potential_outcome_A0_std']):
+def parse_results(mod_var_name='mu_X', file_name='./results/results.csv',
+                  field_names=['pri_Y_mean', 'post_Y_mean',
+                               'potential_outcome_A1_mean',
+                               'potential_outcome_A0_mean']):
     """
     Reads result-file and extracts the requested fields to
     a numpy-array for e.g. easy plotting. By default, these
@@ -177,8 +174,8 @@ def parse_results(variable_name='N_E_mu', file_name='./results/results.csv',
     treatment, and the standard deviations for all of these.
 
     Args:
-        variable_name (str): Name of variable of interest. Selects only corresponding
-         rows from from the result-file.
+        mod_var_name (str): Name of variable of interest (variable that was modified from
+            defaults). Selects only corresponding rows from from the result-file.
         file_name (str): Path and file name of result-file.
         field_names ([str]): List of strings containing the column names of interest to extract
             from the result-file.
@@ -192,54 +189,97 @@ def parse_results(variable_name='N_E_mu', file_name='./results/results.csv',
         for row in reader:
             results.append(row)
     # Find column index for column with modified variable name:
-    var_name_idx = headers.index('Modified prior')
-    var_value_idx = headers.index('New value of modified prior')
+    mod_var_name_idx = headers.index('Modified prior')
+    mod_var_value_idx = headers.index('New value of modified prior')
     # Find column indices matching field names:
     field_idx = [headers.index(name) for name in field_names]
-    field_idx = [var_value_idx] + field_idx  # Add modified value to head
-    field_names = ['New value of modified prior'] + field_names
-    # Make list of lists with all relevant values
-    values = [[float(row[idx]) for idx in field_idx] for row \
-              in results if row[var_name_idx] == variable_name]
-    values = np.array(values)
-    # Sort array by value of variable
-    sort_idx = np.argsort(values[:, 0])
-    values = values[sort_idx, :]
+    # Make list of lists with all relevant values.
+    # Inner list-comprehension extracts everything relevant from a row.
+    mod_var_values = [float(row[mod_var_value_idx]) for row in results if row[mod_var_name_idx] == mod_var_name]
+    mod_var_values = np.array(mod_var_values)
+    outputs = [[float(row[idx]) for idx in field_idx] for row \
+               in results if row[mod_var_name_idx] == mod_var_name]
+    outputs = np.array(outputs)  # Outputs of every run of requested field_names
+    # Sort array by value of modified variable
+    sort_idx = np.argsort(mod_var_values)
+    mod_var_values = mod_var_values[sort_idx]
+    outputs = outputs[sort_idx, :]
     # Aggregate
-    unique_values = np.unique(values[:, 0])
-    aggregated_values = np.zeros(shape=(unique_values.shape[0], len(field_idx) * 2 - 1))
-    for i, value in enumerate(unique_values):
-        mask = values[:, 0] == value
-        subset = values[mask, 1:]
-        aggregated_values[i, 0] = value
-        aggregated_values[i, 1:] = np.concat((subset.mean(axis=0), subset.std(axis=0)))
-        #aggregated_values.append([value, subset.mean(axis=0), subset.std(axis=0)])
+    unique_mod_var_values = np.unique(mod_var_values)
+    summary_stats = np.zeros(shape=(unique_mod_var_values.shape[0], len(field_idx) * 2 + 1))
+    for i, val in enumerate(unique_mod_var_values):
+        mask = mod_var_values == val
+        subset = outputs[mask, :]
+        # First column contains value of selected mod_var
+        summary_stats[i, 0] = val
+        # Of the remaining columns, the first half contain the means of the values in columns field_names,
+        # the remaining contains the standard deviations.
+        summary_stats[i, 1:] = np.concat((subset.mean(axis=0), subset.std(axis=0)))
+    # Add mod_var_values to leading column in outputs:
+    outputs = np.concat((mod_var_values.reshape(-1, 1), outputs), axis=1)
     # Return
-    return (aggregated_values, values, field_names)
+    return (summary_stats, outputs, field_names)
 
 
 def plot_something():
-    fields = ['Prior CATE (sample mean)', 'Posterior CATE (sample mean)',
-              'True CATE (sample mean)',
-              'True CATE Standard Deviation (sample estimate)',
-              'Prior CATE Standard Deviation (sample estimate)',
-              'Posterior CATE Standard Deviation (sample estimate)']
+    """
+    Test plots. What works?
+    Maybe just focus on one variable at a time?
 
-    tmp = parse_results(variable_name='mu_X', field_names=fields)
+    How:
+    -Boxplot (as we already did, fix scale of x-axis)
+    -Violinplot (as an alternative to boxplot)
+    -Errorbar (figure out standard deviation)
+    -Highlight areas where decisions are correct and where they are wrong
+    --Maybe even have the background color shift gradually from red green and back
+    --Maybe add vertical lines for "correct" and "not correct" areas
+    What:
+    -Of CATE (true, prior belief, posterior belief)
+    -Of outcome Y (true, prior belief, posterior belief), both under treatment A1 and A0
+    -Use standard deviation for errorbars
+    -Over "modified variables" (priors that are set to something else than default)
+
+    Extra:
+    -Look into how things change as function of sampled X_o. Maybe keep other things fixed.
+    -Correlations in data?
+    -What actually changes in the distributions? Currently predictive distributions are tracked.
+    --Track SCM as well to compare to "true"?
+    -How does plate size affect outcomes? Sensitivity analysis
+    -Change two parameters at a time
+    -Do convergence metrics stay within expected?
+    """
+    # fields = ['Prior CATE (sample mean)', 'Posterior CATE (sample mean)',
+    #           'True CATE (sample mean)']
+    fields = ['potential_outcome_A1_mean', 'potential_outcome_A0_mean',
+              'expected_prior_outcome_A1_mean', 'expected_prior_outcome_A0_mean',
+              'expected_posterior_outcome_A1_mean', 'expected_posterior_outcome_A0_mean']
+
+    # Note that returned standard deviations are standard deviations of the means of
+    # different runs, not individual sampling events.
+    tmp = utils.parse_results(mod_var_name='N_E_mu', field_names=fields)
     values = tmp[0]
     plt.errorbar(x=values[:, 0], y=values[:, 1], yerr=values[:, 7], alpha=.3, label='Prior predictive CATE')
     plt.errorbar(x=values[:, 0], y=values[:, 2], yerr=values[:, 8], alpha=.3, label='Posterior predictive CATE')
     plt.errorbar(x=values[:, 0], y=values[:, 3], yerr=values[:, 9], alpha=.3, label='True CATE')
     # Add legend, title, units for axes etc.
 
-    # Something essential is missing.
-    # We have CATE under prior and posterior beliefs (and true CATE), and we have
-    # true Y under treatments A0 and A1, but we don't have any Y's under the prior or
-    # posterior beliefs under either treatment. 
-    # Note that pri_Y_mean, pri_Y_* etc. are distributions for N_Y, not Y.
-    # Fix.
-    # Hmm. pri_Y_mean is not _under_ either treatment, it is under the distribution
-    # of A (or more like N_A) given the agent's beliefs.
+    # Scatterplot of means of individual runs
+    # -Highlight where things go wrong? Not a clearcut definition (pointclouds)
+    for row in tmp[1]:
+        x = np.array([row[0] for _ in row[1:]])
+        plt.scatter(x=x, y=row[1:], alpha=.1)
+
+    # Plot means of runs
+    for i in range(tmp[0].shape[1]):
+        # Could add errorbars
+        plt.plot(tmp[0][:, 0], tmp[0][:, i])
+
+    for i in range(int((tmp[0].shape[1] - 1) / 2)):
+        plt.errorbar(x=tmp[0][:, 0], y=tmp[0][:, i], yerr=tmp[0][:, i] + tmp[0][:, i + 6])
+
+    # Violinplot instead of boxplot?
+    # And perhaps redo boxplot with new functions.
+    # X-axis needs fixing. Boxplot does not consider scale.
 
     plt.show()
 
