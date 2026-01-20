@@ -23,7 +23,7 @@ Could perhaps implement support for changing plate size and SCM parameters
 import sys
 import time
 import arviz as az
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt  # Not used in array job.
 import numpy as np
 from sklearn.linear_model import LinearRegression
 # Project specific:
@@ -109,9 +109,7 @@ def main(X_o, agent_priors, modified_prior,
 
     # 4. The prediction model is next used for decision support. The physician
     #    inputs the data of the patient and the prediction model produces a prediction.
-
     pred_o = pred_model.predict(X_o.reshape(-1, 1))  # The observed prediction
-
     # print("The predicted outcome for this patient weighing {}kg is {}.".format(X_o, pred_o[0]))
 
     # 5. Define the agent model.
@@ -277,8 +275,9 @@ def main(X_o, agent_priors, modified_prior,
 
     utils.write_results_to_file(compiled_results)
 
+    # Skip saving model in array run.
     # Save model to disk:
-    agent_model.save_agent_model(experiment_id)
+    # agent_model.save_agent_model(experiment_id)
     
     # Testing that loading works.
     # tmp = am.AgentModel.load_agent_model()
@@ -287,11 +286,13 @@ def main(X_o, agent_priors, modified_prior,
     # plt.title("Posterior distribution of agent's belief about N_E")
     # plt.savefig('./fig/basic_example_posterior_NE.png')
     # added plot to save the posterior distribution of pairwise correlations
-    az.plot_pair(agent_model.trace, #var_names=['N_E', 'alpha_mu_A', 'alpha_mu_Y'],
-                 kind='scatter')
-    plt.title("Posterior distribution of correlation between mu_A and N_E")
-    plt.savefig('./fig/basic_example_posterior_corr_all_vars.png')
-    plt.clf()
+
+    # Don't create plot for every single run.
+    # az.plot_pair(agent_model.trace, #var_names=['N_E', 'alpha_mu_A', 'alpha_mu_Y'],
+    #              kind='scatter')
+    # plt.title("Posterior distribution of correlation between mu_A and N_E")
+    # plt.savefig('./fig/basic_example_posterior_corr_all_vars.png')
+    # plt.clf()
 
 
 if __name__ == '__main__':
