@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH -p rome
-#SBATCH --array=0-19  # 100 jobs. Should be 1/4 of #lines in parameters
+#SBATCH --array=0-209  # 100 jobs. Should be 1/4 of #lines in parameters
 #SBATCH --cpus-per-task=16  # Minimum allocation. Might make sense to up this to 128 (on thin node) for file transfers.
 #SBATCH --mem=28G  # Minimum allocation
-#SBATCH --time=30:00
+#SBATCH --time=05:00  # Five minute allocation to start.
 #SBATCH --requeue  # Resubmit job if crashed due to system
 #SBATCH --output=logs/job_%A_%a.out
 #SBATCH --error=logs/job_%A_%a.err
@@ -23,15 +23,15 @@ export MKL_NUM_THREADS=4
 export OPENBLAS_NUM_THREADS=4
 
 # Batch of 4 instances to run in *this task
-# Start-line for batch
+# Start-line for batch (notice 1-indexing)
 START_LINE=$((SLURM_ARRAY_TASK_ID * 4 + 1))
-# Parameter values for this batch
+# Parameter values for *this batch
 PARAMS=()
 for i in {0..3}; do
     PARAMS[$i]=$(sed -n "$((START_LINE + i))p" ~/CapturingUsersPredictionModels/slurm/tmp/parameters.txt)
 done
 
-# Run experiment batch
+# Run experiment batch (4 processes in parallel!)
 for i in {0..3}; do
     if [ -n "${PARAMS[$i]}" ]; then
         python experiment.py ${PARAMS[$i]} &
