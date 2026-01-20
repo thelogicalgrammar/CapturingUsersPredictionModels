@@ -24,11 +24,14 @@ def generate_slurm_parameter_file(parameters_file='./slurm/tmp/parameters.txt'):
         # Create path:
         os.mkdir('./slurm/tmp/')
     # Define parameter values to scan
-    n_iterations = 8
-    deviations = [i for i in range(-5, 5)]
-    params = {#'N_E_mu': [-20, 0, 20, 40, 60],
+    n_iterations = 10
+    #deviations = [i for i in range(-5, 5)]
+    params = {'N_E_mu': [i for i in range(-100, 101, 10)],
+              'mu_A': [i for i in range(-50, 51, 10)],
+              'mu_X': [i for i in range(-100, 201, 10)],
+              'mu_Y': [i for i in range(-100, 101, 10)]
             #'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
-            'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
+            #'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
             #'mu_Y': [scm_noise_parameters['alpha_mu_Y'] + deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
             }
 
@@ -38,9 +41,8 @@ def generate_slurm_parameter_file(parameters_file='./slurm/tmp/parameters.txt'):
             for value in params[key]:
                 # Generate parameter line
                 txt = key + ' ' + str(value) + '\n'
-                # srun python crf_experiment.py criteo2_1to1.csv ./datasets/criteo2/ 1.0 {0} {1} {2}
-                # python -m experiments.crf_experiment criteo2_1to1.csv ./datasets/criteo2/ split_undersampling uplift_rf analytic
                 parameters_file.write(txt)
+    parameters_file.close()
     print("Slurm job parameters for noise parameters {} created successfully".format(params.keys()))
 
 
