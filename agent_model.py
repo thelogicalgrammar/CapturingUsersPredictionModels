@@ -235,7 +235,7 @@ class AgentModel():
         with self.model:
             trace = pm.sample(draws=self.posterior_draws,
                               tune=1000,
-                              target_accept=.95,
+                              target_accept=.85,
                               chains=4,
                               random_seed=rng,
                               max_treedepth=15,
