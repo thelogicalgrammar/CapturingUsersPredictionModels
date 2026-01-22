@@ -2,6 +2,7 @@
 This file generates a parameter file for slurm-parameters
 """
 import os
+import numpy as np
 
 
 # Noise parameters here only for setting scanning parameter values.
@@ -43,8 +44,10 @@ def generate_slurm_parameter_file(parameters_file='./slurm/tmp/parameters.txt'):
         for key in params.keys():
             for value in params[key]:
                 # Generate parameter line
+                X_o = np.random.normal(loc=scm_noise_parameters['alpha_mu_X'], 
+                                       scale=scm_noise_parameters['alpha_sigma_X'])
                 txt = key + ' ' + str(value) + '\n'
-                parameters_file.write(f'{key} {value:.1f}\n')
+                parameters_file.write(f'{key} {value:.1f} {X_o}\n')
                 # parameters_file.write(txt)
     parameters_file.close()
     print("Slurm job parameters for noise parameters {} created successfully".format(params.keys()))
