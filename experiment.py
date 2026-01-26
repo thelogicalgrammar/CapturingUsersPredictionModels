@@ -103,7 +103,7 @@ def main(X_o, agent_priors, modified_prior,
     #    policy.
     X, A, Y_historical, *_ = data_scm.sample(draws=plate_size, rng=rng)
 
-    # 3. Train prediction model on historical data. 
+    # 3. Train prediction model on historical data.
     #    Calculated as the Moore-Penrose pseudo-inverse. No randomness.
     pred_model = LinearRegression(fit_intercept=False).fit(X.reshape(-1, 1), Y_historical)
 
@@ -203,7 +203,7 @@ def main(X_o, agent_priors, modified_prior,
     # decision based on the average true CATE (baseline):
     frac_correct_true_best_treatment = np.mean(np.sign(true_CATE_samples_ - threshold) == np.sign(true_CATE_mean - threshold))
 
-    # How much do the patients on average benefit? # TODO: change this to account for utility threshold
+    # How much do the patients on average benefit?
     # Average outcome Y under prior decision
     Y_mean_prior_treatment = potential_outcome_A1_mean if np.sign(prior_CATE_mean - threshold) > 0 \
         else potential_outcome_A0_mean
@@ -235,7 +235,7 @@ def main(X_o, agent_priors, modified_prior,
                }
 
     # Collect results
-    # Create unique id from timestamp and random number    
+    # Create unique id from timestamp and random number
     current_time = time.strftime("%Y%m%d%H%M%S")
     # Uses its own rng without seed to not have all experiments
     # get identical IDs:
@@ -278,7 +278,7 @@ def main(X_o, agent_priors, modified_prior,
     # Skip saving model in array run.
     # Save model to disk:
     # agent_model.save_agent_model(experiment_id)
-    
+
     # Testing that loading works.
     # tmp = am.AgentModel.load_agent_model()
     # What is the posterior distribution of the agent's belief about N_E?
