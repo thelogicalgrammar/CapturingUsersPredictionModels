@@ -26,41 +26,40 @@ def generate_slurm_parameter_file(parameters_file='./slurm/tmp/parameters.txt'):
         os.mkdir('./slurm/tmp/')
     # Define parameter values to scan
     n_iterations = 10
-    deviations = [i/10 for i in range(-30, 31)]  # 31 because not inclusive of upper bound.
-    params = {
-            'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
-            'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
-            'mu_Y': [scm_noise_parameters['alpha_mu_Y'] + deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
-            'N_E_mu': [scm_noise_parameters['N_E'] + deviation * 0.1 for deviation in deviations],
-           }
+    # Focused scan parameters
+    # deviations = [i/10 for i in range(-30, 31)]  # 31 because not inclusive of upper bound.
+    # params = {
+    #         'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
+    #         'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
+    #         'mu_Y': [scm_noise_parameters['alpha_mu_Y'] + deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
+    #         'N_E_mu': [scm_noise_parameters['N_E'] + deviation * 0.1 for deviation in deviations],
+    #        }
+    # Wide scan parameters
     # params = {
     #     'N_E_mu': [float(i) for i in range(-100, 101, 10)],
     #     'mu_A': [float(i) for i in range(-100, 101, 2)],
     #     'mu_X': [float(i) for i in range(-200, 301, 2)],
     #     'mu_Y': [float(i) for i in range(-400, 401, 10)]
     #     }
+    # Parameters for scan over controlled values of X_o (+-4 SD):
+    # Default parameters for scan with no priors changed
+    params = {'mu_X': [scm_noise_parameters['alpha_mu_X']]}
+    X_o_list = [i / 10 * scm_noise_parameters['alpha_sigma_X'] +
+                scm_noise_parameters['alpha_mu_X'] for i in range(-40, 41)]
 
-    # Scan over controlled values of X_o (+-4 SD):
-    X_o_random = False
+    with open(parameters_file, 'w') as f:
+        # Write parameters for scan over parameter values
+        for iteration in range(n_iterations):
+            for key in params.keys():
+                for value in params[key]:
+                    if 'X_o_list' in locals():
+                        for X_o in X_o_list:
+                            f.write(f'{key} {value:.1f} {X_o}\n')
+                    else:
+                        X_o = np.random.normal(loc=scm_noise_parameters['alpha_mu_X'],
+                                     scale=scm_noise_parameters['alpha_sigma_X'])
+                        f.write(f'{key} {value:.1f} {X_o}\n')
 
-    parameters_file = open(parameters_file, 'w')
-    for iteration in range(n_iterations):
-        # This can be used to generate a scan over controlled values of X_o
-        # 2-3 SD from mean has a mass of 4.2%, >3 SD has mass of 0.2%
-        X_o_generator = iter([i / 10 * scm_noise_parameters['alpha_sigma_X'] +
-                    scm_noise_parameters['alpha_mu_X'] for i in range(-40, 41)])
-        for key in params.keys():
-            for value in params[key]:
-                # Generate parameter line
-                if X_o_random:
-                    X_o = np.random.normal(loc=scm_noise_parameters['alpha_mu_X'],
-                                        scale=scm_noise_parameters['alpha_sigma_X'])
-                else:
-                    X_o = next(X_o_generator)
-                txt = key + ' ' + str(value) + '\n'
-                parameters_file.write(f'{key} {value:.1f} {X_o}\n')
-                # parameters_file.write(txt)
-    parameters_file.close()
     print("Slurm job parameters for noise parameters {} created successfully".format(params.keys()))
 
 
