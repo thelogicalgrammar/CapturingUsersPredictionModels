@@ -6,6 +6,7 @@ import csv
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import seaborn as sns
 
 
@@ -221,67 +222,131 @@ def parse_results(mod_var_name='mu_X', file_name='./results/results.csv',
     return (summary_stats, outputs, field_names)
 
 
-def plot_something():
+def plot_CATE_for_var(var, plot_label, file_name):
     """
-    Test plots. What works?
-    Maybe just focus on one variable at a time?
-
-    How:
-    -Boxplot (as we already did, fix scale of x-axis)
-    -Violinplot (as an alternative to boxplot)
-    -Errorbar (figure out standard deviation)
-    -Highlight areas where decisions are correct and where they are wrong
-    --Maybe even have the background color shift gradually from red green and back
-    --Maybe add vertical lines for "correct" and "not correct" areas
-    What:
-    -Of CATE (true, prior belief, posterior belief)
-    -Of outcome Y (true, prior belief, posterior belief), both under treatment A1 and A0
-    -Use standard deviation for errorbars
-    -Over "modified variables" (priors that are set to something else than default)
-
-    Extra:
-    -Look into how things change as function of sampled X_o. Maybe keep other things fixed.
-    -Correlations in data?
-    -What actually changes in the distributions? Currently predictive distributions are tracked.
-    --Track SCM as well to compare to "true"?
-    -How does plate size affect outcomes? Sensitivity analysis
-    -Change two parameters at a time
-    -Do convergence metrics stay within expected?
+    Notes:
+    Uncertainty of true model (with default values) is tiny.
     """
+    fields = ['Prior CATE (sample mean)',
+              'Posterior CATE (sample mean)',
+              'True CATE (sample mean)']
+    # fields = ['Y_mean_prior_treatment',
+    #           'Y_mean_posterior_treatment']
+              #'Y_mean_true_best_treatment']
     # fields = ['Prior CATE (sample mean)', 'Posterior CATE (sample mean)',
     #           'True CATE (sample mean)']
-    fields = ['potential_outcome_A1_mean', 'potential_outcome_A0_mean',
-              'expected_prior_outcome_A1_mean', 'expected_prior_outcome_A0_mean',
-              'expected_posterior_outcome_A1_mean', 'expected_posterior_outcome_A0_mean']
+    # fields = ['Y_mean_prior_treatment', 'Y_mean_posterior_treatment']
+    # fields = ['potential_outcome_A1_mean', 'potential_outcome_A0_mean']
+    # fields = ['expected_prior_outcome_A1_mean', 'expected_prior_outcome_A0_mean',
+    #           'expected_posterior_outcome_A1_mean', 'expected_posterior_outcome_A0_mean']
 
-    # Note that returned standard deviations are standard deviations of the means of
-    # different runs, not individual sampling events.
-    tmp = utils.parse_results(mod_var_name='N_E_mu', field_names=fields)
-    values = tmp[0]
-    plt.errorbar(x=values[:, 0], y=values[:, 1], yerr=values[:, 7], alpha=.3, label='Prior predictive CATE')
-    plt.errorbar(x=values[:, 0], y=values[:, 2], yerr=values[:, 8], alpha=.3, label='Posterior predictive CATE')
-    plt.errorbar(x=values[:, 0], y=values[:, 3], yerr=values[:, 9], alpha=.3, label='True CATE')
-    # Add legend, title, units for axes etc.
+    n_observations = 1000
+    fig, ax = plt.subplots()
+    for field in fields:
+        tmp = parse_results(mod_var_name=var, field_names=[field],
+                            file_name=file_name)
+        values = tmp[0]
+        x = values[:, 0]
+        y = values[:, 1]
+        ax.plot(x, y)
+        # Standard deviation of means multiplied by sqrt(n) to get std of observations.
+        # Interpretation: Uncertainty over all X_o (not entirely koscher).
+        yerr = np.sqrt(n_observations) * values[:, 2]
+        ax.fill_between(x, y+yerr, y-yerr, alpha=0.2, label=field)  # The two arrays of y-values can be completely different functions
+        if field == 'Posterior CATE (sample mean)':
+            # x_post same as for all plots
+            y_post = tmp[0][:, 1]
+            yerr_post = np.sqrt(n_observations) * tmp[0][:, 2]
+        elif field == 'True CATE (sample mean)':
+            y_true = tmp[0][:, 1]
+    # Check when posterior is within +-1 std from true mean:
+    # That would indicate that the certainty has correctly increased.
+    tmp1 = (y_true > y_post - yerr_post)
+    tmp2 = (y_true < y_post + yerr_post)
+    mask = tmp1 & tmp2
+    ax.fill_between(x, 0, 1, where=mask, transform=ax.get_xaxis_transform(),
+                    color='lightgray', alpha=.4)
+    plt.legend()
+    # plt.xlabel('Prior beliefs on $\\{}$'.format(label))
+    plt.xlabel(plot_label)
+    plt.ylabel('CATE')
+    #plt.title(title)
+    if 'wide' in file_name:
+        plt.savefig('./fig/wide_CATE_{}.pdf'.format(var))
+    elif 'focused' in file_name:
+        plt.savefig('./fig/focused_CATE_{}.pdf'.format(var))
+    else:
+        plt.savefig('./fig/wide_CATE_{}.pdf'.format(var))
 
-    # Scatterplot of means of individual runs
-    # -Highlight where things go wrong? Not a clearcut definition (pointclouds)
-    for row in tmp[1]:
-        x = np.array([row[0] for _ in row[1:]])
-        plt.scatter(x=x, y=row[1:], alpha=.1)
 
-    # Plot means of runs
-    for i in range(tmp[0].shape[1]):
-        # Could add errorbars
-        plt.plot(tmp[0][:, 0], tmp[0][:, i])
+def plot_CATEs():
+    file_names = ['./results/wide_scan_results.csv', './results/focused_scan_results.csv']
+    vars = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
+    labels = ['Prior beliefs on $\\mu_X$', 'Prior beliefs on $N_E$',
+              'Prior beliefs on $\\mu_Y$', 'Prior beliefs on $\\mu_A$']
+    for file_name in file_names:
+        for var, label in zip(vars, labels):
+            utils.plot_CATE_for_var(var=var, plot_label=label, file_name=file_name)
 
-    for i in range(int((tmp[0].shape[1] - 1) / 2)):
-        plt.errorbar(x=tmp[0][:, 0], y=tmp[0][:, i], yerr=tmp[0][:, i] + tmp[0][:, i + 6])
 
-    # Violinplot instead of boxplot?
-    # And perhaps redo boxplot with new functions.
-    # X-axis needs fixing. Boxplot does not consider scale.
+def plot_Y_under_treatment_for_var(var, plot_label, file_name):
+    """
+    Notes:
+    Uncertainty of true model (with default values) is tiny.
+    """
+    fields = ['Y_mean_prior_treatment',
+              'Y_mean_posterior_treatment']
+              #'Y_mean_true_best_treatment']
+    # fields = ['Y_mean_prior_treatment', 'Y_mean_posterior_treatment']
+    # fields = ['potential_outcome_A1_mean', 'potential_outcome_A0_mean']
+    # fields = ['expected_prior_outcome_A1_mean', 'expected_prior_outcome_A0_mean',
+    #           'expected_posterior_outcome_A1_mean', 'expected_posterior_outcome_A0_mean']
+    n_observations = 1000
+    fig, ax = plt.subplots()
+    for field in fields:
+        tmp = parse_results(mod_var_name=var, field_names=[field],
+                            file_name=file_name)
+        values = tmp[0]
+        x = values[:, 0]
+        y = values[:, 1]
+        ax.plot(x, y)
+        # Standard deviation of means multiplied by sqrt(n) to get std of observations.
+        # Interpretation: Uncertainty over all X_o (not entirely koscher).
+        yerr = np.sqrt(n_observations) * values[:, 2]
+        ax.fill_between(x, y+yerr, y-yerr, alpha=0.2, label=field)  # The two arrays of y-values can be completely different functions
+        # if field == 'Posterior Y (sample mean)':
+        #     # x_post same as for all plots
+        #     y_post = tmp[0][:, 1]
+        #     yerr_post = np.sqrt(n_observations) * tmp[0][:, 2]
+        # elif field == 'True CATE (sample mean)':
+        #     y_true = tmp[0][:, 1]
+    # Check when posterior is within +-1 std from true mean:
+    # That would indicate that the certainty has correctly increased.
+    # tmp1 = (y_true > y_post - yerr_post)
+    # tmp2 = (y_true < y_post + yerr_post)
+    # mask = tmp1 & tmp2
+    # ax.fill_between(x, 0, 1, where=mask, transform=ax.get_xaxis_transform(),
+    #                 color='lightgray', alpha=.4)
+    plt.legend()
+    # plt.xlabel('Prior beliefs on $\\{}$'.format(label))
+    plt.xlabel(plot_label)
+    plt.ylabel('Y')
+    #plt.title(title)
+    if 'wide' in file_name:
+        plt.savefig('./fig/wide_Y_{}.pdf'.format(var))
+    elif 'focused' in file_name:
+        plt.savefig('./fig/focused_Y_{}.pdf'.format(var))
+    else:
+        plt.savefig('./fig/wide_Y_{}.pdf'.format(var))
 
-    plt.show()
+def plot_Ys():
+    file_names = ['./results/wide_scan_results.csv', './results/focused_scan_results.csv']
+    vars = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
+    labels = ['Prior beliefs on $\\mu_X$', 'Prior beliefs on $N_E$',
+              'Prior beliefs on $\\mu_Y$', 'Prior beliefs on $\\mu_A$']
+    for file_name in file_names:
+        for var, label in zip(vars, labels):
+            utils.plot_Y_under_treatment_for_var(var=var, plot_label=label, file_name=file_name)
 
 
 def plot_graph(categories, outcomes, variable_name):
@@ -329,6 +394,35 @@ def plot_prior_and_posterior_CATE(summary, variable_name):
     plt.savefig(file_name)
     plt.clf()
 
+
+def plot_prior_and_posterior_Y(summary, variable_name):
+    #posterior_Y_var_idx = headers.index('Y_mean_posterior_treatment')
+    #prior_Y_var_idx = headers.index('Y_mean_prior_treatment')
+
+    prior_values = summary['posterior_value_lists']
+    posterior_values = summary['prior_value_lists']
+    #values = summary['prior_CATE_lists'] + summary['posterior_CATE_lists']
+
+    categories = summary['parameter_values']
+    prior_categories = [[category] * len(prior_values[i]) for i, category in enumerate(categories)]
+    posterior_categories = [[category] * len(posterior_values[i]) for i, category in enumerate(categories)]
+    categories = prior_categories + posterior_categories
+    categories = [item for row in categories for item in row]
+    prior_series = [['Prior predictive'] * len(val) for val in prior_values]
+    prior_series = [item for row in prior_series for item in row]
+    posterior_series = [['Posterior predictive'] * len(val) for val in posterior_values]
+    posterior_series = [item for row in posterior_series for item in row]
+    series = prior_series + posterior_series
+    values = [item for row in values for item in row]
+
+    data = {'Prior belief': categories,
+            'Y estimates': series,
+            'Y': values}
+    sns.boxplot(data=data, x='Prior belief', y='Y', hue='Y estimates')
+    plt.tight_layout()
+    file_name = './fig/{}_boxplot.pdf'.format(variable_name)
+    plt.savefig(file_name)
+    plt.clf()
 
 
 def read_and_plot():
