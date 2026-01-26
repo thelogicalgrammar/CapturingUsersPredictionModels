@@ -318,12 +318,17 @@ if __name__ == '__main__':
         print(agent_priors)
         text = "{} not a valid parameter!".format(param_name)
         raise ValueError(text)
-    agent_priors[param_name] = param_value
+    if agent_priors[param_name] == param_value:
+        # Nothing is changed.
+        parameter_descriptions['agent_priors'] = 'Default'
+    else:
+        # Modify agent parameters
+        agent_priors[param_name] = param_value
+        # Helper variable for easy view of experiment parameters:
+        parameter_descriptions['agent_priors'] = 'Modified'
+    # Store info in all cases as some parameter scans will include default values
     modified_prior = {'modified_prior': param_name,
-                      'modified_prior_value': param_value}
-    # Helper variable for easy view of experiment parameters:
-    parameter_descriptions['agent_priors'] = 'Modified'
-    # Modify agent parameters
+                    'modified_prior_value': param_value}
     # Run main() with set parameters and X_o.
     print("Running experiment with X_o set to {} and agent prior {} set to {}...".format(
         X_o, param_name, param_value))
