@@ -401,7 +401,7 @@ def plot_prior_and_posterior_Y(summary, variable_name):
 
     prior_values = summary['posterior_value_lists']
     posterior_values = summary['prior_value_lists']
-    #values = summary['prior_CATE_lists'] + summary['posterior_CATE_lists']
+    values = summary['prior_value_lists'] + summary['posterior_value_lists']
 
     categories = summary['parameter_values']
     prior_categories = [[category] * len(prior_values[i]) for i, category in enumerate(categories)]
@@ -420,7 +420,7 @@ def plot_prior_and_posterior_Y(summary, variable_name):
             'Y': values}
     sns.boxplot(data=data, x='Prior belief', y='Y', hue='Y estimates')
     plt.tight_layout()
-    file_name = './fig/{}_boxplot.pdf'.format(variable_name)
+    file_name = './fig/{}_Y_boxplot.pdf'.format(variable_name)
     plt.savefig(file_name)
     plt.clf()
 
