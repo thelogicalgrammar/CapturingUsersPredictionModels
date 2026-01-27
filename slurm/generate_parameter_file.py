@@ -33,7 +33,7 @@ def generate_slurm_parameter_file(parameters_file='./slurm/tmp/parameters.txt'):
             'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
             'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
             'mu_Y': [scm_noise_parameters['alpha_mu_Y'] + deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
-            'N_E_mu': [scm_noise_parameters['N_E'] + deviation * 0.1 for deviation in deviations],
+            'N_E_mu': [scm_noise_parameters['N_E'] + deviation * 0.4 for deviation in deviations],
            }
     # Wide scan parameters
     # params = {
