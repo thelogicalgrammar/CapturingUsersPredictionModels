@@ -6,7 +6,6 @@ import csv
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 import seaborn as sns
 
 
@@ -222,14 +221,25 @@ def parse_results(mod_var_name='mu_X', file_name='./results/results.csv',
     return (summary_stats, outputs, field_names)
 
 
-def plot_CATE_for_var(var, plot_label, file_name):
+def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name, x_lim, y_lim):
     """
+    Args:
+    var (str): Name of variable of interest
+    mean_of_x (float): Mean of horizontal scale (x) to center on.
+    std_of_x (float): Standard deviation of the horizontal scale (x).
+        Used for normalizing plot.
+    x_label (str): Label that will be visible under the x-axis
+    file_name (str): File name and path of the result file to parse.
+    x_lim ((float, float)): +-Limits of horizontal axis
+    y_lim ((float, float)): +-Limits of vertical axis
+
     Notes:
     Uncertainty of true model (with default values) is tiny.
     """
     fields = ['Prior CATE (sample mean)',
               'Posterior CATE (sample mean)',
               'True CATE (sample mean)']
+    label_names = ['Prior CATE', 'Posterior CATE', 'True CATE']
     # fields = ['Y_mean_prior_treatment',
     #           'Y_mean_posterior_treatment']
               #'Y_mean_true_best_treatment']
@@ -242,17 +252,21 @@ def plot_CATE_for_var(var, plot_label, file_name):
 
     n_observations = 4000
     fig, ax = plt.subplots()
-    for field in fields:
+    for field, label_name in zip(fields, label_names):
         tmp = parse_results(mod_var_name=var, field_names=[field],
                             file_name=file_name)
         values = tmp[0]
-        x = values[:, 0]
+        # Measure X in units of standard deviation
+        if std_of_x is not None:
+            x = (values[:, 0] - mean_of_x) / std_of_x
+        else:
+            x = values[:, 0]  # No normalization
         y = values[:, 1]
         ax.plot(x, y)
         # Standard deviation of means multiplied by sqrt(n) to get std of observations.
         # Interpretation: Uncertainty over all X_o (not entirely koscher).
         yerr = np.sqrt(n_observations) * values[:, 2]
-        ax.fill_between(x, y+yerr, y-yerr, alpha=0.2, label=field)  # The two arrays of y-values can be completely different functions
+        ax.fill_between(x, y+yerr, y-yerr, alpha=0.2, label=label_name)  # The two arrays of y-values can be completely different functions
         if field == 'Posterior CATE (sample mean)':
             # x_post same as for all plots
             y_post = tmp[0][:, 1]
@@ -266,9 +280,13 @@ def plot_CATE_for_var(var, plot_label, file_name):
     mask = tmp1 & tmp2
     ax.fill_between(x, 0, 1, where=mask, transform=ax.get_xaxis_transform(),
                     color='lightgray', alpha=.4)
+    if 'wide' in file_name:
+        # Set limits only for wide scan plots.
+        plt.xlim(x_lim)
+        plt.ylim(y_lim)
     plt.legend()
     # plt.xlabel('Prior beliefs on $\\{}$'.format(label))
-    plt.xlabel(plot_label)
+    plt.xlabel(x_label)
     plt.ylabel('CATE')
     #plt.title(title)
     if 'wide' in file_name:
@@ -281,12 +299,20 @@ def plot_CATE_for_var(var, plot_label, file_name):
 
 def plot_CATEs():
     file_names = ['./results/wide_scan_results.csv', './results/focused_scan_results.csv']
-    vars = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
-    labels = ['Prior beliefs on $\\mu_X$', 'Prior beliefs on $N_E$',
-              'Prior beliefs on $\\mu_Y$', 'Prior beliefs on $\\mu_A$']
+    var_names = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
+    mean_of_vars = [80.0, None, 0.0, 2.0]
+    std_of_vars = [10, None, 0.1, 1]  # N_E does not really have a variance.
+    # Limits for wide scan results:
+    x_lims = [(None, None), (-25, 25), (-25, 25), (-30, 30)]
+    y_lims = [(None, None), (-300, 300), (-15, 35), (None, None)]
+    x_labels = ['Deviation of prior belief $\\alpha_{\\mu_X}$ from $\\mu_X$ in units of SD ($\\alpha_{\\sigma_X}$)',
+                'Prior belief on $N_E$',
+                'Deviation of prior belief $\\alpha_{\\mu_Y}$ from $\\mu_Y$ in units of SD ($\\alpha_{\\sigma_Y}$)',
+                'Deviation of prior belief $\\alpha_{\\mu_Y}$ from $\\mu_A$ in units of SD ($\\alpha_{\\sigma_A}$)']
     for file_name in file_names:
-        for var, label in zip(vars, labels):
-            utils.plot_CATE_for_var(var=var, plot_label=label, file_name=file_name)
+        for var_name, x_label, mean_of_var, std_of_var, x_lim, y_lim in zip(var_names, x_labels, mean_of_vars, std_of_vars, x_lims, y_lims):
+            utils.plot_CATE_for_var(var=var_name, std_of_x=std_of_var, mean_of_x=mean_of_var,
+                                    x_label=x_label, file_name=file_name, x_lim=x_lim, y_lim=y_lim)
 
 
 def plot_Y_under_treatment_for_var(var, plot_label, file_name):
