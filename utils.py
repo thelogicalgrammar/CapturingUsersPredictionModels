@@ -240,7 +240,7 @@ def plot_CATE_for_var(var, plot_label, file_name):
     # fields = ['expected_prior_outcome_A1_mean', 'expected_prior_outcome_A0_mean',
     #           'expected_posterior_outcome_A1_mean', 'expected_posterior_outcome_A0_mean']
 
-    n_observations = 1000
+    n_observations = 4000
     fig, ax = plt.subplots()
     for field in fields:
         tmp = parse_results(mod_var_name=var, field_names=[field],
@@ -301,7 +301,7 @@ def plot_Y_under_treatment_for_var(var, plot_label, file_name):
     # fields = ['potential_outcome_A1_mean', 'potential_outcome_A0_mean']
     # fields = ['expected_prior_outcome_A1_mean', 'expected_prior_outcome_A0_mean',
     #           'expected_posterior_outcome_A1_mean', 'expected_posterior_outcome_A0_mean']
-    n_observations = 1000
+    n_observations = 4000
     fig, ax = plt.subplots()
     for field in fields:
         tmp = parse_results(mod_var_name=var, field_names=[field],
