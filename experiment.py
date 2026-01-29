@@ -260,10 +260,11 @@ def main(X_o, agent_priors, modified_prior,
     # az.plot_posterior(agent_model.trace, var_names=['N_E'])
     # plt.title("Posterior distribution of agent's belief about N_E")
     # plt.savefig('./fig/basic_example_posterior_NE.png')
+    # added plot to save the posterior distribution of pairwise correlations
     az.plot_pair(agent_model.trace, #var_names=['N_E', 'alpha_mu_A', 'alpha_mu_Y'],
                  kind='scatter')
     plt.title("Posterior distribution of correlation between mu_A and N_E")
-    plt.savefig('./fig/basic_example_posterior_corr_mu_A_NE.png')
+    plt.savefig('./fig/basic_example_posterior_corr_all_vars.png')
     plt.clf()
 
 
@@ -294,7 +295,4 @@ if __name__ == '__main__':
         X_o, param_name, param_value))
     # Initialize rng:
     rng = np.random.default_rng(rng)
-    main(X_o, agent_priors, modified_prior, 
-         parameter_descriptions=parameter_descriptions,
-         rng=rng)
-
+    main(X_o, agent_priors, modified_prior, parameter_descriptions=parameter_descriptions, rng=rng)
