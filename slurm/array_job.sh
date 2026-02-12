@@ -8,18 +8,17 @@
 #SBATCH --output=logs/job_%A_%a.out
 #SBATCH --error=logs/job_%A_%a.err
 
-# Launch new tasks with 4 second intervals
-sleep $((SLURM_ARRAY_TASK_ID * 4))
-
 # Load suitable modules
+module purge
 module load 2025
+module load OpenBLAS/0.3.29-GCC-14.2.0
 module load Python/3.13.1-GCCcore-14.2.0
-# Load virtualenvironment with appropriate libraries
+
+# Load virtualenvironment with appropriate libraries (this venv probably does not currently work. Fix.)
 source ~/venv/bin/activate
 
 # Thread control
 export OMP_NUM_THREADS=4
-export MKL_NUM_THREADS=4
 export OPENBLAS_NUM_THREADS=4
 
 # Batch of 4 instances to run in *this task

@@ -31,14 +31,19 @@ def run_completion_check():
 
     # 3. Compare the two lists
     # Drop everything in results not relevant:
-    results = [[row[mod_var_name_idx], row[mod_var_value_idx], row[xo_var_idx]] for row in results]
+    #results = [[row[mod_var_name_idx], float(row[mod_var_value_idx]), row[xo_var_idx]] for row in results]
+    # results_xo = [row[xo_var_idx] for row in results]
+    results = [[row[mod_var_name_idx], float(row[mod_var_value_idx])] for row in results]
     uncompleted_jobs = []
-    for item in parameters:
+    for i, item in enumerate(parameters):
         # Match to row in results and remove row from results.
         # If no match, add to uncompleted_jobs.
         try:
-            tmp_idx = results.index(item)
+            # Need to not match on "old" X_o if we want to accept "old" results.
+            # tmp_idx = results.index([item[0], float(item[1]), item[2]])  # Need to match on float-value rather than string.. FIX.
+            tmp_idx = results.index([item[0], float(item[1])])  # Need to match on float-value rather than string.. FIX.
             results.pop(tmp_idx)
+            # results_xo.pop(tmp_idx)
         except ValueError:
             # Item not in list. Add to jobs to be re-run.
             uncompleted_jobs.append(item)
@@ -46,7 +51,7 @@ def run_completion_check():
     # 4. Overwrite old array parameters:
     with open('./slurm/tmp/parameters.txt', 'w') as file:
         for row in uncompleted_jobs:
-            file.write("{} {} {}\n".format(row[0], row[1], row[2]))
+            file.write("{} {:.6f} {}\n".format(row[0], float(row[1]), row[2]))
 
     if len(uncompleted_jobs) == 0:
         print("All jobs are completed.")
@@ -54,6 +59,43 @@ def run_completion_check():
         print("{} uncompleted jobs".format(len(uncompleted_jobs)))
         print("Parameters for uncompleted jobs stored in ./slurm/tmp/parameters.txt for next array job.")
         print("Consider adding more time to the cluster allocation.")
+
+
+def summarize_results(result_file='./results/results.csv'):
+    """
+    Function that counts how many lines there are in
+    result_file for every prior parameter and value.
+    
+    result_file (str): Filename and path of csv file to summarize.
+    """
+    results = []
+    with open(result_file, 'r') as file:
+        reader = csv.reader(file)
+        headers = next(reader)
+        for line in reader:
+            results.append(line)
+
+    # Find unique variable names (idx 4 for name, idx 5 for value)
+    var_names = list(set([item[4] for item in results]))
+    results_by_var_name = {}
+    for var_name in var_names:
+        tmp = [line[5] for line in results if line[4] == var_name]
+        unique_values = list(set(tmp))
+        unique_values = [float(item) for item in unique_values]
+        unique_values.sort()
+        related_counts = {}  # Reset
+        for value in unique_values:
+            value_count = sum([1 for item in tmp if float(item) == value])
+            related_counts[str(value)] = value_count
+        results_by_var_name[str(var_name)] = related_counts
+
+    for key in results_by_var_name.keys():
+        print("=" * 40)
+        print(key)
+        print("=" * 40)
+        for key_2 in results_by_var_name[key]:
+            print("Count for {}: {}".format(key_2, results_by_var_name[key][key_2]))
+
 
 if __name__ == '__main__':
     # Run actual program
