@@ -1,8 +1,7 @@
 #!/bin/bash
 #SBATCH -p rome
-#SBATCH --array=0-3049  # Number of jobs. Should be 1/4 of #lines in parameters.txt.
+#SBATCH --array=0-2  # Number of jobs. Should be 1/4 of #lines in parameters.txt.
 #SBATCH --cpus-per-task=16  # Minimum allocation. Might make sense to up this to 128 (on thin node) for file transfers.
-#SBATCH --mem=28G  # Minimum allocation
 #SBATCH --time=05:00
 #SBATCH --requeue  # Resubmit job if crashed due to system
 #SBATCH --output=logs/job_%A_%a.out
@@ -14,8 +13,8 @@ module load 2025
 module load OpenBLAS/0.3.29-GCC-14.2.0
 module load Python/3.13.1-GCCcore-14.2.0
 
-# Load virtualenvironment with appropriate libraries (this venv probably does not currently work. Fix.)
-source ~/venv/bin/activate
+# Load virtualenvironment with appropriate libraries
+source ~/env/bin/activate
 
 # Thread control
 export OMP_NUM_THREADS=4
