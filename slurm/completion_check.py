@@ -33,7 +33,7 @@ def run_completion_check():
     # Drop everything in results not relevant:
     #results = [[row[mod_var_name_idx], float(row[mod_var_value_idx]), row[xo_var_idx]] for row in results]
     # results_xo = [row[xo_var_idx] for row in results]
-    results = [[row[mod_var_name_idx], float(row[mod_var_value_idx])] for row in results]
+    results = [[row[mod_var_name_idx], float(row[mod_var_value_idx]), row[xo_var_idx]] for row in results]
     uncompleted_jobs = []
     for i, item in enumerate(parameters):
         # Match to row in results and remove row from results.
@@ -41,7 +41,7 @@ def run_completion_check():
         try:
             # Need to not match on "old" X_o if we want to accept "old" results.
             # tmp_idx = results.index([item[0], float(item[1]), item[2]])  # Need to match on float-value rather than string.. FIX.
-            tmp_idx = results.index([item[0], float(item[1])])  # Need to match on float-value rather than string.. FIX.
+            tmp_idx = results.index([item[0], float(item[1]), row[2]])  # Need to match on float-value rather than string.. FIX.
             results.pop(tmp_idx)
             # results_xo.pop(tmp_idx)
         except ValueError:
