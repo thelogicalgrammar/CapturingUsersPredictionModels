@@ -28,7 +28,7 @@ def generate_slurm_parameter_file(parameters_file='./slurm/tmp/parameters.txt'):
     # Define parameter values to scan
     n_iterations = 50
     # Parameters for all "narrow" and "wide" plots
-    deviations = [i/10 for i in range(-30, 31)]  # 31 because not inclusive of upper bound.
+    deviations = [i for i in range(-30, 31)]  # 31 because not inclusive of upper bound.
     params = {
             # The following takes care of mu_A wide
             'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations] +
