@@ -119,7 +119,7 @@ def read_outcomes_from_file(file_name='./results/results.csv'):
             results.append(row)
 
     # Separate results by modified parameter name and new value:
-    # Find column 
+    # Find column
     var_name_idx = headers.index('Modified prior')
     # Find unique row names:
     modified_var_names = set([row[var_name_idx] for row in results])
@@ -144,18 +144,18 @@ def read_outcomes_from_file(file_name='./results/results.csv'):
         # Group the rows by the value of the modified prior and extract the outcome:
         results_summary[key] = {'parameter_values': unique_values}
         results_summary[key]['prior_value_lists'] = [
-            [float(row[prior_Y_var_idx]) for row in tmp_samples
+            [float(row[prior_Y_var_idx]) for row in tmp_samples  # prior predictive Y
              if float(row[var_value_idx]) == param_value] for param_value in unique_values]
-        results_summary[key]['posterior_value_lists'] = [
+        results_summary[key]['posterior_value_lists'] = [  # posterior predictive Y
             [float(row[posterior_Y_var_idx]) for row in tmp_samples
              if float(row[var_value_idx]) == param_value] for param_value in unique_values]
-        results_summary[key]['prior_CATE_lists'] = [
+        results_summary[key]['prior_CATE_lists'] = [   # prior predictive CATE
             [float(row[prior_CATE_idx]) for row in tmp_samples
              if float(row[var_value_idx]) == param_value] for param_value in unique_values]
-        results_summary[key]['posterior_CATE_lists'] = [
+        results_summary[key]['posterior_CATE_lists'] = [  # posterior predictive CATE
             [float(row[posterior_CATE_idx]) for row in tmp_samples
              if float(row[var_value_idx]) == param_value] for param_value in unique_values]
-        results_summary[key]['true_CATE_lists'] = [
+        results_summary[key]['true_CATE_lists'] = [  # CATE based on scm (data generating model)
             [float(row[true_CATE_idx]) for row in tmp_samples
              if float(row[var_value_idx]) == param_value] for param_value in unique_values]
             # Could add calculation of mean, standard deviation etc. here.
@@ -239,7 +239,7 @@ def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name, x_lim, y_lim
     fields = ['Prior CATE (sample mean)',
               'Posterior CATE (sample mean)',
               'True CATE (sample mean)']
-    label_names = ['Prior CATE', 'Posterior CATE', 'True CATE']
+    label_names = ['Without ML-DS', 'With ML-DS', 'True value']
     # fields = ['Y_mean_prior_treatment',
     #           'Y_mean_posterior_treatment']
               #'Y_mean_true_best_treatment']
@@ -280,8 +280,7 @@ def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name, x_lim, y_lim
     mask = tmp1 & tmp2
     ax.fill_between(x, 0, 1, where=mask, transform=ax.get_xaxis_transform(),
                     color='lightgray', alpha=.4)
-    if 'wide' in file_name:
-        # Set limits only for wide scan plots.
+    if x_lim is not None:
         plt.xlim(x_lim)
         plt.ylim(y_lim)
     plt.legend()
@@ -294,17 +293,21 @@ def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name, x_lim, y_lim
     elif 'focused' in file_name:
         plt.savefig('./fig/focused_CATE_{}.pdf'.format(var))
     else:
-        plt.savefig('./fig/wide_CATE_{}.pdf'.format(var))
+        plt.savefig('./fig/CATE_{}.pdf'.format(var))
 
 
 def plot_CATEs():
     file_names = ['./results/wide_scan_results.csv', './results/focused_scan_results.csv']
+    file_names = ['./results/new_focused_scan_results.csv']
+    file_names = ['./results/results_18_2.csv']  # Mixed results.
     var_names = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
     mean_of_vars = [80.0, None, 0.0, 2.0]
     std_of_vars = [10, None, 0.1, 1]  # N_E does not really have a variance.
     # Limits for wide scan results:
-    x_lims = [(None, None), (-25, 25), (-25, 25), (-30, 30)]
+    x_lims = [(-30, 30), (-.5, 2.5), (-30, 30), (-30, 30)]
+    # x_lims = [(-3, 3), (.7, 1.3), (-3, 3), (-3, 3)]
     y_lims = [(None, None), (-300, 300), (-15, 35), (None, None)]
+    #y_lims = [(None, None), (-300, 300), (-15, 35), (None, None)]
     x_labels = ['Deviation of prior belief $\\alpha_{\\mu_X}$ from $\\mu_X$ in units of SD ($\\alpha_{\\sigma_X}$)',
                 'Prior belief on $N_E$',
                 'Deviation of prior belief $\\alpha_{\\mu_Y}$ from $\\mu_Y$ in units of SD ($\\alpha_{\\sigma_Y}$)',
@@ -313,66 +316,6 @@ def plot_CATEs():
         for var_name, x_label, mean_of_var, std_of_var, x_lim, y_lim in zip(var_names, x_labels, mean_of_vars, std_of_vars, x_lims, y_lims):
             utils.plot_CATE_for_var(var=var_name, std_of_x=std_of_var, mean_of_x=mean_of_var,
                                     x_label=x_label, file_name=file_name, x_lim=x_lim, y_lim=y_lim)
-
-
-def plot_Y_under_treatment_for_var(var, plot_label, file_name):
-    """
-    Notes:
-    Uncertainty of true model (with default values) is tiny.
-    """
-    fields = ['Y_mean_prior_treatment',
-              'Y_mean_posterior_treatment']
-              #'Y_mean_true_best_treatment']
-    # fields = ['Y_mean_prior_treatment', 'Y_mean_posterior_treatment']
-    # fields = ['potential_outcome_A1_mean', 'potential_outcome_A0_mean']
-    # fields = ['expected_prior_outcome_A1_mean', 'expected_prior_outcome_A0_mean',
-    #           'expected_posterior_outcome_A1_mean', 'expected_posterior_outcome_A0_mean']
-    n_observations = 4000
-    fig, ax = plt.subplots()
-    for field in fields:
-        tmp = parse_results(mod_var_name=var, field_names=[field],
-                            file_name=file_name)
-        values = tmp[0]
-        x = values[:, 0]
-        y = values[:, 1]
-        ax.plot(x, y)
-        # Standard deviation of means multiplied by sqrt(n) to get std of observations.
-        # Interpretation: Uncertainty over all X_o (not entirely koscher).
-        yerr = np.sqrt(n_observations) * values[:, 2]
-        ax.fill_between(x, y+yerr, y-yerr, alpha=0.2, label=field)  # The two arrays of y-values can be completely different functions
-        # if field == 'Posterior Y (sample mean)':
-        #     # x_post same as for all plots
-        #     y_post = tmp[0][:, 1]
-        #     yerr_post = np.sqrt(n_observations) * tmp[0][:, 2]
-        # elif field == 'True CATE (sample mean)':
-        #     y_true = tmp[0][:, 1]
-    # Check when posterior is within +-1 std from true mean:
-    # That would indicate that the certainty has correctly increased.
-    # tmp1 = (y_true > y_post - yerr_post)
-    # tmp2 = (y_true < y_post + yerr_post)
-    # mask = tmp1 & tmp2
-    # ax.fill_between(x, 0, 1, where=mask, transform=ax.get_xaxis_transform(),
-    #                 color='lightgray', alpha=.4)
-    plt.legend()
-    # plt.xlabel('Prior beliefs on $\\{}$'.format(label))
-    plt.xlabel(plot_label)
-    plt.ylabel('Y')
-    #plt.title(title)
-    if 'wide' in file_name:
-        plt.savefig('./fig/wide_Y_{}.pdf'.format(var))
-    elif 'focused' in file_name:
-        plt.savefig('./fig/focused_Y_{}.pdf'.format(var))
-    else:
-        plt.savefig('./fig/wide_Y_{}.pdf'.format(var))
-
-def plot_Ys():
-    file_names = ['./results/wide_scan_results.csv', './results/focused_scan_results.csv']
-    vars = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
-    labels = ['Prior beliefs on $\\mu_X$', 'Prior beliefs on $N_E$',
-              'Prior beliefs on $\\mu_Y$', 'Prior beliefs on $\\mu_A$']
-    for file_name in file_names:
-        for var, label in zip(vars, labels):
-            utils.plot_Y_under_treatment_for_var(var=var, plot_label=label, file_name=file_name)
 
 
 def plot_graph(categories, outcomes, variable_name):
@@ -414,39 +357,161 @@ def plot_prior_and_posterior_CATE(summary, variable_name):
     data = {'Prior belief': categories,
             'CATE estimates': series,
             'CATE': values}
-    sns.boxplot(data=data, x='Prior belief', y='CATE', hue='CATE estimates')
+    sns.boxplot(data=data, x='Prior belief', y='CATE', hue='CATE estimates', saturation=1.0)
     plt.tight_layout()
     file_name = './fig/{}_boxplot.pdf'.format(variable_name)
     plt.savefig(file_name)
     plt.clf()
 
 
-def plot_prior_and_posterior_Y(summary, variable_name):
-    #posterior_Y_var_idx = headers.index('Y_mean_posterior_treatment')
-    #prior_Y_var_idx = headers.index('Y_mean_prior_treatment')
+def plot_all_Y():
+    """
+    Docstring for plot_all_Y
+    """
+    scans = ['wide', 'focused']
+    #file_names = ['./results/wide_scan_results.csv', './results/new_focused_scan_results.csv']
+    file_name = './results/results_18_2.csv'
+    var_names = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
+    mean_of_vars = [80.0, None, 0.0, 2.0]
+    std_of_vars = [10.0, None, 0.1, 1.0]  # N_E does not really have a variance.
+    keep_rates = [2, 1, 1, 1]
+    labels = ['Prior beliefs on $\\mu_X$', 'Prior beliefs on $N_E$',
+                'Prior beliefs on $\\mu_Y$', 'Prior beliefs on $\\mu_A$']
+    # Limits for wide scan results:
+    # x_lims = [(None, None), (-25, 25), (-25, 25), (-30, 30)]
+    # y_lims = [(None, None), (-300, 300), (-15, 35), (None, None)]
+    x_lims = [(None, None), (None, None), (None, None), (None, None)]
+    x_lims = [(-30, 30), (-.5, 2.5), (-30, 30), (-30, 30)]
+    # x_lims = [(-3, 3), (.7, 1.3), (-3, 3), (-3, 3)]
+    #x_lims = [(None, None), (None, None), (-25, 25), (-30, 30)]
+    sns.set_theme(style='white')
+    # rc_params is a property of a matplotlib model, rc_params = plt.rcParams
+    sns.set_context(rc=plt.rcParams)
+    #sns.set_context(rc=rc_params)
+    sns.color_palette('tab10', desat=1.0)  # Default matplotlib colors?
 
-    prior_values = summary['posterior_value_lists']
-    posterior_values = summary['prior_value_lists']
-    values = summary['prior_value_lists'] + summary['posterior_value_lists']
+    for scan in scans:
+        results = utils.read_outcomes_from_file(file_name=file_name)
+        for key, mean_x, std_x, keep_rate, xlim in zip(var_names, mean_of_vars, std_of_vars, keep_rates, x_lims):
+            tmp_res = utils.match_to_grid(results[key], key, type=scan)
+            utils.plot_prior_and_posterior_Y(summary=tmp_res, variable_name=key,
+                                             mean_x=mean_x, std_x=std_x,
+                                             xlim=xlim, scan=scan, keep_rate=keep_rate)
+
+
+def match_to_grid(summary, mod_var_name, type):
+    """
+    Function to subset result data to contain only items that
+    match some grid. This is needed for the boxplot that does
+    not treat the x-axis as continuous.
+    """
+    scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
+                            'alpha_mu_A': 2, 'alpha_sigma_A': 1.0,
+                            'alpha_mu_Y': 0.0, 'alpha_sigma_Y': 0.1,
+                            'N_E': 1.0}
+    deviations = [i for i in range(-30, 31)]  # 31 because not inclusive of upper bound.
+    if type == 'wide':
+        params = {
+            'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
+            'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
+            'mu_Y': [scm_noise_parameters['alpha_mu_Y'] + deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
+            'N_E_mu': [scm_noise_parameters['N_E'] + deviation * 0.05 for deviation in deviations]
+            }
+    elif type == 'focused':
+        params = {
+            'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation / 10 * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
+            'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation / 10 * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
+            'mu_Y': [scm_noise_parameters['alpha_mu_Y'] + deviation / 10 * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
+            'N_E_mu': [scm_noise_parameters['N_E'] + deviation / 10 * 0.05 for deviation in deviations]
+            }
+    # Summary stats and outputs both have a leading column with the x-value (prior setting)
+    grid = params[mod_var_name]
+    tmp = {}
+    for key in summary.keys():
+        tmp[key] = []
+        for i, param_value in enumerate(summary['parameter_values']):
+            if param_value in grid:
+                tmp[key].append(summary[key][i])
+    return tmp
+
+
+def plot_prior_and_posterior_Y(summary, variable_name, mean_x, std_x=None,
+                               xlim=(None, None), scan=None, keep_rate=None):
+    """
+    Docstring for plot_prior_and_posterior_Y
+    
+    :param summary: Description
+    :param variable_name: Description
+    mean_x (float):  Mean of x (for normalization)
+    std_x (float): Standard deviation of x (for normalization)
+    scan (str): 'wide' or 'focused'
+    """
+    # Would need to drop boxes so that we at most have 30 boxes of
+    # both groups.
+    # We also need to reduce the amount of ticks
+    # The horizontal axis should be changed to units of SD
+    # Maybe pick a range so that we can keep a fixed fraction
+    # like 1/2, 1/4, 1/8 etc to keep the scale constant.
+
+    # Clip range of plot (from original)?
+    # Same range as for belief-plots? Would enable comparison side by side.
 
     categories = summary['parameter_values']
+    # Center and normalize (if possible):
+    if std_x is not None:
+        categories = [(item - mean_x) / std_x for item in categories]
+    # Select which ones to include based on range in units of SD
+    if xlim[0] is not None:
+        keep_idx = [True if xlim[0] <= val <= xlim[1] else False for val in categories]
+        # Further drop observations when necessary
+        keep_idx = [True if keep & (i%keep_rate==0) else False for i, keep in enumerate(keep_idx)]
+    else:
+        keep_idx = [True if (i%keep_rate==0) else False for i, _ in enumerate(categories)]
+    # Pick selected categories
+    categories = [item for item, keep in zip(categories, keep_idx) if keep]
+    #categories = [item for i, item in enumerate(categories) if i%keep_rate==0]
+
+    prior_values = summary['posterior_value_lists']
+    #prior_values = [item for i, item in enumerate(prior_values) if i%keep_rate==0]
+    prior_values = [item for item, keep in zip(prior_values, keep_idx) if keep]
+    posterior_values = summary['prior_value_lists']
+    #posterior_values = [item for i, item in enumerate(posterior_values) if i%keep_rate==0]
+    posterior_values = [item for item, keep in zip(posterior_values, keep_idx) if keep]
+    #prior_value_list = [item for i, item in enumerate(summary['prior_value_lists']) if i%keep_rate==0]
+    prior_value_list = [item for item, keep in zip(summary['prior_value_lists'], keep_idx) if keep]
+    #posterior_value_list = [item for i, item in enumerate(summary['posterior_value_lists']) if i%keep_rate==0]
+    posterior_value_list = [item for item, keep in zip(summary['posterior_value_lists'], keep_idx) if keep]
+    values = prior_value_list + posterior_value_list
+    #values = summary['prior_value_lists'] + summary['posterior_value_lists']
+    #values = [item for i, item in enumerate(values) if i%inverse_drop_rate==0]
+
+
     prior_categories = [[category] * len(prior_values[i]) for i, category in enumerate(categories)]
     posterior_categories = [[category] * len(posterior_values[i]) for i, category in enumerate(categories)]
     categories = prior_categories + posterior_categories
     categories = [item for row in categories for item in row]
-    prior_series = [['Prior predictive'] * len(val) for val in prior_values]
+    prior_series = [['Without ML-DS'] * len(val) for val in prior_values]
     prior_series = [item for row in prior_series for item in row]
-    posterior_series = [['Posterior predictive'] * len(val) for val in posterior_values]
+    posterior_series = [['With ML-DS'] * len(val) for val in posterior_values]
     posterior_series = [item for row in posterior_series for item in row]
     series = prior_series + posterior_series
     values = [item for row in values for item in row]
 
-    data = {'Prior belief': categories,
-            'Y estimates': series,
-            'Y': values}
-    sns.boxplot(data=data, x='Prior belief', y='Y', hue='Y estimates')
-    plt.tight_layout()
-    file_name = './fig/{}_Y_boxplot.pdf'.format(variable_name)
+    data = {'Prior belief': categories,  # x-value
+            'Outcomes': series,  # "Prior predictive" etc
+            'Y': values}  # 
+    # Format ticks:
+    x_ticks = np.unique(categories)
+    if variable_name=='N_E_mu':
+        x_ticks = [str(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
+    else:
+        x_ticks = [str(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
+
+    sns.boxplot(data=data, x='Prior belief', y='Y', hue='Outcomes', saturation=1.0)
+    ax = plt.gca()
+    ax.set_xticklabels(x_ticks)
+    #plt.tight_layout()
+    file_name = './fig/{}_{}_Y_boxplot.pdf'.format(scan, variable_name)
     plt.savefig(file_name)
     plt.clf()
 
