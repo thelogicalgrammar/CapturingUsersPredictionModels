@@ -3,8 +3,8 @@ Functions for writing results to file, for reading
 results from said file, and for plotting results.
 """
 import csv
-import numpy as np
 from pathlib import Path
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -15,7 +15,8 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
 
     Args:
         result_dict [dict]: Dict of results to store.
-        
+        file_name (str): Name of file to write results to.
+        path (str): Path where to store result file.
     """
     # Check for existence of folder. Create if it does not exist.
     Path(path).mkdir(parents=True, exist_ok=True)
@@ -129,7 +130,8 @@ def read_outcomes_from_file(file_name='./results/results.csv'):
     var_value_idx = headers.index('New value of modified prior')
     posterior_Y_var_idx = headers.index('Y_mean_posterior_treatment')
     prior_Y_var_idx = headers.index('Y_mean_prior_treatment')
-    true_Y_var_idx = headers.index('Y_mean_true_best_treatment')
+    # Not in use. Only valid for very specific models.
+    # true_Y_var_idx = headers.index('Y_mean_true_best_treatment')
     prior_CATE_idx = headers.index('Prior CATE (sample mean)')
     posterior_CATE_idx = headers.index('Posterior CATE (sample mean)')
     true_CATE_idx = headers.index('True CATE (sample mean)')
@@ -221,7 +223,7 @@ def parse_results(mod_var_name='mu_X', file_name='./results/results.csv',
     return (summary_stats, outputs, field_names)
 
 
-def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name, x_lim, y_lim):
+def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name, x_lim, y_lim, scan):
     """
     Args:
     var (str): Name of variable of interest
@@ -240,15 +242,9 @@ def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name, x_lim, y_lim
               'Posterior CATE (sample mean)',
               'True CATE (sample mean)']
     label_names = ['Without ML-DS', 'With ML-DS', 'True value']
-    # fields = ['Y_mean_prior_treatment',
-    #           'Y_mean_posterior_treatment']
-              #'Y_mean_true_best_treatment']
-    # fields = ['Prior CATE (sample mean)', 'Posterior CATE (sample mean)',
-    #           'True CATE (sample mean)']
-    # fields = ['Y_mean_prior_treatment', 'Y_mean_posterior_treatment']
-    # fields = ['potential_outcome_A1_mean', 'potential_outcome_A0_mean']
-    # fields = ['expected_prior_outcome_A1_mean', 'expected_prior_outcome_A0_mean',
-    #           'expected_posterior_outcome_A1_mean', 'expected_posterior_outcome_A0_mean']
+    # Threshold used in experiments. If CATE is above this, then treatment A1
+    # is used. Otherwise A0 is used.
+    threshold = 5
 
     n_observations = 4000
     fig, ax = plt.subplots()
@@ -266,7 +262,7 @@ def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name, x_lim, y_lim
         # Standard deviation of means multiplied by sqrt(n) to get std of observations.
         # Interpretation: Uncertainty over all X_o (not entirely koscher).
         yerr = np.sqrt(n_observations) * values[:, 2]
-        ax.fill_between(x, y+yerr, y-yerr, alpha=0.2, label=label_name)  # The two arrays of y-values can be completely different functions
+        ax.fill_between(x, y+yerr, y-yerr, alpha=0.2, label=label_name)
         if field == 'Posterior CATE (sample mean)':
             # x_post same as for all plots
             y_post = tmp[0][:, 1]
@@ -280,6 +276,8 @@ def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name, x_lim, y_lim
     mask = tmp1 & tmp2
     ax.fill_between(x, 0, 1, where=mask, transform=ax.get_xaxis_transform(),
                     color='lightgray', alpha=.4)
+    # Add dotted line for threshold selection
+    ax.axhline(y=threshold, linestyle='--', color='black', label='Treatment threshold')
     if x_lim is not None:
         plt.xlim(x_lim)
         plt.ylim(y_lim)
@@ -288,136 +286,93 @@ def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name, x_lim, y_lim
     plt.xlabel(x_label)
     plt.ylabel('CATE')
     #plt.title(title)
-    if 'wide' in file_name:
-        plt.savefig('./fig/wide_CATE_{}.pdf'.format(var))
-    elif 'focused' in file_name:
-        plt.savefig('./fig/focused_CATE_{}.pdf'.format(var))
-    else:
-        plt.savefig('./fig/CATE_{}.pdf'.format(var))
+    plt.savefig('./fig/{}_CATE_{}.pdf'.format(scan, var))
 
 
-def plot_CATEs():
-    file_names = ['./results/wide_scan_results.csv', './results/focused_scan_results.csv']
-    file_names = ['./results/new_focused_scan_results.csv']
-    file_names = ['./results/results_18_2.csv']  # Mixed results.
+def plot_CATEs(file_name='./results/results_18_2.csv'):
+    """
+    Function for plotting CATEs.
+    
+    Args:
+    file_name (str): Path and name of result file.
+    """
+    scans = ['wide', 'focused']
     var_names = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
     mean_of_vars = [80.0, None, 0.0, 2.0]
     std_of_vars = [10, None, 0.1, 1]  # N_E does not really have a variance.
     # Limits for wide scan results:
-    x_lims = [(-30, 30), (-.5, 2.5), (-30, 30), (-30, 30)]
-    # x_lims = [(-3, 3), (.7, 1.3), (-3, 3), (-3, 3)]
+    x_lim_arrays = [[(-30, 30), (-.5, 2.5), (-30, 30), (-30, 30)],
+                    [(-3, 3), (.7, 1.3), (-3, 3), (-3, 3)]]  # This second for focused plots
     y_lims = [(None, None), (-300, 300), (-15, 35), (None, None)]
-    #y_lims = [(None, None), (-300, 300), (-15, 35), (None, None)]
     x_labels = ['Deviation of prior belief $\\alpha_{\\mu_X}$ from $\\mu_X$ in units of SD ($\\alpha_{\\sigma_X}$)',
                 'Prior belief on $N_E$',
                 'Deviation of prior belief $\\alpha_{\\mu_Y}$ from $\\mu_Y$ in units of SD ($\\alpha_{\\sigma_Y}$)',
                 'Deviation of prior belief $\\alpha_{\\mu_Y}$ from $\\mu_A$ in units of SD ($\\alpha_{\\sigma_A}$)']
-    for file_name in file_names:
+    for scan, x_lims in zip(scans, x_lim_arrays):
         for var_name, x_label, mean_of_var, std_of_var, x_lim, y_lim in zip(var_names, x_labels, mean_of_vars, std_of_vars, x_lims, y_lims):
-            utils.plot_CATE_for_var(var=var_name, std_of_x=std_of_var, mean_of_x=mean_of_var,
-                                    x_label=x_label, file_name=file_name, x_lim=x_lim, y_lim=y_lim)
+            plot_CATE_for_var(var=var_name, std_of_x=std_of_var,
+                              mean_of_x=mean_of_var, x_label=x_label,
+                              file_name=file_name, x_lim=x_lim,
+                              y_lim=y_lim, scan=scan)
 
 
-def plot_graph(categories, outcomes, variable_name):
+def plot_all_Y(file_name='./results/results_18_2.csv'):
     """
+    Method for plotting all boxplots for outcomes Y
+    under treatment selected based on beliefs.
+
     Args:
-        categorires ([]): Labels for categories
-        outcomes ([[]]): List of lists with outcomes as values
-        variable_name (str): Name of modified prior parameter that the
-            outcomes are associated with.
-    """
-    file_name = './fig/{}_boxplot.pdf'.format(variable_name)
-    plt.figure(figsize=(6, 4))
-    plt.boxplot(outcomes, labels=categories)
-    plt.xlabel("Belief in {}".format(variable_name))
-    plt.ylabel("Outcome Y")
-    plt.title("Influence of belief on treatment effect on real-world outcomes")
-    plt.tight_layout()
-    plt.savefig(file_name)
-    plt.clf()
-
-
-def plot_prior_and_posterior_CATE(summary, variable_name):
-    prior_values = summary['prior_CATE_lists']
-    posterior_values = summary['posterior_CATE_lists']
-    values = summary['prior_CATE_lists'] + summary['posterior_CATE_lists']
-
-    categories = summary['parameter_values']
-    prior_categories = [[category] * len(prior_values[i]) for i, category in enumerate(categories)]
-    posterior_categories = [[category] * len(posterior_values[i]) for i, category in enumerate(categories)]
-    categories = prior_categories + posterior_categories
-    categories = [item for row in categories for item in row]
-    prior_series = [['Prior predictive'] * len(val) for val in prior_values]
-    prior_series = [item for row in prior_series for item in row]
-    posterior_series = [['Posterior predictive'] * len(val) for val in posterior_values]
-    posterior_series = [item for row in posterior_series for item in row]
-    series = prior_series + posterior_series
-    values = [item for row in values for item in row]
-
-    data = {'Prior belief': categories,
-            'CATE estimates': series,
-            'CATE': values}
-    sns.boxplot(data=data, x='Prior belief', y='CATE', hue='CATE estimates', saturation=1.0)
-    plt.tight_layout()
-    file_name = './fig/{}_boxplot.pdf'.format(variable_name)
-    plt.savefig(file_name)
-    plt.clf()
-
-
-def plot_all_Y():
-    """
-    Docstring for plot_all_Y
+    file_name (str): Path and name of result file.
     """
     scans = ['wide', 'focused']
-    #file_names = ['./results/wide_scan_results.csv', './results/new_focused_scan_results.csv']
-    file_name = './results/results_18_2.csv'
     var_names = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
     mean_of_vars = [80.0, None, 0.0, 2.0]
     std_of_vars = [10.0, None, 0.1, 1.0]  # N_E does not really have a variance.
     keep_rates = [2, 1, 1, 1]
-    labels = ['Prior beliefs on $\\mu_X$', 'Prior beliefs on $N_E$',
-                'Prior beliefs on $\\mu_Y$', 'Prior beliefs on $\\mu_A$']
-    # Limits for wide scan results:
-    # x_lims = [(None, None), (-25, 25), (-25, 25), (-30, 30)]
-    # y_lims = [(None, None), (-300, 300), (-15, 35), (None, None)]
-    x_lims = [(None, None), (None, None), (None, None), (None, None)]
-    x_lims = [(-30, 30), (-.5, 2.5), (-30, 30), (-30, 30)]
-    # x_lims = [(-3, 3), (.7, 1.3), (-3, 3), (-3, 3)]
-    #x_lims = [(None, None), (None, None), (-25, 25), (-30, 30)]
+    # labels = ['Prior beliefs on $\\mu_X$', 'Prior beliefs on $N_E$',
+    #             'Prior beliefs on $\\mu_Y$', 'Prior beliefs on $\\mu_A$']
+    # Limits for wide and focused scan plots:
+    x_lim_array = [[(-30, 30), (-.5, 2.5), (-30, 30), (-30, 30)],
+                   [(-3, 3), (.7, 1.3), (-3, 3), (-3, 3)]]
+    # Forcing sns to use matplotlib styles:
+    plt.clf()
     sns.set_theme(style='white')
-    # rc_params is a property of a matplotlib model, rc_params = plt.rcParams
     sns.set_context(rc=plt.rcParams)
-    #sns.set_context(rc=rc_params)
-    sns.color_palette('tab10', desat=1.0)  # Default matplotlib colors?
+    sns.color_palette('tab10', desat=1.0)
 
-    for scan in scans:
-        results = utils.read_outcomes_from_file(file_name=file_name)
+    results = read_outcomes_from_file(file_name=file_name)
+    for scan, x_lims in zip(scans, x_lim_array):
         for key, mean_x, std_x, keep_rate, xlim in zip(var_names, mean_of_vars, std_of_vars, keep_rates, x_lims):
-            tmp_res = utils.match_to_grid(results[key], key, type=scan)
-            utils.plot_prior_and_posterior_Y(summary=tmp_res, variable_name=key,
+            # Select only results that falls precisely on a predefined grid
+            # to keep graph legible:
+            tmp_res = match_to_grid(results[key], key, scan_type=scan)
+            # Plot
+            plot_prior_and_posterior_Y(summary=tmp_res, variable_name=key,
                                              mean_x=mean_x, std_x=std_x,
                                              xlim=xlim, scan=scan, keep_rate=keep_rate)
 
 
-def match_to_grid(summary, mod_var_name, type):
+def match_to_grid(summary, mod_var_name, scan_type):
     """
     Function to subset result data to contain only items that
     match some grid. This is needed for the boxplot that does
     not treat the x-axis as continuous.
     """
+    # Parameters used for standardization of units in plots
     scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
                             'alpha_mu_A': 2, 'alpha_sigma_A': 1.0,
                             'alpha_mu_Y': 0.0, 'alpha_sigma_Y': 0.1,
                             'N_E': 1.0}
+
     deviations = [i for i in range(-30, 31)]  # 31 because not inclusive of upper bound.
-    if type == 'wide':
+    if scan_type == 'wide':
         params = {
             'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
             'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
             'mu_Y': [scm_noise_parameters['alpha_mu_Y'] + deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
             'N_E_mu': [scm_noise_parameters['N_E'] + deviation * 0.05 for deviation in deviations]
             }
-    elif type == 'focused':
+    elif scan_type == 'focused':
         params = {
             'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation / 10 * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
             'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation / 10 * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
@@ -438,7 +393,7 @@ def match_to_grid(summary, mod_var_name, type):
 def plot_prior_and_posterior_Y(summary, variable_name, mean_x, std_x=None,
                                xlim=(None, None), scan=None, keep_rate=None):
     """
-    Docstring for plot_prior_and_posterior_Y
+    Function for creating boxplots
     
     :param summary: Description
     :param variable_name: Description
@@ -504,6 +459,10 @@ def plot_prior_and_posterior_Y(summary, variable_name, mean_x, std_x=None,
     x_ticks = np.unique(categories)
     if variable_name=='N_E_mu':
         x_ticks = [str(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
+    elif variable_name=='mu_A' and scan == 'focused':
+        x_ticks = ['{:.1f}'.format(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
+    elif variable_name == 'mu_Y' and scan == 'focused':
+        x_ticks = ['{:.1f}'.format(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
     else:
         x_ticks = [str(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
 
@@ -516,17 +475,16 @@ def plot_prior_and_posterior_Y(summary, variable_name, mean_x, std_x=None,
     plt.clf()
 
 
-def read_and_plot():
+def plot_all(file_name='./results/results_18_2.csv'):
     """
     Function that reads in all results from ./results/results.csv and
     creates boxplots for all variables found in column "Modified variables".
+    Note that the plotting methods are custom made for specific plots
+    and might need tweaking with new data (e.g. plot ranges).
     """
-    print("Reading in results from ./results/results.csv...")
-    results = read_outcomes_from_file()
-    print("Creating boxplots and writing to file...")
-    print("Existing boxplot-files are overwritten.")
-    for key in results.keys():
-        plot_prior_and_posterior_CATE(results[key], key)
-        # plot_graph(categories=results[key]['parameter_values'],
-        #            outcomes=results[key]['prior_value_lists'],
-        #            variable_name=key)
+    print("Creating line- and boxplots.")
+    print("Existing files are overwritten.")
+    # Create all CATE-plots:
+    plot_CATEs(file_name)
+    # Create all boxplots:
+    plot_all_Y(file_name)
