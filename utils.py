@@ -226,14 +226,14 @@ def parse_results(mod_var_name='mu_X', file_name='./results/results.csv',
 def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name, x_lim, y_lim, scan):
     """
     Args:
-    var (str): Name of variable of interest
-    mean_of_x (float): Mean of horizontal scale (x) to center on.
-    std_of_x (float): Standard deviation of the horizontal scale (x).
-        Used for normalizing plot.
-    x_label (str): Label that will be visible under the x-axis
-    file_name (str): File name and path of the result file to parse.
-    x_lim ((float, float)): +-Limits of horizontal axis
-    y_lim ((float, float)): +-Limits of vertical axis
+        var (str): Name of variable of interest
+        mean_of_x (float): Mean of horizontal scale (x) to center on.
+        std_of_x (float): Standard deviation of the horizontal scale (x).
+            Used for normalizing plot.
+        x_label (str): Label that will be visible under the x-axis
+        file_name (str): File name and path of the result file to parse.
+        x_lim ((float, float)): +-Limits of horizontal axis
+        y_lim ((float, float)): +-Limits of vertical axis
 
     Notes:
     Uncertainty of true model (with default values) is tiny.
@@ -294,7 +294,7 @@ def plot_CATEs(file_name='./results/results_18_2.csv'):
     Function for plotting CATEs.
     
     Args:
-    file_name (str): Path and name of result file.
+        file_name (str): Path and name of result file.
     """
     scans = ['wide', 'focused']
     var_names = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
@@ -303,7 +303,7 @@ def plot_CATEs(file_name='./results/results_18_2.csv'):
     # Limits for wide scan results:
     x_lim_arrays = [[(-30, 30), (-.5, 2.5), (-30, 30), (-30, 30)],
                     [(-3, 3), (.7, 1.3), (-3, 3), (-3, 3)]]  # This second for focused plots
-    y_lims = [(None, None), (-300, 300), (-15, 35), (None, None)]
+    y_lims = [(None, None), (-30, 50), (-15, 35), (None, None)]
     x_labels = ['Deviation of prior belief $\\alpha_{\\mu_X}$ from $\\mu_X$ in units of SD ($\\alpha_{\\sigma_X}$)',
                 'Prior belief on $N_E$',
                 'Deviation of prior belief $\\alpha_{\\mu_Y}$ from $\\mu_Y$ in units of SD ($\\alpha_{\\sigma_Y}$)',
@@ -322,7 +322,7 @@ def plot_all_Y(file_name='./results/results_18_2.csv'):
     under treatment selected based on beliefs.
 
     Args:
-    file_name (str): Path and name of result file.
+        file_name (str): Path and name of result file.
     """
     scans = ['wide', 'focused']
     var_names = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
@@ -458,11 +458,17 @@ def plot_prior_and_posterior_Y(summary, variable_name, mean_x, std_x=None,
     # Format ticks:
     x_ticks = np.unique(categories)
     if variable_name=='N_E_mu':
-        x_ticks = [str(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
+        # Two decimals in ticks for both N_E plots:
+        x_ticks = ['{:.2f}'.format(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
+        # x_ticks = [str(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
+    elif scan == 'wide':
+        # No decimals in ticks:
+        x_ticks = ['{:.0f}'.format(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
     elif variable_name=='mu_A' and scan == 'focused':
         x_ticks = ['{:.1f}'.format(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
     elif variable_name == 'mu_Y' and scan == 'focused':
         x_ticks = ['{:.1f}'.format(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
+        
     else:
         x_ticks = [str(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
 
