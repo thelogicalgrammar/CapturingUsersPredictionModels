@@ -1,0 +1,196 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>experiment_series &mdash; CapturingUsersPredictionModels 1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=f2a433a1"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            CapturingUsersPredictionModels
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules/agent_model.html">Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/utils.html">Utilities</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">SLURM Scripts</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules/completion_check.html">Completion Check</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file.html">Generate Parameter File</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CapturingUsersPredictionModels</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Module code</a></li>
+      <li class="breadcrumb-item active">experiment_series</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for experiment_series</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Code to run multiple experiments consequtively in series.</span>
+
+<span class="sd">Basic setup: Everything else is kept at default values except for one</span>
+<span class="sd">variable. X_o is sampled from the true distribution. Select which</span>
+<span class="sd">parameters to sweep in main() by uncommenting or adding items to the</span>
+<span class="sd">dict. Run series by:</span>
+
+<span class="sd">.. code-block:: bash</span>
+
+<span class="sd">    python experiment_series.py</span>
+
+
+<span class="sd">Use utils.read_and_plot() for plotting.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">experiment</span>
+
+<span class="c1"># Number of runs for every parameter value</span>
+<span class="n">N_ITERATIONS</span> <span class="o">=</span> <span class="mi">50</span>
+
+<span class="c1"># Default data generating parameters</span>
+<span class="n">scm_noise_parameters</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+                        <span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>
+                        <span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span>
+                        <span class="s1">&#39;N_E&#39;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">}</span>
+
+<span class="c1"># DEFAULT Agent priors</span>
+<span class="n">agent_priors</span> <span class="o">=</span>\
+    <span class="p">{</span><span class="s1">&#39;mu_X&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s1">&#39;sigma_X&#39;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s1">&#39;mu_sigma_X&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="s1">&#39;sigma_sigma_X&#39;</span><span class="p">:</span><span class="mf">0.1</span><span class="p">,</span>
+     <span class="s1">&#39;mu_A&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;sigma_A&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;mu_sigma_A&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;sigma_sigma_A&#39;</span><span class="p">:</span><span class="mf">0.1</span><span class="p">,</span>
+     <span class="s1">&#39;mu_Y&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;sigma_Y&#39;</span><span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span> <span class="s1">&#39;mu_sigma_Y&#39;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s1">&#39;sigma_sigma_Y&#39;</span> <span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span>
+     <span class="s1">&#39;N_E_mu&#39;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="s1">&#39;N_E_sigma&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+
+
+<span class="n">parameter_descriptions</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;agent_priors&#39;</span><span class="p">:</span> <span class="s1">&#39;Default&#39;</span><span class="p">,</span>
+                          <span class="s1">&#39;scm_constants&#39;</span><span class="p">:</span> <span class="s1">&#39;Default&#39;</span><span class="p">,</span>
+                          <span class="s1">&#39;scm_noise_parameters&#39;</span><span class="p">:</span> <span class="s1">&#39;Default&#39;</span><span class="p">}</span>
+
+
+<div class="viewcode-block" id="main">
+<a class="viewcode-back" href="../modules/experiment_series.html#experiment_series.main">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+    <span class="c1"># Generate parameters for individual experiments:</span>
+    <span class="n">deviations</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="c1"># Data SCM does not have a standard deviation for N_E</span>
+    <span class="c1"># mu_A is _just_the mean of the noice. Acts like a constant shift from d*X</span>
+    <span class="c1"># Might make sense to reparameterize d to N_d (or something) to be able to capture</span>
+    <span class="c1"># the belief that a historical treatment policy was the opposite of the actual.</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;N_E_mu&#39;</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mi">20</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">60</span><span class="p">],</span>
+              <span class="s1">&#39;mu_X&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">deviation</span> <span class="o">*</span> <span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">deviation</span> <span class="ow">in</span> <span class="n">deviations</span><span class="p">],</span>
+              <span class="s1">&#39;mu_A&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">deviation</span> <span class="o">*</span> <span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">deviation</span> <span class="ow">in</span> <span class="n">deviations</span><span class="p">],</span>
+              <span class="s1">&#39;mu_Y&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">deviation</span> <span class="o">*</span> <span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">deviation</span> <span class="ow">in</span> <span class="n">deviations</span><span class="p">],</span>
+              <span class="p">}</span>
+    <span class="c1"># Flatten:</span>
+    <span class="n">parameter_list</span> <span class="o">=</span> <span class="p">[(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">values</span> <span class="ow">in</span> <span class="n">params</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">values</span><span class="p">]</span>
+
+    <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">seed</span> <span class="o">=</span> <span class="mi">4</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">iteration</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N_ITERATIONS</span><span class="p">):</span>
+        <span class="c1"># One run for every parameter combination first, then second run for the same etc.</span>
+        <span class="k">for</span> <span class="n">param_name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">parameter_list</span><span class="p">:</span>
+            <span class="c1"># Sample X_o</span>
+            <span class="c1"># Data generating parameters are fixed</span>
+            <span class="n">X_o</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">],</span> <span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">])</span>
+            <span class="n">X_o</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">X_o</span><span class="p">)</span>
+            <span class="c1"># Make a copy of agent_priors to not affect next run</span>
+            <span class="n">tmp_agent_priors</span> <span class="o">=</span> <span class="n">agent_priors</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="c1"># Keep everything else fixed, except for one value.</span>
+            <span class="n">tmp_agent_priors</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="n">modified_prior</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;modified_prior&#39;</span><span class="p">:</span> <span class="n">param_name</span><span class="p">,</span>
+                            <span class="s1">&#39;modified_prior_value&#39;</span><span class="p">:</span> <span class="n">value</span><span class="p">}</span>
+            <span class="c1"># Helper variable for easy view of experiment parameters:</span>
+            <span class="n">parameter_descriptions</span><span class="p">[</span><span class="s1">&#39;agent_priors&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Modified&#39;</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;=&quot;</span> <span class="o">*</span> <span class="mi">40</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Iteration </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">iteration</span><span class="p">))</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Running experiment with </span><span class="si">{}</span><span class="s2"> set to </span><span class="si">{}</span><span class="s2">. X_o is </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">param_name</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">X_o</span><span class="p">))</span>
+            <span class="n">experiment</span><span class="o">.</span><span class="n">main</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">tmp_agent_priors</span><span class="p">,</span> <span class="n">modified_prior</span><span class="p">,</span>
+                            <span class="n">parameter_descriptions</span><span class="o">=</span><span class="n">parameter_descriptions</span><span class="p">,</span>
+                            <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span></div>
+
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="c1"># Run the serialized experiment.</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

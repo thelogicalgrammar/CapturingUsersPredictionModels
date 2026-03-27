@@ -1,0 +1,633 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>utils &mdash; CapturingUsersPredictionModels 1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=f2a433a1"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            CapturingUsersPredictionModels
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules/agent_model.html">Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/utils.html">Utilities</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">SLURM Scripts</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules/completion_check.html">Completion Check</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file.html">Generate Parameter File</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CapturingUsersPredictionModels</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Module code</a></li>
+      <li class="breadcrumb-item active">utils</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for utils</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Functions for writing results to file, for reading</span>
+<span class="sd">results from said file, and for plotting results.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">csv</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">seaborn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sns</span>
+
+
+<div class="viewcode-block" id="write_results_to_file">
+<a class="viewcode-back" href="../modules/utils.html#utils.write_results_to_file">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">write_results_to_file</span><span class="p">(</span><span class="n">result_dict</span><span class="p">,</span> <span class="n">file_name</span><span class="o">=</span><span class="s1">&#39;results.csv&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;./results/&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function for writing results to file.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        result_dict [dict]: Dict of results to store.</span>
+<span class="sd">        file_name (str): Name of file to write results to.</span>
+<span class="sd">        path (str): Path where to store result file.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Check for existence of folder. Create if it does not exist.</span>
+    <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># Check for existence of result file.</span>
+    <span class="n">full_path</span> <span class="o">=</span> <span class="n">path</span> <span class="o">+</span> <span class="n">file_name</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="n">file_name</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="c1"># Create file and write header to file</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;&quot;Experiment ID&quot;,&quot;Time Stamp&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;X_o&quot;,&quot;pred_o&quot;,&quot;Modified prior&quot;,&quot;New value of modified prior&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;Threshold&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;True CATE (sample mean)&quot;,&quot;Prior CATE (sample mean)&quot;,&quot;Posterior CATE (sample mean)&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;True CATE Standard Deviation (sample estimate)&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;Prior CATE Standard Deviation (sample estimate)&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;Posterior CATE Standard Deviation (sample estimate)&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;True CATE (mu)&quot;,&quot;Prior CATE (mu)&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;prior_treatment&quot;,&quot;posterior_treatment&quot;,&quot;true_best_treatment&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;prior_decision_correct&quot;,&quot;posterior_decision_correct&quot;,&quot;decision_changed&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;frac_correct_prior_decision&quot;,&quot;frac_correct_posterior_decision&quot;,&quot;frac_correct_true_best_treatment&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;Y_mean_prior_treatment&quot;,&quot;Y_mean_posterior_treatment&quot;,&quot;Y_mean_true_best_treatment&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;potential_outcome_A1_mean&quot;,&quot;potential_outcome_A1_std&quot;,&quot;potential_outcome_A0_mean&quot;,&quot;potential_outcome_A0_std&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;Plate Size&quot;,&quot;A1_treatment&quot;,&quot;A0_treatment&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;Agent Priors&quot;,&quot;SCM Noise Parameters&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;SCM Constants&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;Running Time&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;max(R-hat)&quot;,&quot;min(ESS), bulk&quot;,&quot;min(ESS), tail&quot;,&quot;Divergences&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;pri_X_mean&quot;,&quot;pri_A_mean&quot;,&quot;pri_Y_mean&quot;,&quot;pri_X_std&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;pri_A_std&quot;,&quot;pri_Y_std&quot;,&quot;pri_X_skew&quot;,&quot;pri_A_skew&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;pri_Y_skew&quot;,&quot;pri_X_kurtosis&quot;,&quot;pri_A_kurtosis&quot;,&quot;pri_Y_kurtosis&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;post_X_mean&quot;,&quot;post_A_mean&quot;,&quot;post_Y_mean&quot;,&quot;post_X_std&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;post_A_std&quot;,&quot;post_Y_std&quot;,&quot;post_X_skew&quot;,&quot;post_A_skew&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;post_Y_skew&quot;,&quot;post_X_kurtosis&quot;,&quot;post_A_kurtosis&quot;,&quot;post_Y_kurtosis&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;expected_prior_outcome_A1_mean&quot;,&quot;expected_prior_outcome_A1_std&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;expected_prior_outcome_A0_mean&quot;,&quot;expected_prior_outcome_A0_std&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;expected_posterior_outcome_A1_mean&quot;,&quot;expected_posterior_outcome_A1_std&quot;,&#39;</span>
+                   <span class="s1">&#39;&quot;expected_posterior_outcome_A0_mean&quot;,&quot;expected_posterior_outcome_A0_std&quot;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">full_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">headers</span><span class="p">)</span>
+
+    <span class="c1"># Write contents to file:</span>
+    <span class="n">key_ordering</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;experiment_id&#39;</span><span class="p">,</span> <span class="s1">&#39;time_stamp&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;X_o&#39;</span><span class="p">,</span> <span class="s1">&#39;pred_o&#39;</span><span class="p">,</span> <span class="s1">&#39;modified_prior&#39;</span><span class="p">,</span> <span class="s1">&#39;modified_prior_value&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;threshold&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;true_CATE_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;prior_CATE_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;posterior_CATE_mean&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;true_CATE_std&#39;</span><span class="p">,</span> <span class="s1">&#39;prior_CATE_std&#39;</span><span class="p">,</span> <span class="s1">&#39;posterior_CATE_std&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;true_CATE_mu&#39;</span><span class="p">,</span> <span class="s1">&#39;prior_CATE_mu&#39;</span><span class="p">,</span> <span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;prior_treatment&quot;</span><span class="p">,</span> <span class="s2">&quot;posterior_treatment&quot;</span><span class="p">,</span> <span class="s2">&quot;true_best_treatment&quot;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;prior_decision_correct&quot;</span><span class="p">,</span> <span class="s2">&quot;posterior_decision_correct&quot;</span><span class="p">,</span> <span class="s2">&quot;decision_changed&quot;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;frac_correct_prior_decision&quot;</span><span class="p">,</span> <span class="s2">&quot;frac_correct_posterior_decision&quot;</span><span class="p">,</span> <span class="s2">&quot;frac_correct_true_best_treatment&quot;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;Y_mean_prior_treatment&quot;</span><span class="p">,</span> <span class="s2">&quot;Y_mean_posterior_treatment&quot;</span><span class="p">,</span> <span class="s2">&quot;Y_mean_true_best_treatment&quot;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;potential_outcome_A1_mean&quot;</span><span class="p">,</span> <span class="s2">&quot;potential_outcome_A1_std&quot;</span><span class="p">,</span> <span class="s2">&quot;potential_outcome_A0_mean&quot;</span><span class="p">,</span> <span class="s2">&quot;potential_outcome_A0_std&quot;</span><span class="p">]</span>
+
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;plate_size&#39;</span><span class="p">,</span> <span class="s1">&#39;A1_treatment&#39;</span><span class="p">,</span> <span class="s1">&#39;A0_treatment&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;agent_priors&#39;</span><span class="p">,</span> <span class="s1">&#39;scm_noise_parameters&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;scm_constants&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;running_time&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;max_rhat&#39;</span><span class="p">,</span> <span class="s1">&#39;min_ess_bulk&#39;</span><span class="p">,</span> <span class="s1">&#39;min_ess_tail&#39;</span><span class="p">,</span> <span class="s1">&#39;n_divergences&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;pri_X_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_A_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_Y_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_X_std&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;pri_A_std&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_Y_std&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_X_skew&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_A_skew&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;pri_Y_skew&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_X_kurtosis&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_A_kurtosis&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_Y_kurtosis&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;post_X_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;post_A_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;post_Y_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;post_X_std&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;post_A_std&#39;</span><span class="p">,</span> <span class="s1">&#39;post_Y_std&#39;</span><span class="p">,</span> <span class="s1">&#39;post_X_skew&#39;</span><span class="p">,</span> <span class="s1">&#39;post_A_skew&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;post_Y_skew&#39;</span><span class="p">,</span> <span class="s1">&#39;post_X_kurtosis&#39;</span><span class="p">,</span> <span class="s1">&#39;post_A_kurtosis&#39;</span><span class="p">,</span> <span class="s1">&#39;post_Y_kurtosis&#39;</span><span class="p">]</span>
+    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;expected_prior_outcome_A1_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_prior_outcome_A1_std&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;expected_prior_outcome_A0_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_prior_outcome_A0_std&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;expected_posterior_outcome_A1_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_posterior_outcome_A1_std&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;expected_posterior_outcome_A0_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_posterior_outcome_A0_std&#39;</span><span class="p">]</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">key_ordering</span><span class="p">:</span>
+        <span class="n">text</span> <span class="o">+=</span> <span class="s1">&#39;&quot;&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">result_dict</span><span class="p">[</span><span class="n">key</span><span class="p">])</span> <span class="o">+</span> <span class="s1">&#39;&quot;,&#39;</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># Remove trailing comma</span>
+    <span class="n">text</span> <span class="o">+=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span>  <span class="c1"># Add newline</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">full_path</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Results saved to </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">full_path</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="read_outcomes_from_file">
+<a class="viewcode-back" href="../modules/utils.html#utils.read_outcomes_from_file">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">read_outcomes_from_file</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="s1">&#39;./results/results.csv&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This function reads in results from the results.csv file. The</span>
+<span class="sd">    function extracts the outcome under the true SCM given the</span>
+<span class="sd">    agent&#39;s decision based on their posterior beliefs, and separates</span>
+<span class="sd">    this by name of modified prior and groups the results by unique</span>
+<span class="sd">    values of the modified prior.</span>
+
+<span class="sd">    E.g. results_summary[&#39;N_E_mu&#39;][&#39;parameter_values&#39;] contains a list of</span>
+<span class="sd">    unique values that N_E_mu have taken in the results.csv-file, and</span>
+<span class="sd">    results_summary[&#39;N_E_mu&#39;][&#39;value_lists&#39;] contains lists of outcomes</span>
+<span class="sd">    where every list corresponds to the parameter value at corresponding</span>
+<span class="sd">    index and every item in the list is the outcome for one randomly</span>
+<span class="sd">    sample X_o.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        file_name (str): Path and file name of results file.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file_name</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">reader</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">reader</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="c1"># Separate headers from contents</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">reader</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">reader</span><span class="p">:</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+
+    <span class="c1"># Separate results by modified parameter name and new value:</span>
+    <span class="c1"># Find column</span>
+    <span class="n">var_name_idx</span> <span class="o">=</span> <span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;Modified prior&#39;</span><span class="p">)</span>
+    <span class="c1"># Find unique row names:</span>
+    <span class="n">modified_var_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">row</span><span class="p">[</span><span class="n">var_name_idx</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">results</span><span class="p">])</span>
+    <span class="c1"># Create dict to store the results in:</span>
+    <span class="n">results_summary</span> <span class="o">=</span> <span class="p">{</span><span class="n">item</span><span class="p">:</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">modified_var_names</span><span class="p">}</span>
+    <span class="c1"># Find index of column with value of modified prior:</span>
+    <span class="n">var_value_idx</span> <span class="o">=</span> <span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;New value of modified prior&#39;</span><span class="p">)</span>
+    <span class="n">posterior_Y_var_idx</span> <span class="o">=</span> <span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;Y_mean_posterior_treatment&#39;</span><span class="p">)</span>
+    <span class="n">prior_Y_var_idx</span> <span class="o">=</span> <span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;Y_mean_prior_treatment&#39;</span><span class="p">)</span>
+    <span class="c1"># Not in use. Only valid for very specific models.</span>
+    <span class="c1"># true_Y_var_idx = headers.index(&#39;Y_mean_true_best_treatment&#39;)</span>
+    <span class="n">prior_CATE_idx</span> <span class="o">=</span> <span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;Prior CATE (sample mean)&#39;</span><span class="p">)</span>
+    <span class="n">posterior_CATE_idx</span> <span class="o">=</span> <span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;Posterior CATE (sample mean)&#39;</span><span class="p">)</span>
+    <span class="n">true_CATE_idx</span> <span class="o">=</span> <span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;True CATE (sample mean)&#39;</span><span class="p">)</span>
+    <span class="c1"># For e.g. the different values that &#39;N_E_mu&#39; takes we want the</span>
+    <span class="c1"># mean outcome Y over all sampled X_o.</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">results_summary</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="c1"># Pick out all rows that matches key:</span>
+        <span class="n">tmp_samples</span> <span class="o">=</span> <span class="p">[</span><span class="n">row</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">results</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="n">var_name_idx</span><span class="p">]</span> <span class="o">==</span> <span class="n">key</span><span class="p">]</span>
+        <span class="c1"># Finding unique values of modified row:</span>
+        <span class="n">unique_values</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="nb">float</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="n">var_value_idx</span><span class="p">])</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">tmp_samples</span><span class="p">]))</span>
+        <span class="n">unique_values</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="c1"># Group the rows by the value of the modified prior and extract the outcome:</span>
+        <span class="n">results_summary</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;parameter_values&#39;</span><span class="p">:</span> <span class="n">unique_values</span><span class="p">}</span>
+        <span class="n">results_summary</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="s1">&#39;prior_value_lists&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">prior_Y_var_idx</span><span class="p">])</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tmp_samples</span>  <span class="c1"># prior predictive Y</span>
+             <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">var_value_idx</span><span class="p">])</span> <span class="o">==</span> <span class="n">param_value</span><span class="p">]</span> <span class="k">for</span> <span class="n">param_value</span> <span class="ow">in</span> <span class="n">unique_values</span><span class="p">]</span>
+        <span class="n">results_summary</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="s1">&#39;posterior_value_lists&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>  <span class="c1"># posterior predictive Y</span>
+            <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">posterior_Y_var_idx</span><span class="p">])</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tmp_samples</span>
+             <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">var_value_idx</span><span class="p">])</span> <span class="o">==</span> <span class="n">param_value</span><span class="p">]</span> <span class="k">for</span> <span class="n">param_value</span> <span class="ow">in</span> <span class="n">unique_values</span><span class="p">]</span>
+        <span class="n">results_summary</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="s1">&#39;prior_CATE_lists&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>   <span class="c1"># prior predictive CATE</span>
+            <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">prior_CATE_idx</span><span class="p">])</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tmp_samples</span>
+             <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">var_value_idx</span><span class="p">])</span> <span class="o">==</span> <span class="n">param_value</span><span class="p">]</span> <span class="k">for</span> <span class="n">param_value</span> <span class="ow">in</span> <span class="n">unique_values</span><span class="p">]</span>
+        <span class="n">results_summary</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="s1">&#39;posterior_CATE_lists&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>  <span class="c1"># posterior predictive CATE</span>
+            <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">posterior_CATE_idx</span><span class="p">])</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tmp_samples</span>
+             <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">var_value_idx</span><span class="p">])</span> <span class="o">==</span> <span class="n">param_value</span><span class="p">]</span> <span class="k">for</span> <span class="n">param_value</span> <span class="ow">in</span> <span class="n">unique_values</span><span class="p">]</span>
+        <span class="n">results_summary</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="s1">&#39;true_CATE_lists&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>  <span class="c1"># CATE based on scm (data generating model)</span>
+            <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">true_CATE_idx</span><span class="p">])</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tmp_samples</span>
+             <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">var_value_idx</span><span class="p">])</span> <span class="o">==</span> <span class="n">param_value</span><span class="p">]</span> <span class="k">for</span> <span class="n">param_value</span> <span class="ow">in</span> <span class="n">unique_values</span><span class="p">]</span>
+            <span class="c1"># Could add calculation of mean, standard deviation etc. here.</span>
+    <span class="k">return</span> <span class="n">results_summary</span></div>
+
+
+
+<div class="viewcode-block" id="parse_results">
+<a class="viewcode-back" href="../modules/utils.html#utils.parse_results">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">parse_results</span><span class="p">(</span><span class="n">mod_var_name</span><span class="o">=</span><span class="s1">&#39;mu_X&#39;</span><span class="p">,</span> <span class="n">file_name</span><span class="o">=</span><span class="s1">&#39;./results/results.csv&#39;</span><span class="p">,</span>
+                  <span class="n">field_names</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;pri_Y_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;post_Y_mean&#39;</span><span class="p">,</span>
+                               <span class="s1">&#39;potential_outcome_A1_mean&#39;</span><span class="p">,</span>
+                               <span class="s1">&#39;potential_outcome_A0_mean&#39;</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Reads result-file and extracts the requested fields to</span>
+<span class="sd">    a numpy-array for e.g. easy plotting. By default, these</span>
+<span class="sd">    are the expected Y-values given the agent&#39;s prior and</span>
+<span class="sd">    posterior beliefs, the true Y values with and without</span>
+<span class="sd">    treatment, and the standard deviations for all of these.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        mod_var_name (str): Name of variable of interest (variable that was modified from</span>
+<span class="sd">            defaults). Selects only corresponding rows from from the result-file.</span>
+<span class="sd">        file_name (str): Path and file name of result-file.</span>
+<span class="sd">        field_names ([str]): List of strings containing the column names of interest to extract</span>
+<span class="sd">            from the result-file.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Read file</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file_name</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">reader</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">reader</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="c1"># Separate headers from contents</span>
+        <span class="n">headers</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">reader</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">reader</span><span class="p">:</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+    <span class="c1"># Find column index for column with modified variable name:</span>
+    <span class="n">mod_var_name_idx</span> <span class="o">=</span> <span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;Modified prior&#39;</span><span class="p">)</span>
+    <span class="n">mod_var_value_idx</span> <span class="o">=</span> <span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;New value of modified prior&#39;</span><span class="p">)</span>
+    <span class="c1"># Find column indices matching field names:</span>
+    <span class="n">field_idx</span> <span class="o">=</span> <span class="p">[</span><span class="n">headers</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">field_names</span><span class="p">]</span>
+    <span class="c1"># Make list of lists with all relevant values.</span>
+    <span class="c1"># Inner list-comprehension extracts everything relevant from a row.</span>
+    <span class="n">mod_var_values</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">mod_var_value_idx</span><span class="p">])</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">results</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="n">mod_var_name_idx</span><span class="p">]</span> <span class="o">==</span> <span class="n">mod_var_name</span><span class="p">]</span>
+    <span class="n">mod_var_values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">mod_var_values</span><span class="p">)</span>
+    <span class="n">outputs</span> <span class="o">=</span> <span class="p">[[</span><span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">field_idx</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> \
+               <span class="ow">in</span> <span class="n">results</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="n">mod_var_name_idx</span><span class="p">]</span> <span class="o">==</span> <span class="n">mod_var_name</span><span class="p">]</span>
+    <span class="n">outputs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">outputs</span><span class="p">)</span>  <span class="c1"># Outputs of every run of requested field_names</span>
+    <span class="c1"># Sort array by value of modified variable</span>
+    <span class="n">sort_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">mod_var_values</span><span class="p">)</span>
+    <span class="n">mod_var_values</span> <span class="o">=</span> <span class="n">mod_var_values</span><span class="p">[</span><span class="n">sort_idx</span><span class="p">]</span>
+    <span class="n">outputs</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="n">sort_idx</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="c1"># Aggregate</span>
+    <span class="n">unique_mod_var_values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">mod_var_values</span><span class="p">)</span>
+    <span class="n">summary_stats</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">unique_mod_var_values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">len</span><span class="p">(</span><span class="n">field_idx</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">unique_mod_var_values</span><span class="p">):</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">mod_var_values</span> <span class="o">==</span> <span class="n">val</span>
+        <span class="n">subset</span> <span class="o">=</span> <span class="n">outputs</span><span class="p">[</span><span class="n">mask</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="c1"># First column contains value of selected mod_var</span>
+        <span class="n">summary_stats</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="c1"># Of the remaining columns, the first half contain the means of the values in columns field_names,</span>
+        <span class="c1"># the remaining contains the standard deviations.</span>
+        <span class="n">summary_stats</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concat</span><span class="p">((</span><span class="n">subset</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">subset</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)))</span>
+    <span class="c1"># Add mod_var_values to leading column in outputs:</span>
+    <span class="n">outputs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concat</span><span class="p">((</span><span class="n">mod_var_values</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">outputs</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="c1"># Return</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">summary_stats</span><span class="p">,</span> <span class="n">outputs</span><span class="p">,</span> <span class="n">field_names</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="plot_CATE_for_var">
+<a class="viewcode-back" href="../modules/utils.html#utils.plot_CATE_for_var">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_CATE_for_var</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">mean_of_x</span><span class="p">,</span> <span class="n">std_of_x</span><span class="p">,</span> <span class="n">x_label</span><span class="p">,</span> <span class="n">file_name</span><span class="p">,</span> <span class="n">x_lim</span><span class="p">,</span> <span class="n">y_lim</span><span class="p">,</span> <span class="n">scan</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Args:</span>
+<span class="sd">    var (str): Name of variable of interest</span>
+<span class="sd">    mean_of_x (float): Mean of horizontal scale (x) to center on.</span>
+<span class="sd">    std_of_x (float): Standard deviation of the horizontal scale (x).</span>
+<span class="sd">        Used for normalizing plot.</span>
+<span class="sd">    x_label (str): Label that will be visible under the x-axis</span>
+<span class="sd">    file_name (str): File name and path of the result file to parse.</span>
+<span class="sd">    x_lim ((float, float)): +-Limits of horizontal axis</span>
+<span class="sd">    y_lim ((float, float)): +-Limits of vertical axis</span>
+
+<span class="sd">    Notes:</span>
+<span class="sd">    Uncertainty of true model (with default values) is tiny.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Prior CATE (sample mean)&#39;</span><span class="p">,</span>
+              <span class="s1">&#39;Posterior CATE (sample mean)&#39;</span><span class="p">,</span>
+              <span class="s1">&#39;True CATE (sample mean)&#39;</span><span class="p">]</span>
+    <span class="n">label_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Without ML-DS&#39;</span><span class="p">,</span> <span class="s1">&#39;With ML-DS&#39;</span><span class="p">,</span> <span class="s1">&#39;True value&#39;</span><span class="p">]</span>
+    <span class="c1"># Threshold used in experiments. If CATE is above this, then treatment A1</span>
+    <span class="c1"># is used. Otherwise A0 is used.</span>
+    <span class="n">threshold</span> <span class="o">=</span> <span class="mi">5</span>
+
+    <span class="n">n_observations</span> <span class="o">=</span> <span class="mi">4000</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">field</span><span class="p">,</span> <span class="n">label_name</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">fields</span><span class="p">,</span> <span class="n">label_names</span><span class="p">):</span>
+        <span class="n">tmp</span> <span class="o">=</span> <span class="n">parse_results</span><span class="p">(</span><span class="n">mod_var_name</span><span class="o">=</span><span class="n">var</span><span class="p">,</span> <span class="n">field_names</span><span class="o">=</span><span class="p">[</span><span class="n">field</span><span class="p">],</span>
+                            <span class="n">file_name</span><span class="o">=</span><span class="n">file_name</span><span class="p">)</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="n">tmp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="c1"># Measure X in units of standard deviation</span>
+        <span class="k">if</span> <span class="n">std_of_x</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="p">(</span><span class="n">values</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">mean_of_x</span><span class="p">)</span> <span class="o">/</span> <span class="n">std_of_x</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">values</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>  <span class="c1"># No normalization</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">values</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="c1"># Standard deviation of means multiplied by sqrt(n) to get std of observations.</span>
+        <span class="c1"># Interpretation: Uncertainty over all X_o (not entirely koscher).</span>
+        <span class="n">yerr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n_observations</span><span class="p">)</span> <span class="o">*</span> <span class="n">values</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="o">+</span><span class="n">yerr</span><span class="p">,</span> <span class="n">y</span><span class="o">-</span><span class="n">yerr</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">field</span> <span class="o">==</span> <span class="s1">&#39;Posterior CATE (sample mean)&#39;</span><span class="p">:</span>
+            <span class="c1"># x_post same as for all plots</span>
+            <span class="n">y_post</span> <span class="o">=</span> <span class="n">tmp</span><span class="p">[</span><span class="mi">0</span><span class="p">][:,</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">yerr_post</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n_observations</span><span class="p">)</span> <span class="o">*</span> <span class="n">tmp</span><span class="p">[</span><span class="mi">0</span><span class="p">][:,</span> <span class="mi">2</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">field</span> <span class="o">==</span> <span class="s1">&#39;True CATE (sample mean)&#39;</span><span class="p">:</span>
+            <span class="n">y_true</span> <span class="o">=</span> <span class="n">tmp</span><span class="p">[</span><span class="mi">0</span><span class="p">][:,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="c1"># Check when posterior is within +-1 std from true mean:</span>
+    <span class="c1"># That would indicate that the certainty has correctly increased.</span>
+    <span class="n">tmp1</span> <span class="o">=</span> <span class="p">(</span><span class="n">y_true</span> <span class="o">&gt;</span> <span class="n">y_post</span> <span class="o">-</span> <span class="n">yerr_post</span><span class="p">)</span>
+    <span class="n">tmp2</span> <span class="o">=</span> <span class="p">(</span><span class="n">y_true</span> <span class="o">&lt;</span> <span class="n">y_post</span> <span class="o">+</span> <span class="n">yerr_post</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">tmp1</span> <span class="o">&amp;</span> <span class="n">tmp2</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">where</span><span class="o">=</span><span class="n">mask</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">ax</span><span class="o">.</span><span class="n">get_xaxis_transform</span><span class="p">(),</span>
+                    <span class="n">color</span><span class="o">=</span><span class="s1">&#39;lightgray&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">.4</span><span class="p">)</span>
+    <span class="c1"># Add dotted line for threshold selection</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">y</span><span class="o">=</span><span class="n">threshold</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;black&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Treatment threshold&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">x_lim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">(</span><span class="n">x_lim</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">(</span><span class="n">y_lim</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+    <span class="c1"># plt.xlabel(&#39;Prior beliefs on $\\{}$&#39;.format(label))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="n">x_label</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;CATE&#39;</span><span class="p">)</span>
+    <span class="c1">#plt.title(title)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s1">&#39;./fig/</span><span class="si">{}</span><span class="s1">_CATE_</span><span class="si">{}</span><span class="s1">.pdf&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">scan</span><span class="p">,</span> <span class="n">var</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="plot_CATEs">
+<a class="viewcode-back" href="../modules/utils.html#utils.plot_CATEs">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_CATEs</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="s1">&#39;./results/results_18_2.csv&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function for plotting CATEs.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">    file_name (str): Path and name of result file.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">scans</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;wide&#39;</span><span class="p">,</span> <span class="s1">&#39;focused&#39;</span><span class="p">]</span>
+    <span class="n">var_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;mu_X&#39;</span><span class="p">,</span> <span class="s1">&#39;N_E_mu&#39;</span><span class="p">,</span> <span class="s1">&#39;mu_Y&#39;</span><span class="p">,</span> <span class="s1">&#39;mu_A&#39;</span><span class="p">]</span>
+    <span class="n">mean_of_vars</span> <span class="o">=</span> <span class="p">[</span><span class="mf">80.0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]</span>
+    <span class="n">std_of_vars</span> <span class="o">=</span> <span class="p">[</span><span class="mi">10</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>  <span class="c1"># N_E does not really have a variance.</span>
+    <span class="c1"># Limits for wide scan results:</span>
+    <span class="n">x_lim_arrays</span> <span class="o">=</span> <span class="p">[[(</span><span class="o">-</span><span class="mi">30</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">30</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">30</span><span class="p">,</span> <span class="mi">30</span><span class="p">)],</span>
+                    <span class="p">[(</span><span class="o">-</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="p">(</span><span class="mf">.7</span><span class="p">,</span> <span class="mf">1.3</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)]]</span>  <span class="c1"># This second for focused plots</span>
+    <span class="n">y_lims</span> <span class="o">=</span> <span class="p">[(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">30</span><span class="p">,</span> <span class="mi">50</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">15</span><span class="p">,</span> <span class="mi">35</span><span class="p">),</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)]</span>
+    <span class="n">x_labels</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Deviation of prior belief $</span><span class="se">\\</span><span class="s1">alpha_{</span><span class="se">\\</span><span class="s1">mu_X}$ from $</span><span class="se">\\</span><span class="s1">mu_X$ in units of SD ($</span><span class="se">\\</span><span class="s1">alpha_{</span><span class="se">\\</span><span class="s1">sigma_X}$)&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;Prior belief on $N_E$&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;Deviation of prior belief $</span><span class="se">\\</span><span class="s1">alpha_{</span><span class="se">\\</span><span class="s1">mu_Y}$ from $</span><span class="se">\\</span><span class="s1">mu_Y$ in units of SD ($</span><span class="se">\\</span><span class="s1">alpha_{</span><span class="se">\\</span><span class="s1">sigma_Y}$)&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;Deviation of prior belief $</span><span class="se">\\</span><span class="s1">alpha_{</span><span class="se">\\</span><span class="s1">mu_Y}$ from $</span><span class="se">\\</span><span class="s1">mu_A$ in units of SD ($</span><span class="se">\\</span><span class="s1">alpha_{</span><span class="se">\\</span><span class="s1">sigma_A}$)&#39;</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">scan</span><span class="p">,</span> <span class="n">x_lims</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">scans</span><span class="p">,</span> <span class="n">x_lim_arrays</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">var_name</span><span class="p">,</span> <span class="n">x_label</span><span class="p">,</span> <span class="n">mean_of_var</span><span class="p">,</span> <span class="n">std_of_var</span><span class="p">,</span> <span class="n">x_lim</span><span class="p">,</span> <span class="n">y_lim</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">var_names</span><span class="p">,</span> <span class="n">x_labels</span><span class="p">,</span> <span class="n">mean_of_vars</span><span class="p">,</span> <span class="n">std_of_vars</span><span class="p">,</span> <span class="n">x_lims</span><span class="p">,</span> <span class="n">y_lims</span><span class="p">):</span>
+            <span class="n">plot_CATE_for_var</span><span class="p">(</span><span class="n">var</span><span class="o">=</span><span class="n">var_name</span><span class="p">,</span> <span class="n">std_of_x</span><span class="o">=</span><span class="n">std_of_var</span><span class="p">,</span>
+                              <span class="n">mean_of_x</span><span class="o">=</span><span class="n">mean_of_var</span><span class="p">,</span> <span class="n">x_label</span><span class="o">=</span><span class="n">x_label</span><span class="p">,</span>
+                              <span class="n">file_name</span><span class="o">=</span><span class="n">file_name</span><span class="p">,</span> <span class="n">x_lim</span><span class="o">=</span><span class="n">x_lim</span><span class="p">,</span>
+                              <span class="n">y_lim</span><span class="o">=</span><span class="n">y_lim</span><span class="p">,</span> <span class="n">scan</span><span class="o">=</span><span class="n">scan</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="plot_all_Y">
+<a class="viewcode-back" href="../modules/utils.html#utils.plot_all_Y">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_all_Y</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="s1">&#39;./results/results_18_2.csv&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Method for plotting all boxplots for outcomes Y</span>
+<span class="sd">    under treatment selected based on beliefs.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">    file_name (str): Path and name of result file.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">scans</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;wide&#39;</span><span class="p">,</span> <span class="s1">&#39;focused&#39;</span><span class="p">]</span>
+    <span class="n">var_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;mu_X&#39;</span><span class="p">,</span> <span class="s1">&#39;N_E_mu&#39;</span><span class="p">,</span> <span class="s1">&#39;mu_Y&#39;</span><span class="p">,</span> <span class="s1">&#39;mu_A&#39;</span><span class="p">]</span>
+    <span class="n">mean_of_vars</span> <span class="o">=</span> <span class="p">[</span><span class="mf">80.0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]</span>
+    <span class="n">std_of_vars</span> <span class="o">=</span> <span class="p">[</span><span class="mf">10.0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]</span>  <span class="c1"># N_E does not really have a variance.</span>
+    <span class="n">keep_rates</span> <span class="o">=</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="c1"># labels = [&#39;Prior beliefs on $\\mu_X$&#39;, &#39;Prior beliefs on $N_E$&#39;,</span>
+    <span class="c1">#             &#39;Prior beliefs on $\\mu_Y$&#39;, &#39;Prior beliefs on $\\mu_A$&#39;]</span>
+    <span class="c1"># Limits for wide and focused scan plots:</span>
+    <span class="n">x_lim_array</span> <span class="o">=</span> <span class="p">[[(</span><span class="o">-</span><span class="mi">30</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mf">.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">30</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">30</span><span class="p">,</span> <span class="mi">30</span><span class="p">)],</span>
+                   <span class="p">[(</span><span class="o">-</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="p">(</span><span class="mf">.7</span><span class="p">,</span> <span class="mf">1.3</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="p">(</span><span class="o">-</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)]]</span>
+    <span class="c1"># Forcing sns to use matplotlib styles:</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">set_theme</span><span class="p">(</span><span class="n">style</span><span class="o">=</span><span class="s1">&#39;white&#39;</span><span class="p">)</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">set_context</span><span class="p">(</span><span class="n">rc</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">)</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">color_palette</span><span class="p">(</span><span class="s1">&#39;tab10&#39;</span><span class="p">,</span> <span class="n">desat</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+
+    <span class="n">results</span> <span class="o">=</span> <span class="n">read_outcomes_from_file</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="n">file_name</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">scan</span><span class="p">,</span> <span class="n">x_lims</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">scans</span><span class="p">,</span> <span class="n">x_lim_array</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">mean_x</span><span class="p">,</span> <span class="n">std_x</span><span class="p">,</span> <span class="n">keep_rate</span><span class="p">,</span> <span class="n">xlim</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">var_names</span><span class="p">,</span> <span class="n">mean_of_vars</span><span class="p">,</span> <span class="n">std_of_vars</span><span class="p">,</span> <span class="n">keep_rates</span><span class="p">,</span> <span class="n">x_lims</span><span class="p">):</span>
+            <span class="c1"># Select only results that falls precisely on a predefined grid</span>
+            <span class="c1"># to keep graph legible:</span>
+            <span class="n">tmp_res</span> <span class="o">=</span> <span class="n">match_to_grid</span><span class="p">(</span><span class="n">results</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="n">key</span><span class="p">,</span> <span class="n">scan_type</span><span class="o">=</span><span class="n">scan</span><span class="p">)</span>
+            <span class="c1"># Plot</span>
+            <span class="n">plot_prior_and_posterior_Y</span><span class="p">(</span><span class="n">summary</span><span class="o">=</span><span class="n">tmp_res</span><span class="p">,</span> <span class="n">variable_name</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+                                             <span class="n">mean_x</span><span class="o">=</span><span class="n">mean_x</span><span class="p">,</span> <span class="n">std_x</span><span class="o">=</span><span class="n">std_x</span><span class="p">,</span>
+                                             <span class="n">xlim</span><span class="o">=</span><span class="n">xlim</span><span class="p">,</span> <span class="n">scan</span><span class="o">=</span><span class="n">scan</span><span class="p">,</span> <span class="n">keep_rate</span><span class="o">=</span><span class="n">keep_rate</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="match_to_grid">
+<a class="viewcode-back" href="../modules/utils.html#utils.match_to_grid">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">match_to_grid</span><span class="p">(</span><span class="n">summary</span><span class="p">,</span> <span class="n">mod_var_name</span><span class="p">,</span> <span class="n">scan_type</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function to subset result data to contain only items that</span>
+<span class="sd">    match some grid. This is needed for the boxplot that does</span>
+<span class="sd">    not treat the x-axis as continuous.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Parameters used for standardization of units in plots</span>
+    <span class="n">scm_noise_parameters</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+                            <span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>
+                            <span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span>
+                            <span class="s1">&#39;N_E&#39;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">}</span>
+
+    <span class="n">deviations</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="mi">30</span><span class="p">,</span> <span class="mi">31</span><span class="p">)]</span>  <span class="c1"># 31 because not inclusive of upper bound.</span>
+    <span class="k">if</span> <span class="n">scan_type</span> <span class="o">==</span> <span class="s1">&#39;wide&#39;</span><span class="p">:</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;mu_A&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">deviation</span> <span class="o">*</span> <span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">deviation</span> <span class="ow">in</span> <span class="n">deviations</span><span class="p">],</span>
+            <span class="s1">&#39;mu_X&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">deviation</span> <span class="o">*</span> <span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">deviation</span> <span class="ow">in</span> <span class="n">deviations</span><span class="p">],</span>
+            <span class="s1">&#39;mu_Y&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">deviation</span> <span class="o">*</span> <span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">deviation</span> <span class="ow">in</span> <span class="n">deviations</span><span class="p">],</span>
+            <span class="s1">&#39;N_E_mu&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;N_E&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">deviation</span> <span class="o">*</span> <span class="mf">0.05</span> <span class="k">for</span> <span class="n">deviation</span> <span class="ow">in</span> <span class="n">deviations</span><span class="p">]</span>
+            <span class="p">}</span>
+    <span class="k">elif</span> <span class="n">scan_type</span> <span class="o">==</span> <span class="s1">&#39;focused&#39;</span><span class="p">:</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;mu_A&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">deviation</span> <span class="o">/</span> <span class="mi">10</span> <span class="o">*</span> <span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">deviation</span> <span class="ow">in</span> <span class="n">deviations</span><span class="p">],</span>
+            <span class="s1">&#39;mu_X&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">deviation</span> <span class="o">/</span> <span class="mi">10</span> <span class="o">*</span> <span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">deviation</span> <span class="ow">in</span> <span class="n">deviations</span><span class="p">],</span>
+            <span class="s1">&#39;mu_Y&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">deviation</span> <span class="o">/</span> <span class="mi">10</span> <span class="o">*</span> <span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">deviation</span> <span class="ow">in</span> <span class="n">deviations</span><span class="p">],</span>
+            <span class="s1">&#39;N_E_mu&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;N_E&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">deviation</span> <span class="o">/</span> <span class="mi">10</span> <span class="o">*</span> <span class="mf">0.05</span> <span class="k">for</span> <span class="n">deviation</span> <span class="ow">in</span> <span class="n">deviations</span><span class="p">]</span>
+            <span class="p">}</span>
+    <span class="c1"># Summary stats and outputs both have a leading column with the x-value (prior setting)</span>
+    <span class="n">grid</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="n">mod_var_name</span><span class="p">]</span>
+    <span class="n">tmp</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">summary</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="n">tmp</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">param_value</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">summary</span><span class="p">[</span><span class="s1">&#39;parameter_values&#39;</span><span class="p">]):</span>
+            <span class="k">if</span> <span class="n">param_value</span> <span class="ow">in</span> <span class="n">grid</span><span class="p">:</span>
+                <span class="n">tmp</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">summary</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="n">i</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">tmp</span></div>
+
+
+
+<div class="viewcode-block" id="plot_prior_and_posterior_Y">
+<a class="viewcode-back" href="../modules/utils.html#utils.plot_prior_and_posterior_Y">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_prior_and_posterior_Y</span><span class="p">(</span><span class="n">summary</span><span class="p">,</span> <span class="n">variable_name</span><span class="p">,</span> <span class="n">mean_x</span><span class="p">,</span> <span class="n">std_x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                               <span class="n">xlim</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="n">scan</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">keep_rate</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function for creating boxplots</span>
+<span class="sd">    </span>
+<span class="sd">    :param summary: Description</span>
+<span class="sd">    :param variable_name: Description</span>
+<span class="sd">    mean_x (float):  Mean of x (for normalization)</span>
+<span class="sd">    std_x (float): Standard deviation of x (for normalization)</span>
+<span class="sd">    scan (str): &#39;wide&#39; or &#39;focused&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Would need to drop boxes so that we at most have 30 boxes of</span>
+    <span class="c1"># both groups.</span>
+    <span class="c1"># We also need to reduce the amount of ticks</span>
+    <span class="c1"># The horizontal axis should be changed to units of SD</span>
+    <span class="c1"># Maybe pick a range so that we can keep a fixed fraction</span>
+    <span class="c1"># like 1/2, 1/4, 1/8 etc to keep the scale constant.</span>
+
+    <span class="c1"># Clip range of plot (from original)?</span>
+    <span class="c1"># Same range as for belief-plots? Would enable comparison side by side.</span>
+
+    <span class="n">categories</span> <span class="o">=</span> <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;parameter_values&#39;</span><span class="p">]</span>
+    <span class="c1"># Center and normalize (if possible):</span>
+    <span class="k">if</span> <span class="n">std_x</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">categories</span> <span class="o">=</span> <span class="p">[(</span><span class="n">item</span> <span class="o">-</span> <span class="n">mean_x</span><span class="p">)</span> <span class="o">/</span> <span class="n">std_x</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">categories</span><span class="p">]</span>
+    <span class="c1"># Select which ones to include based on range in units of SD</span>
+    <span class="k">if</span> <span class="n">xlim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">keep_idx</span> <span class="o">=</span> <span class="p">[</span><span class="kc">True</span> <span class="k">if</span> <span class="n">xlim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">val</span> <span class="o">&lt;=</span> <span class="n">xlim</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">else</span> <span class="kc">False</span> <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">categories</span><span class="p">]</span>
+        <span class="c1"># Further drop observations when necessary</span>
+        <span class="n">keep_idx</span> <span class="o">=</span> <span class="p">[</span><span class="kc">True</span> <span class="k">if</span> <span class="n">keep</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">i</span><span class="o">%</span><span class="n">keep_rate</span><span class="o">==</span><span class="mi">0</span><span class="p">)</span> <span class="k">else</span> <span class="kc">False</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">keep</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">keep_idx</span><span class="p">)]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">keep_idx</span> <span class="o">=</span> <span class="p">[</span><span class="kc">True</span> <span class="k">if</span> <span class="p">(</span><span class="n">i</span><span class="o">%</span><span class="n">keep_rate</span><span class="o">==</span><span class="mi">0</span><span class="p">)</span> <span class="k">else</span> <span class="kc">False</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">categories</span><span class="p">)]</span>
+    <span class="c1"># Pick selected categories</span>
+    <span class="n">categories</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">item</span><span class="p">,</span> <span class="n">keep</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">categories</span><span class="p">,</span> <span class="n">keep_idx</span><span class="p">)</span> <span class="k">if</span> <span class="n">keep</span><span class="p">]</span>
+    <span class="c1">#categories = [item for i, item in enumerate(categories) if i%keep_rate==0]</span>
+
+    <span class="n">prior_values</span> <span class="o">=</span> <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;posterior_value_lists&#39;</span><span class="p">]</span>
+    <span class="c1">#prior_values = [item for i, item in enumerate(prior_values) if i%keep_rate==0]</span>
+    <span class="n">prior_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">item</span><span class="p">,</span> <span class="n">keep</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">prior_values</span><span class="p">,</span> <span class="n">keep_idx</span><span class="p">)</span> <span class="k">if</span> <span class="n">keep</span><span class="p">]</span>
+    <span class="n">posterior_values</span> <span class="o">=</span> <span class="n">summary</span><span class="p">[</span><span class="s1">&#39;prior_value_lists&#39;</span><span class="p">]</span>
+    <span class="c1">#posterior_values = [item for i, item in enumerate(posterior_values) if i%keep_rate==0]</span>
+    <span class="n">posterior_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">item</span><span class="p">,</span> <span class="n">keep</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">posterior_values</span><span class="p">,</span> <span class="n">keep_idx</span><span class="p">)</span> <span class="k">if</span> <span class="n">keep</span><span class="p">]</span>
+    <span class="c1">#prior_value_list = [item for i, item in enumerate(summary[&#39;prior_value_lists&#39;]) if i%keep_rate==0]</span>
+    <span class="n">prior_value_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">item</span><span class="p">,</span> <span class="n">keep</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">summary</span><span class="p">[</span><span class="s1">&#39;prior_value_lists&#39;</span><span class="p">],</span> <span class="n">keep_idx</span><span class="p">)</span> <span class="k">if</span> <span class="n">keep</span><span class="p">]</span>
+    <span class="c1">#posterior_value_list = [item for i, item in enumerate(summary[&#39;posterior_value_lists&#39;]) if i%keep_rate==0]</span>
+    <span class="n">posterior_value_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">item</span><span class="p">,</span> <span class="n">keep</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">summary</span><span class="p">[</span><span class="s1">&#39;posterior_value_lists&#39;</span><span class="p">],</span> <span class="n">keep_idx</span><span class="p">)</span> <span class="k">if</span> <span class="n">keep</span><span class="p">]</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">prior_value_list</span> <span class="o">+</span> <span class="n">posterior_value_list</span>
+    <span class="c1">#values = summary[&#39;prior_value_lists&#39;] + summary[&#39;posterior_value_lists&#39;]</span>
+    <span class="c1">#values = [item for i, item in enumerate(values) if i%inverse_drop_rate==0]</span>
+
+
+    <span class="n">prior_categories</span> <span class="o">=</span> <span class="p">[[</span><span class="n">category</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">prior_values</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">category</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">categories</span><span class="p">)]</span>
+    <span class="n">posterior_categories</span> <span class="o">=</span> <span class="p">[[</span><span class="n">category</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">posterior_values</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">category</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">categories</span><span class="p">)]</span>
+    <span class="n">categories</span> <span class="o">=</span> <span class="n">prior_categories</span> <span class="o">+</span> <span class="n">posterior_categories</span>
+    <span class="n">categories</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">categories</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">row</span><span class="p">]</span>
+    <span class="n">prior_series</span> <span class="o">=</span> <span class="p">[[</span><span class="s1">&#39;Without ML-DS&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">prior_values</span><span class="p">]</span>
+    <span class="n">prior_series</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">prior_series</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">row</span><span class="p">]</span>
+    <span class="n">posterior_series</span> <span class="o">=</span> <span class="p">[[</span><span class="s1">&#39;With ML-DS&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">posterior_values</span><span class="p">]</span>
+    <span class="n">posterior_series</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">posterior_series</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">row</span><span class="p">]</span>
+    <span class="n">series</span> <span class="o">=</span> <span class="n">prior_series</span> <span class="o">+</span> <span class="n">posterior_series</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">values</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">row</span><span class="p">]</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;Prior belief&#39;</span><span class="p">:</span> <span class="n">categories</span><span class="p">,</span>  <span class="c1"># x-value</span>
+            <span class="s1">&#39;Outcomes&#39;</span><span class="p">:</span> <span class="n">series</span><span class="p">,</span>  <span class="c1"># &quot;Prior predictive&quot; etc</span>
+            <span class="s1">&#39;Y&#39;</span><span class="p">:</span> <span class="n">values</span><span class="p">}</span>  <span class="c1"># </span>
+    <span class="c1"># Format ticks:</span>
+    <span class="n">x_ticks</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">categories</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">variable_name</span><span class="o">==</span><span class="s1">&#39;N_E_mu&#39;</span><span class="p">:</span>
+        <span class="c1"># Two decimals in ticks for both N_E plots:</span>
+        <span class="n">x_ticks</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;</span><span class="si">{:.2f}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span><span class="o">%</span><span class="mi">5</span><span class="o">==</span><span class="mi">0</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">x_ticks</span><span class="p">)]</span>
+        <span class="c1"># x_ticks = [str(val) if i%5==0 else &#39;&#39; for i, val in enumerate(x_ticks)]</span>
+    <span class="k">elif</span> <span class="n">scan</span> <span class="o">==</span> <span class="s1">&#39;wide&#39;</span><span class="p">:</span>
+        <span class="c1"># No decimals in ticks:</span>
+        <span class="n">x_ticks</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;</span><span class="si">{:.0f}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span><span class="o">%</span><span class="mi">5</span><span class="o">==</span><span class="mi">0</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">x_ticks</span><span class="p">)]</span>
+    <span class="k">elif</span> <span class="n">variable_name</span><span class="o">==</span><span class="s1">&#39;mu_A&#39;</span> <span class="ow">and</span> <span class="n">scan</span> <span class="o">==</span> <span class="s1">&#39;focused&#39;</span><span class="p">:</span>
+        <span class="n">x_ticks</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;</span><span class="si">{:.1f}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span><span class="o">%</span><span class="mi">5</span><span class="o">==</span><span class="mi">0</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">x_ticks</span><span class="p">)]</span>
+    <span class="k">elif</span> <span class="n">variable_name</span> <span class="o">==</span> <span class="s1">&#39;mu_Y&#39;</span> <span class="ow">and</span> <span class="n">scan</span> <span class="o">==</span> <span class="s1">&#39;focused&#39;</span><span class="p">:</span>
+        <span class="n">x_ticks</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;</span><span class="si">{:.1f}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span><span class="o">%</span><span class="mi">5</span><span class="o">==</span><span class="mi">0</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">x_ticks</span><span class="p">)]</span>
+        
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">x_ticks</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span><span class="o">%</span><span class="mi">5</span><span class="o">==</span><span class="mi">0</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">x_ticks</span><span class="p">)]</span>
+
+    <span class="n">sns</span><span class="o">.</span><span class="n">boxplot</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="s1">&#39;Prior belief&#39;</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="s1">&#39;Y&#39;</span><span class="p">,</span> <span class="n">hue</span><span class="o">=</span><span class="s1">&#39;Outcomes&#39;</span><span class="p">,</span> <span class="n">saturation</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">gca</span><span class="p">()</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">x_ticks</span><span class="p">)</span>
+    <span class="c1">#plt.tight_layout()</span>
+    <span class="n">file_name</span> <span class="o">=</span> <span class="s1">&#39;./fig/</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">_Y_boxplot.pdf&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">scan</span><span class="p">,</span> <span class="n">variable_name</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">file_name</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="plot_all">
+<a class="viewcode-back" href="../modules/utils.html#utils.plot_all">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">plot_all</span><span class="p">(</span><span class="n">file_name</span><span class="o">=</span><span class="s1">&#39;./results/results_18_2.csv&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function that reads in all results from ./results/results.csv and</span>
+<span class="sd">    creates boxplots for all variables found in column &quot;Modified variables&quot;.</span>
+<span class="sd">    Note that the plotting methods are custom made for specific plots</span>
+<span class="sd">    and might need tweaking with new data (e.g. plot ranges).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Creating line- and boxplots.&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Existing files are overwritten.&quot;</span><span class="p">)</span>
+    <span class="c1"># Create all CATE-plots:</span>
+    <span class="n">plot_CATEs</span><span class="p">(</span><span class="n">file_name</span><span class="p">)</span>
+    <span class="c1"># Create all boxplots:</span>
+    <span class="n">plot_all_Y</span><span class="p">(</span><span class="n">file_name</span><span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

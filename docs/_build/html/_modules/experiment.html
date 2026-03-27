@@ -1,0 +1,450 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>experiment &mdash; CapturingUsersPredictionModels 1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=f2a433a1"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            CapturingUsersPredictionModels
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules/agent_model.html">Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/utils.html">Utilities</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">SLURM Scripts</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules/completion_check.html">Completion Check</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file.html">Generate Parameter File</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CapturingUsersPredictionModels</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Module code</a></li>
+      <li class="breadcrumb-item active">experiment</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for experiment</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module provides functionality to run experiments that test agent decision-making</span>
+<span class="sd">with and without decision support systems.</span>
+
+<span class="sd">The script takes three command line parameters where the first one</span>
+<span class="sd">is the key in agent_priors to modify, the second one what value </span>
+<span class="sd">agent_priors[key] should take, and the third one what value X_o</span>
+<span class="sd">should take.</span>
+
+<span class="sd">Example:</span>
+
+<span class="sd">.. code-block:: bash</span>
+
+<span class="sd">    python experiment.py N_E_mu -20 72</span>
+
+<span class="sd">This would set the value of the prior distribution of N_E to -20 and</span>
+<span class="sd">use 72kg as the feature of the observed patient.</span>
+
+
+<span class="sd">Notes:</span>
+<span class="sd">Could perhaps implement support for changing plate size and SCM parameters</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">arviz</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">az</span>
+<span class="c1"># import matplotlib.pyplot as plt  # Not used in array job.</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.linear_model</span><span class="w"> </span><span class="kn">import</span> <span class="n">LinearRegression</span>
+<span class="c1"># Project specific:</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">scm</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">utils</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">agent_model</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">am</span>
+
+
+
+<span class="c1"># Set number of observations used to train prediction model.</span>
+<span class="c1"># This is also the plate size used in the agent&#39;s belief model.</span>
+<span class="n">plate_size</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="n">scm_noise_parameters</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+                        <span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>
+                        <span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span>
+                        <span class="s1">&#39;N_E&#39;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">}</span>
+
+<span class="c1"># Set scm agent priors to the same</span>
+<span class="n">predictive_var_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">scm_noise_parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="o">!=</span> <span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">]</span>
+<span class="n">scm_constants</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;a&#39;</span><span class="p">:</span> <span class="mf">12.0</span><span class="p">,</span> <span class="s1">&#39;b&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.1</span><span class="p">,</span> <span class="s1">&#39;d&#39;</span><span class="p">:</span> <span class="mf">0.125</span><span class="p">}</span>
+<span class="n">draws</span> <span class="o">=</span> <span class="mi">1000</span>  <span class="c1"># Number of draws for trace. Warmup is set to 1000.</span>
+<span class="c1"># Default values of agent priors. One value is overwritten in main().</span>
+<span class="n">agent_priors</span> <span class="o">=</span>\
+    <span class="p">{</span><span class="s1">&#39;mu_X&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s1">&#39;sigma_X&#39;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s1">&#39;mu_sigma_X&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="s1">&#39;sigma_sigma_X&#39;</span><span class="p">:</span><span class="mf">0.1</span><span class="p">,</span>
+     <span class="s1">&#39;mu_A&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;sigma_A&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;mu_sigma_A&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;sigma_sigma_A&#39;</span><span class="p">:</span><span class="mf">0.1</span><span class="p">,</span>
+     <span class="s1">&#39;mu_Y&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;sigma_Y&#39;</span><span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span> <span class="s1">&#39;mu_sigma_Y&#39;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s1">&#39;sigma_sigma_Y&#39;</span> <span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span>
+     <span class="s1">&#39;N_E_mu&#39;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="s1">&#39;N_E_sigma&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+<span class="c1"># changed agent prior sigma_Y from 1 to 0.1, this is a choice</span>
+<span class="c1"># changed prior of lambda_X from 10 to 0.1, this was a mistake</span>
+<span class="c1"># Treatment info</span>
+<span class="n">A1_treatment</span> <span class="o">=</span> <span class="mi">20</span>
+<span class="n">A0_treatment</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="c1"># Only if treatment A1 is expected to produce an outcome that is threshold=2 above</span>
+<span class="c1"># the expected outcome with A0 is A1 used. This corresponds to e.g. A1 being more</span>
+<span class="c1"># expensive or to A1 having larger side effects.</span>
+<span class="n">threshold</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="n">parameter_descriptions</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;agent_priors&#39;</span><span class="p">:</span> <span class="s1">&#39;Default&#39;</span><span class="p">,</span>
+                          <span class="s1">&#39;scm_constants&#39;</span><span class="p">:</span> <span class="s1">&#39;Default&#39;</span><span class="p">,</span>
+                          <span class="s1">&#39;scm_noise_parameters&#39;</span><span class="p">:</span> <span class="s1">&#39;Default&#39;</span><span class="p">}</span>
+<span class="n">rng</span> <span class="o">=</span> <span class="mi">4</span>  <span class="c1"># Selected by fair die</span>
+
+<div class="viewcode-block" id="main">
+<a class="viewcode-back" href="../modules/experiment.html#experiment.main">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">agent_priors</span><span class="p">,</span> <span class="n">modified_prior</span><span class="p">,</span>
+         <span class="n">A1_treatment</span><span class="o">=</span><span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="o">=</span><span class="n">A0_treatment</span><span class="p">,</span>
+         <span class="n">plate_size</span><span class="o">=</span><span class="n">plate_size</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+         <span class="n">scm_noise_parameters</span><span class="o">=</span><span class="n">scm_noise_parameters</span><span class="p">,</span>
+         <span class="n">scm_constants</span><span class="o">=</span><span class="n">scm_constants</span><span class="p">,</span>
+         <span class="n">parameter_descriptions</span><span class="o">=</span><span class="n">parameter_descriptions</span><span class="p">,</span>
+         <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Args:</span>
+<span class="sd">        X_o (np.array): Feature value of the observed patient (e.g. in kg).</span>
+<span class="sd">        agent_priors (dict): Dictionary with all values that encodes the</span>
+<span class="sd">            agent&#39;s prior beliefs.</span>
+<span class="sd">        modified_prior (dict): Information about which prior was changed</span>
+<span class="sd">            and how much.</span>
+<span class="sd">        A1_treatment (float): Value of treatment 1.</span>
+<span class="sd">        A0_treatment (float): Value of treatment 0.</span>
+<span class="sd">        plate_size (int): Size of plate / number or observations to generate</span>
+<span class="sd">            for regression model. Measure of &quot;evidence&quot; for predictions from</span>
+<span class="sd">            decision support model.</span>
+<span class="sd">        draws (int): Size of sample to generate in sampling events.</span>
+<span class="sd">        scm_noise_parameters (dict): Dict with keys needed in SCM-class.</span>
+<span class="sd">        scm_constants (dict): Constants defining the relationships in the SCM.</span>
+<span class="sd">        rng (int or rng): Seed or rng for reproducibility.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="c1"># 1. SCM-instance to generate population data under the</span>
+    <span class="c1">#    historical treatment policy.</span>
+    <span class="c1">#    X is sampled from the population distribution, A</span>
+    <span class="c1">#    is the treatment given under the historical treatment</span>
+    <span class="c1">#    policy given X, and Y is the outcome given X and A.</span>
+    <span class="n">data_scm</span> <span class="o">=</span> <span class="n">scm</span><span class="o">.</span><span class="n">SCM</span><span class="p">(</span><span class="o">**</span><span class="n">scm_noise_parameters</span><span class="p">)</span>
+
+    <span class="c1"># 2. Generate data. This is identical to the true</span>
+    <span class="c1">#    underlying generating process and the outcomes</span>
+    <span class="c1">#    Y are outcomes under the historical treatment</span>
+    <span class="c1">#    policy.</span>
+    <span class="n">X</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">Y_historical</span><span class="p">,</span> <span class="o">*</span><span class="n">_</span> <span class="o">=</span> <span class="n">data_scm</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">draws</span><span class="o">=</span><span class="n">plate_size</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+
+    <span class="c1"># 3. Train prediction model on historical data.</span>
+    <span class="c1">#    Calculated as the Moore-Penrose pseudo-inverse. No randomness.</span>
+    <span class="n">pred_model</span> <span class="o">=</span> <span class="n">LinearRegression</span><span class="p">(</span><span class="n">fit_intercept</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">Y_historical</span><span class="p">)</span>
+
+    <span class="c1"># 4. The prediction model is next used for decision support. The physician</span>
+    <span class="c1">#    inputs the data of the patient and the prediction model produces a prediction.</span>
+    <span class="n">pred_o</span> <span class="o">=</span> <span class="n">pred_model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_o</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>  <span class="c1"># The observed prediction</span>
+    <span class="c1"># print(&quot;The predicted outcome for this patient weighing {}kg is {}.&quot;.format(X_o, pred_o[0]))</span>
+
+    <span class="c1"># 5. Define the agent model.</span>
+    <span class="c1">#    Using same _constants_ for agent&#39;s internal SCM as for data generating SCM.</span>
+    <span class="n">agent_model</span> <span class="o">=</span> <span class="n">am</span><span class="o">.</span><span class="n">AgentModel</span><span class="p">(</span><span class="n">prior_parameters</span><span class="o">=</span><span class="n">agent_priors</span><span class="p">,</span>
+                                <span class="n">scm_constants</span><span class="o">=</span><span class="n">scm_constants</span><span class="p">,</span>
+                                <span class="n">predictive_var_names</span><span class="o">=</span><span class="n">predictive_var_names</span><span class="p">,</span>
+                                <span class="n">plate_size</span><span class="o">=</span><span class="n">plate_size</span><span class="p">)</span>
+
+    <span class="c1"># 6. Predictive estimates and treatment decision under prior beliefs</span>
+    <span class="n">prior_CATE_mu</span> <span class="o">=</span> <span class="n">agent_model</span><span class="o">.</span><span class="n">get_prior_CATE_mu</span><span class="p">(</span><span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">)</span>
+    <span class="n">prior_CATE_samples_</span><span class="p">,</span> <span class="n">prior_CATE_mean</span><span class="p">,</span> <span class="n">prior_CATE_std</span> <span class="o">=</span> \
+        <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_prior_predictive_CATE</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">)</span>
+    <span class="n">prior_treatment</span> <span class="o">=</span> <span class="n">A1_treatment</span> <span class="k">if</span> <span class="n">prior_CATE_mean</span> <span class="o">&gt;</span> <span class="n">threshold</span> <span class="k">else</span> <span class="n">A0_treatment</span>
+    <span class="n">prior_predictive_summaries</span> <span class="o">=</span> <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_prior_predictive_summaries</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+
+    <span class="c1"># 7. Predictive estimates and treatment decision under posterior beliefs</span>
+    <span class="c1"># The agent&#39;s beliefs are updated / the posterior given the observed data is sampled.</span>
+    <span class="n">agent_model</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">X_o</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">X_o</span><span class="p">),</span> <span class="n">pred_o</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">pred_o</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">draws</span><span class="o">=</span><span class="n">draws</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+    <span class="c1"># Model diagnostics</span>
+    <span class="n">rhat_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">rhat</span><span class="p">(</span><span class="n">agent_model</span><span class="o">.</span><span class="n">trace</span><span class="p">)</span>
+    <span class="n">ess_bulk_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">ess</span><span class="p">(</span><span class="n">agent_model</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;bulk&#39;</span><span class="p">)</span>
+    <span class="n">ess_tail_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">ess</span><span class="p">(</span><span class="n">agent_model</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;tail&#39;</span><span class="p">)</span>
+    <span class="n">trace_diagnostics</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;max_rhat&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">rhat_values</span><span class="o">.</span><span class="n">to_array</span><span class="p">()</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
+        <span class="s1">&#39;min_ess_bulk&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">ess_bulk_values</span><span class="o">.</span><span class="n">to_array</span><span class="p">()</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
+        <span class="s1">&#39;min_ess_tail&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">ess_tail_values</span><span class="o">.</span><span class="n">to_array</span><span class="p">()</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
+        <span class="s1">&#39;n_divergences&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">agent_model</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">sample_stats</span><span class="p">[</span><span class="s1">&#39;diverging&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="p">}</span>
+
+    <span class="c1"># Using updated agent beliefs to come to a decision on what is the best treatment</span>
+    <span class="n">posterior_CATE_samples_</span><span class="p">,</span> <span class="n">posterior_CATE_mean</span><span class="p">,</span> <span class="n">posterior_CATE_std</span> <span class="o">=</span>\
+        <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_posterior_predictive_CATE</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+    <span class="n">posterior_treatment</span> <span class="o">=</span> <span class="n">A1_treatment</span> <span class="k">if</span> <span class="n">posterior_CATE_mean</span> <span class="o">&gt;</span> <span class="n">threshold</span> <span class="k">else</span> <span class="n">A0_treatment</span>
+    <span class="n">posterior_predictive_summaries</span> <span class="o">=</span> <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_posterior_predictive_summaries</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+
+    <span class="c1"># 8. Ground truth of CATE and potential outcomes</span>
+    <span class="c1">#    based on the data generating SCM</span>
+    <span class="n">true_CATE_mu</span> <span class="o">=</span> <span class="n">data_scm</span><span class="o">.</span><span class="n">get_CATE_mu</span><span class="p">(</span><span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">)</span>
+    <span class="n">true_CATE_samples_</span><span class="p">,</span> <span class="n">true_CATE_mean</span><span class="p">,</span> <span class="n">true_CATE_std</span> <span class="o">=</span>\
+        <span class="n">data_scm</span><span class="o">.</span><span class="n">sample_CATE</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="n">draws</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+    <span class="c1"># Potential outcomes under treatment A1 and A0</span>
+    <span class="c1"># This currently generates one single draw for each and the</span>
+    <span class="c1"># SCM includes randomness.</span>
+    <span class="c1"># Estimate mean?</span>
+    <span class="n">potential_outcome_A1_samples_</span><span class="p">,</span> <span class="n">potential_outcome_A1_mean</span><span class="p">,</span> <span class="n">potential_outcome_A1_std</span> <span class="o">=</span>\
+        <span class="n">data_scm</span><span class="o">.</span><span class="n">sample_do_A</span><span class="p">(</span><span class="n">A1_treatment</span><span class="p">,</span> <span class="n">X_o</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="n">draws</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+    <span class="n">potential_outcome_A0_samples_</span><span class="p">,</span> <span class="n">potential_outcome_A0_mean</span><span class="p">,</span> <span class="n">potential_outcome_A0_std</span> <span class="o">=</span>\
+        <span class="n">data_scm</span><span class="o">.</span><span class="n">sample_do_A</span><span class="p">(</span><span class="n">A0_treatment</span><span class="p">,</span> <span class="n">X_o</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="n">draws</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+
+    <span class="c1"># 9. Expected outcomes given agent&#39;s prior and posterior beliefs</span>
+    <span class="c1"># given under treatment A0 and A1:</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">expected_prior_outcome_A1_mean</span><span class="p">,</span> <span class="n">expected_prior_outcome_A1_std</span> <span class="o">=</span>\
+        <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_prior_predictive_do_A</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">expected_prior_outcome_A0_mean</span><span class="p">,</span> <span class="n">expected_prior_outcome_A0_std</span> <span class="o">=</span>\
+        <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_prior_predictive_do_A</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">expected_posterior_outcome_A1_mean</span><span class="p">,</span> <span class="n">expected_posterior_outcome_A1_std</span> <span class="o">=</span>\
+        <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_posterior_predictive_do_A</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">expected_posterior_outcome_A0_mean</span><span class="p">,</span> <span class="n">expected_posterior_outcome_A0_std</span> <span class="o">=</span>\
+        <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_posterior_predictive_do_A</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+    <span class="n">expected_outcomes</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;expected_prior_outcome_A1_mean&#39;</span><span class="p">:</span> <span class="n">expected_prior_outcome_A1_mean</span><span class="p">,</span> 
+        <span class="s1">&#39;expected_prior_outcome_A1_std&#39;</span><span class="p">:</span> <span class="n">expected_prior_outcome_A1_std</span><span class="p">,</span>
+        <span class="s1">&#39;expected_prior_outcome_A0_mean&#39;</span><span class="p">:</span> <span class="n">expected_prior_outcome_A0_mean</span><span class="p">,</span> 
+        <span class="s1">&#39;expected_prior_outcome_A0_std&#39;</span><span class="p">:</span> <span class="n">expected_prior_outcome_A0_std</span><span class="p">,</span>
+        <span class="s1">&#39;expected_posterior_outcome_A1_mean&#39;</span><span class="p">:</span> <span class="n">expected_posterior_outcome_A1_mean</span><span class="p">,</span> 
+        <span class="s1">&#39;expected_posterior_outcome_A1_std&#39;</span><span class="p">:</span> <span class="n">expected_posterior_outcome_A1_std</span><span class="p">,</span>
+        <span class="s1">&#39;expected_posterior_outcome_A0_mean&#39;</span><span class="p">:</span> <span class="n">expected_posterior_outcome_A0_mean</span><span class="p">,</span> 
+        <span class="s1">&#39;expected_posterior_outcome_A0_std&#39;</span><span class="p">:</span> <span class="n">expected_posterior_outcome_A0_std</span>
+    <span class="p">}</span>
+    <span class="c1"># 9. Compare results</span>
+
+    <span class="c1"># Is the physician&#39;s decision correct given the true_CATE_mean values?</span>
+    <span class="n">prior_decision_correct</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">prior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="k">else</span> <span class="kc">False</span>
+    <span class="n">posterior_decision_correct</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="k">else</span> <span class="kc">False</span>
+    <span class="c1"># Which decision is best? Assuming that threshold accounts for negative side effects.</span>
+    <span class="n">true_best_treatment</span> <span class="o">=</span> <span class="n">A1_treatment</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">A0_treatment</span>
+    <span class="c1"># Did the decision change (+1 for better, 0 no change, -1 for worse)?</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">prior_CATE_mean</span>  <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">!=</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">):</span>
+        <span class="c1"># Set to 1 if changed for the better and -1 if changed for the worse</span>
+        <span class="n">decision_changed</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Set to 0 if no change.</span>
+        <span class="n">decision_changed</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># For what fraction of patients is the treatment decision based on prior_CATE_mean,</span>
+    <span class="c1"># posterior_CATE_mean, and true_CATE_mean correct?</span>
+    <span class="n">frac_correct_prior_decision</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_samples_</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">prior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">))</span>
+    <span class="n">frac_correct_posterior_decision</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_samples_</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">))</span>
+    <span class="c1"># Fraction of population that would have benefited from a</span>
+    <span class="c1"># decision based on the average true CATE (baseline):</span>
+    <span class="n">frac_correct_true_best_treatment</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_samples_</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">))</span>
+
+    <span class="c1"># How much do the patients on average benefit?</span>
+    <span class="c1"># Average outcome Y under prior decision</span>
+    <span class="n">Y_mean_prior_treatment</span> <span class="o">=</span> <span class="n">potential_outcome_A1_mean</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">prior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> \
+        <span class="k">else</span> <span class="n">potential_outcome_A0_mean</span>
+    <span class="c1"># Average outcome Y under posterior decision:</span>
+    <span class="n">Y_mean_posterior_treatment</span> <span class="o">=</span> <span class="n">potential_outcome_A1_mean</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> \
+        <span class="k">else</span> <span class="n">potential_outcome_A0_mean</span>
+    <span class="c1"># Average outcome under best decision based on true_CATE_mean</span>
+    <span class="n">Y_mean_true_best_treatment</span> <span class="o">=</span> <span class="n">potential_outcome_A1_mean</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> \
+        <span class="k">else</span> <span class="n">potential_outcome_A0_mean</span>
+    <span class="c1"># Also save prediction pred_o</span>
+    <span class="n">outputs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;pred_o&#39;</span><span class="p">:</span> <span class="n">pred_o</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+               <span class="s1">&#39;threshold&#39;</span><span class="p">:</span> <span class="n">threshold</span><span class="p">,</span>
+               <span class="s1">&#39;prior_treatment&#39;</span><span class="p">:</span> <span class="n">prior_treatment</span><span class="p">,</span>
+               <span class="s1">&#39;posterior_treatment&#39;</span><span class="p">:</span> <span class="n">posterior_treatment</span><span class="p">,</span>
+               <span class="s1">&#39;true_best_treatment&#39;</span><span class="p">:</span> <span class="n">true_best_treatment</span><span class="p">,</span>
+               <span class="s1">&#39;prior_decision_correct&#39;</span><span class="p">:</span> <span class="n">prior_decision_correct</span><span class="p">,</span>
+               <span class="s1">&#39;posterior_decision_correct&#39;</span><span class="p">:</span> <span class="n">posterior_decision_correct</span><span class="p">,</span>
+               <span class="s1">&#39;decision_changed&#39;</span><span class="p">:</span> <span class="n">decision_changed</span><span class="p">,</span>
+               <span class="s1">&#39;frac_correct_prior_decision&#39;</span><span class="p">:</span> <span class="n">frac_correct_prior_decision</span><span class="p">,</span>
+               <span class="s1">&#39;frac_correct_posterior_decision&#39;</span><span class="p">:</span> <span class="n">frac_correct_posterior_decision</span><span class="p">,</span>
+               <span class="s1">&#39;frac_correct_true_best_treatment&#39;</span><span class="p">:</span> <span class="n">frac_correct_true_best_treatment</span><span class="p">,</span>
+               <span class="s1">&#39;Y_mean_prior_treatment&#39;</span><span class="p">:</span> <span class="n">Y_mean_prior_treatment</span><span class="p">,</span>
+               <span class="s1">&#39;Y_mean_posterior_treatment&#39;</span><span class="p">:</span> <span class="n">Y_mean_posterior_treatment</span><span class="p">,</span>
+               <span class="s1">&#39;Y_mean_true_best_treatment&#39;</span><span class="p">:</span> <span class="n">Y_mean_true_best_treatment</span><span class="p">,</span>
+               <span class="s1">&#39;potential_outcome_A1_mean&#39;</span><span class="p">:</span> <span class="n">potential_outcome_A1_mean</span><span class="p">,</span>
+               <span class="s1">&#39;potential_outcome_A1_std&#39;</span><span class="p">:</span> <span class="n">potential_outcome_A1_std</span><span class="p">,</span>
+               <span class="s1">&#39;potential_outcome_A0_mean&#39;</span><span class="p">:</span> <span class="n">potential_outcome_A0_mean</span><span class="p">,</span> 
+               <span class="s1">&#39;potential_outcome_A0_std&#39;</span><span class="p">:</span> <span class="n">potential_outcome_A0_std</span><span class="p">,</span>
+               <span class="p">}</span>
+
+    <span class="c1"># Collect results</span>
+    <span class="c1"># Create unique id from timestamp and random number</span>
+    <span class="n">current_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y%m</span><span class="si">%d</span><span class="s2">%H%M%S&quot;</span><span class="p">)</span>
+    <span class="c1"># Uses its own rng without seed to not have all experiments</span>
+    <span class="c1"># get identical IDs:</span>
+    <span class="n">experiment_id</span> <span class="o">=</span> <span class="n">current_time</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="mi">9999</span><span class="p">))</span>
+    <span class="c1"># Wrap into function.</span>
+    <span class="n">compiled_results</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;experiment_id&#39;</span><span class="p">:</span> <span class="n">experiment_id</span><span class="p">,</span>
+                        <span class="s1">&#39;true_CATE_mu&#39;</span><span class="p">:</span> <span class="n">true_CATE_mu</span><span class="p">,</span>
+                        <span class="s1">&#39;true_CATE_mean&#39;</span><span class="p">:</span> <span class="n">true_CATE_mean</span><span class="p">,</span>
+                        <span class="s1">&#39;true_CATE_std&#39;</span><span class="p">:</span> <span class="n">true_CATE_std</span><span class="p">,</span>
+                        <span class="s1">&#39;prior_CATE_mu&#39;</span><span class="p">:</span> <span class="n">prior_CATE_mu</span><span class="p">,</span>
+                        <span class="s1">&#39;prior_CATE_mean&#39;</span><span class="p">:</span> <span class="n">prior_CATE_mean</span><span class="p">,</span>
+                        <span class="s1">&#39;prior_CATE_std&#39;</span><span class="p">:</span> <span class="n">prior_CATE_std</span><span class="p">,</span>
+                        <span class="s1">&#39;posterior_CATE_mean&#39;</span><span class="p">:</span> <span class="n">posterior_CATE_mean</span><span class="p">,</span>
+                        <span class="s1">&#39;posterior_CATE_std&#39;</span><span class="p">:</span> <span class="n">posterior_CATE_std</span><span class="p">,</span>
+                        <span class="s1">&#39;plate_size&#39;</span><span class="p">:</span> <span class="n">plate_size</span><span class="p">,</span>
+                        <span class="s1">&#39;X_o&#39;</span><span class="p">:</span> <span class="n">X_o</span><span class="p">,</span>
+                        <span class="s1">&#39;A1_treatment&#39;</span><span class="p">:</span> <span class="n">A1_treatment</span><span class="p">,</span>
+                        <span class="s1">&#39;A0_treatment&#39;</span><span class="p">:</span> <span class="n">A0_treatment</span><span class="p">}</span>
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">outputs</span><span class="p">)</span>
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">parameter_descriptions</span><span class="p">)</span>  <span class="c1"># Include parameter descriptions</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="n">running_time</span> <span class="o">=</span> <span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span>
+    <span class="n">current_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%H:%M:%S </span><span class="si">%d</span><span class="s2">.%m.%Y&quot;</span><span class="p">)</span>
+    <span class="n">compiled_results</span><span class="p">[</span><span class="s1">&#39;time_stamp&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">current_time</span>
+    <span class="n">compiled_results</span><span class="p">[</span><span class="s1">&#39;running_time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">running_time</span>
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">modified_prior</span><span class="p">)</span>
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">trace_diagnostics</span><span class="p">)</span>
+
+    <span class="c1"># Add prior predictive summaries</span>
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">prior_predictive_summaries</span><span class="p">)</span>
+    <span class="c1"># Add posterior predictive summaries</span>
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">posterior_predictive_summaries</span><span class="p">)</span>
+    <span class="c1"># Add expected predictive outputs:</span>
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">expected_outcomes</span><span class="p">)</span>
+
+    <span class="c1"># Add something general about model convergence and quality metrics.</span>
+
+    <span class="n">utils</span><span class="o">.</span><span class="n">write_results_to_file</span><span class="p">(</span><span class="n">compiled_results</span><span class="p">)</span></div>
+
+
+    <span class="c1"># Skip saving model in array run.</span>
+    <span class="c1"># Save model to disk:</span>
+    <span class="c1"># agent_model.save_agent_model(experiment_id)</span>
+
+    <span class="c1"># Testing that loading works.</span>
+    <span class="c1"># tmp = am.AgentModel.load_agent_model()</span>
+    <span class="c1"># What is the posterior distribution of the agent&#39;s belief about N_E?</span>
+    <span class="c1"># az.plot_posterior(agent_model.trace, var_names=[&#39;N_E&#39;])</span>
+    <span class="c1"># plt.title(&quot;Posterior distribution of agent&#39;s belief about N_E&quot;)</span>
+    <span class="c1"># plt.savefig(&#39;./fig/basic_example_posterior_NE.png&#39;)</span>
+    <span class="c1"># added plot to save the posterior distribution of pairwise correlations</span>
+
+    <span class="c1"># Don&#39;t create plot for every single run.</span>
+    <span class="c1"># az.plot_pair(agent_model.trace, #var_names=[&#39;N_E&#39;, &#39;alpha_mu_A&#39;, &#39;alpha_mu_Y&#39;],</span>
+    <span class="c1">#              kind=&#39;scatter&#39;)</span>
+    <span class="c1"># plt.title(&quot;Posterior distribution of correlation between mu_A and N_E&quot;)</span>
+    <span class="c1"># plt.savefig(&#39;./fig/basic_example_posterior_corr_all_vars.png&#39;)</span>
+    <span class="c1"># plt.clf()</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Read in values:</span>
+        <span class="n">param_name</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">param_value</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="c1"># Absolutely has to throw an error if input is not specified or not</span>
+        <span class="c1"># well specified to prevent erroneous interpretation of results.</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Use script as &#39;python experiment.py N_A_mu 23 72&#39;&quot;</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Value for X_o</span>
+        <span class="n">X_o</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">3</span><span class="p">]))</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="c1"># Sample X_o if not provided.</span>
+        <span class="c1"># Don&#39;t set seed here.</span>
+        <span class="n">X_o</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">],</span>
+                               <span class="n">scale</span><span class="o">=</span><span class="n">scm_noise_parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">])</span>
+        <span class="n">X_o</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">X_o</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">param_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">agent_priors</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Parameter has to exist in agent_priors. See&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">agent_priors</span><span class="p">)</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{}</span><span class="s2"> not a valid parameter!&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">param_name</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">agent_priors</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span> <span class="o">==</span> <span class="n">param_value</span><span class="p">:</span>
+        <span class="c1"># Nothing is changed.</span>
+        <span class="n">parameter_descriptions</span><span class="p">[</span><span class="s1">&#39;agent_priors&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Default&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Modify agent parameters</span>
+        <span class="n">agent_priors</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">param_value</span>
+        <span class="c1"># Helper variable for easy view of experiment parameters:</span>
+        <span class="n">parameter_descriptions</span><span class="p">[</span><span class="s1">&#39;agent_priors&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Modified&#39;</span>
+    <span class="c1"># Store info in all cases as some parameter scans will include default values</span>
+    <span class="n">modified_prior</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;modified_prior&#39;</span><span class="p">:</span> <span class="n">param_name</span><span class="p">,</span>
+                    <span class="s1">&#39;modified_prior_value&#39;</span><span class="p">:</span> <span class="n">param_value</span><span class="p">}</span>
+    <span class="c1"># Run main() with set parameters and X_o.</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Running experiment with X_o set to </span><span class="si">{}</span><span class="s2"> and agent prior </span><span class="si">{}</span><span class="s2"> set to </span><span class="si">{}</span><span class="s2">...&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">X_o</span><span class="p">,</span> <span class="n">param_name</span><span class="p">,</span> <span class="n">param_value</span><span class="p">))</span>
+    <span class="c1"># Initialize rng:</span>
+    <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
+    <span class="n">main</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">agent_priors</span><span class="p">,</span> <span class="n">modified_prior</span><span class="p">,</span> <span class="n">parameter_descriptions</span><span class="o">=</span><span class="n">parameter_descriptions</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

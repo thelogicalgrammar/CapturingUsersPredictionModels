@@ -1,0 +1,728 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>agent_model &mdash; CapturingUsersPredictionModels 1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=f2a433a1"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            CapturingUsersPredictionModels
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules/agent_model.html">Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/utils.html">Utilities</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">SLURM Scripts</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules/completion_check.html">Completion Check</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file.html">Generate Parameter File</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CapturingUsersPredictionModels</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Module code</a></li>
+      <li class="breadcrumb-item active">agent_model</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for agent_model</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">The AgentModel encapsulates both the agent&#39;s beliefs and</span>
+<span class="sd">thought processes that an ideal Bayesian agent would use</span>
+<span class="sd">in the context of decision support. The agent has priors,</span>
+<span class="sd">can make a decision based on those, can update his beliefs</span>
+<span class="sd">when presented with new information in the form of an</span>
+<span class="sd">observation and a prediction for it, and can make</span>
+<span class="sd">decisions based on his posterior beliefs.</span>
+
+<span class="sd">The Bayesian models specified here correspond to how an ideal</span>
+<span class="sd">Bayesian agent would update his beliefs given that he sees</span>
+<span class="sd">one or several observations and receives their predictions</span>
+<span class="sd">that are based on an OLS regression model without intercept.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">arviz</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">az</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">joblib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pymc</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pm</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytensor.tensor</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">at</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">scipy.stats</span><span class="w"> </span><span class="kn">import</span> <span class="n">skew</span><span class="p">,</span> <span class="n">kurtosis</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">scm</span>
+
+<span class="n">DEBUGGING</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="printing_callback">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.printing_callback">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">printing_callback</span><span class="p">(</span><span class="n">trace</span><span class="p">,</span> <span class="n">draw</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function for debugging pymc-sampling.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">DEBUGGING</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Completed draw </span><span class="si">{</span><span class="n">draw</span><span class="o">.</span><span class="n">draw_idx</span><span class="si">}</span><span class="s2"> from chain </span><span class="si">{</span><span class="n">draw</span><span class="o">.</span><span class="n">chain</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Shape of X: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">trace</span><span class="o">.</span><span class="n">get_values</span><span class="p">(</span><span class="s1">&#39;X&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Shape of Y: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">trace</span><span class="o">.</span><span class="n">get_values</span><span class="p">(</span><span class="s1">&#39;Y&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="AgentModel">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">AgentModel</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class for agent models with structural equations:</span>
+
+<span class="sd">    :math:`Y_i = a + b X_i + N_{E} A_i + N_{Yi}`</span>
+
+<span class="sd">    :math:`A_i = d X_i + N_{Ai}`</span>
+
+<span class="sd">    :math:`X_i = N_{Xi}`</span>
+
+<span class="sd">    where N_{Xi}, N_{Ai}, N_{Yi} are normal noise variables drawn J times</span>
+<span class="sd">    for every instantiation of the plate and N_{E} is a normal variable</span>
+<span class="sd">    drawn once per instantiation of the plate.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        plate_size (int): size of the plate (number of i.i.d. samples).</span>
+<span class="sd">        scm_constants (dict): dictionary with structural equation scm_constants &#39;a&#39;, &#39;b&#39;, and &#39;d&#39;.</span>
+<span class="sd">            If scm_constants is None, then it defaults to values in the paper (28.8.2025).</span>
+<span class="sd">        prior_parameters (dict): dictionary with parameters for prior distributions</span>
+<span class="sd">            If prior_parameters is None, then it defaults to values in the paper (28.8.2025).</span>
+<span class="sd">        low_dim_aux_plate (bool): If true the plate is estimated using low-dimensional</span>
+<span class="sd">            auxiliary variables. This speeds up inference. If false, the plate is explicitly </span>
+<span class="sd">            modeled.</span>
+<span class="sd">        test (bool): If true, the model is set up in testing mode enabling multiple observed</span>
+<span class="sd">            data points to be input. This is mainly for testing that the model works as intended.</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">plate_size</span><span class="p">,</span> <span class="n">prior_parameters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+                 <span class="n">scm_constants</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">predictive_var_names</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">low_dim_aux_plate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">test</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">=</span> <span class="n">plate_size</span>
+        
+        <span class="c1"># Prior parameters</span>
+        <span class="n">default_prior_parameters</span> <span class="o">=</span>\
+            <span class="p">{</span><span class="s1">&#39;mu_X&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span> <span class="s1">&#39;sigma_X&#39;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s1">&#39;mu_sigma_X&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="s1">&#39;sigma_sigma_X&#39;</span><span class="p">:</span><span class="mf">0.1</span><span class="p">,</span>
+             <span class="s1">&#39;mu_A&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;sigma_A&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;mu_sigma_A&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;sigma_sigma_A&#39;</span><span class="p">:</span><span class="mf">0.1</span><span class="p">,</span>
+             <span class="s1">&#39;mu_Y&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;sigma_Y&#39;</span><span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span> <span class="s1">&#39;mu_sigma_Y&#39;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span> <span class="s1">&#39;sigma_sigma_Y&#39;</span> <span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span>
+             <span class="s1">&#39;N_E_mu&#39;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span> <span class="s1">&#39;N_E_sigma&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">prior_parameters</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Use default values.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span> <span class="o">=</span> <span class="n">default_prior_parameters</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Validate input parameters:</span>
+            <span class="n">extra_items</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">prior_parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+                        <span class="k">if</span> <span class="n">item</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">default_prior_parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{}</span><span class="s2"> passed with prior_parameters, &quot;</span> \
+                <span class="s2">&quot;but not part of model specification.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">extra_items</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">extra_items</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">,</span> <span class="n">err_msg</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span> <span class="o">=</span> <span class="n">prior_parameters</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">low_dim_aux_plate</span> <span class="o">=</span> <span class="n">low_dim_aux_plate</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">test</span> <span class="o">=</span> <span class="n">test</span>
+
+        <span class="c1"># Variable names of the predictive variables.</span>
+        <span class="n">default_predictive_var_names</span> <span class="o">=</span>\
+            <span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">,</span> 
+             <span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">,</span> <span class="s1">&#39;N_E&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">predictive_var_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">predictive_var_names</span> <span class="o">=</span> <span class="n">default_predictive_var_names</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Validate input</span>
+            <span class="n">extra_items</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">predictive_var_names</span>
+                        <span class="k">if</span> <span class="n">item</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">default_predictive_var_names</span><span class="p">]</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{}</span><span class="s2"> passed with predictive_var_names, &quot;</span> \
+                <span class="s2">&quot;but not part of model specification.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">extra_items</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">extra_items</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">,</span> <span class="n">err_msg</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">predictive_var_names</span> <span class="o">=</span> <span class="n">predictive_var_names</span>
+
+        <span class="c1"># SCM parameters. These change during runtime for prior and posterior</span>
+        <span class="c1"># predictive sampling (samples from the agent&#39;s beliefs replaces the</span>
+        <span class="c1"># original values).</span>
+        <span class="c1"># Note that N_{E} is essentially replacing &quot;c&quot;</span>
+        <span class="n">default_scm_constants</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;a&#39;</span><span class="p">:</span> <span class="mi">12</span><span class="p">,</span> <span class="s1">&#39;b&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mf">0.1</span><span class="p">,</span> <span class="s1">&#39;d&#39;</span><span class="p">:</span> <span class="mf">0.125</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">scm_constants</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span> <span class="o">=</span> <span class="n">default_scm_constants</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Validate input</span>
+            <span class="n">extra_scm_items</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">scm_constants</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> 
+                            <span class="k">if</span> <span class="n">item</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">default_scm_constants</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{}</span><span class="s2"> passed with scm_constants, &quot;</span> \
+                <span class="s2">&quot;but not part of model specification.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">extra_scm_items</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">extra_items</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">,</span> <span class="n">err_msg</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span> <span class="o">=</span> <span class="n">scm_constants</span>
+        <span class="c1"># SCM parameters to update in prior predictive and posterior predictive sampling</span>
+        <span class="c1"># and an SCM which variables are updated with samples from the agent&#39;s beliefs</span>
+        <span class="c1"># for predictive sampling:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">predictive_scm</span> <span class="o">=</span> <span class="n">scm</span><span class="o">.</span><span class="n">SCM</span><span class="p">(</span><span class="o">**</span><span class="n">scm_constants</span><span class="p">)</span>
+
+        <span class="c1"># Placeholders</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trace</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Placeholder for trace</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_samples</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Placeholder for prior samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_predictive_samples</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Placeholder for prior predictive samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">posterior_predictive_samples</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Placeholder for posterior predictive samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Number of draws in trace</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_draws</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Number of draws in prior samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">X_o</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># Placeholder for observed observation.</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Model</span><span class="p">()</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">:</span>
+            <span class="c1"># Note that the normal distribution in PyMC is parameterized</span>
+            <span class="c1"># with mu and sigma (not variance, sigma^2).</span>
+            <span class="c1"># Placeholders for observed data:</span>
+            <span class="c1"># Named with underscore to distinguish from random variables.</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">test</span><span class="p">:</span>
+                <span class="c1"># Default flow.</span>
+                <span class="n">X_o_</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s1">&#39;X_o_&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="n">pred_o_</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s1">&#39;pred_o_&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># For testing the validity of the code with 100 observed variables.</span>
+                <span class="c1"># Should make the posterior shift more clearly.</span>
+                <span class="n">X_o_</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s1">&#39;X_o_&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">100</span><span class="p">))</span>
+                <span class="n">pred_o_</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s1">&#39;pred_o_&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">100</span><span class="p">))</span>
+
+            <span class="c1"># Outside of the plate:</span>
+            <span class="n">alpha_mu_X</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;mu_X&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_X&#39;</span><span class="p">])</span>
+            <span class="c1"># Is an exponential distribution well-behaved as a prior?</span>
+            <span class="n">alpha_sigma_X</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">TruncatedNormal</span><span class="p">(</span><span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">,</span> <span class="n">mu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span>
+                <span class="s1">&#39;mu_sigma_X&#39;</span><span class="p">],</span> <span class="n">sigma</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_sigma_X&#39;</span><span class="p">],</span> <span class="n">lower</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="c1">#</span>
+            <span class="c1"># changed from Exponential to truncated normal</span>
+            <span class="n">alpha_mu_A</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;mu_A&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_A&#39;</span><span class="p">])</span>
+            <span class="c1"># alpha_sigma_A = 1  # pm.Exponential(&#39;sigma_A&#39;, 10)  # sigma_A is not learned.</span>
+            <span class="n">alpha_sigma_A</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">TruncatedNormal</span><span class="p">(</span><span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">,</span> <span class="n">mu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span>
+                <span class="s1">&#39;mu_sigma_A&#39;</span><span class="p">],</span> <span class="n">sigma</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_sigma_A&#39;</span><span class="p">],</span> <span class="n">lower</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">alpha_mu_Y</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;mu_Y&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_Y&#39;</span><span class="p">])</span>
+            <span class="n">alpha_sigma_Y</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">TruncatedNormal</span><span class="p">(</span><span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">,</span> <span class="n">mu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span>
+                <span class="s1">&#39;mu_sigma_Y&#39;</span><span class="p">],</span> <span class="n">sigma</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_sigma_Y&#39;</span><span class="p">],</span> <span class="n">lower</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="c1"># changed from Exponential to truncated normal</span>
+            <span class="n">N_E</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;N_E&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_E_mu&#39;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_E_sigma&#39;</span><span class="p">])</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">low_dim_aux_plate</span><span class="p">:</span>
+                <span class="c1"># Full-plate model</span>
+                <span class="c1"># Plate in model (for i in 1...plate_size):</span>
+                <span class="n">X</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;X&#39;</span><span class="p">,</span> <span class="n">alpha_mu_X</span><span class="p">,</span> <span class="n">alpha_sigma_X</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">)</span>
+                <span class="n">A</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span><span class="p">[</span><span class="s1">&#39;d&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">X</span> <span class="o">+</span> <span class="n">alpha_mu_A</span><span class="p">,</span> <span class="n">alpha_sigma_A</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">)</span>
+                <span class="n">Y</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;Y&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span><span class="p">[</span><span class="s1">&#39;b&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">X</span> <span class="o">+</span> <span class="n">N_E</span> <span class="o">*</span> <span class="n">A</span> <span class="o">+</span> <span class="n">alpha_mu_Y</span><span class="p">,</span> <span class="n">alpha_sigma_Y</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">)</span>
+
+                <span class="c1"># Is this element-wise multiplication? Could use dot product.</span>
+                <span class="n">phi</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;phi&#39;</span><span class="p">,</span> <span class="n">pm</span><span class="o">.</span><span class="n">math</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">X</span> <span class="o">*</span> <span class="n">Y</span><span class="p">)</span> <span class="o">/</span> <span class="n">pm</span><span class="o">.</span><span class="n">math</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">X</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+                <span class="c1"># Create testing mode where a large number of observations could be input.</span>
+                <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;X_o&#39;</span><span class="p">,</span> <span class="n">alpha_mu_X</span><span class="p">,</span> <span class="n">alpha_sigma_X</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="n">X_o_</span><span class="p">)</span>
+                <span class="n">phi_hat</span> <span class="o">=</span> <span class="n">pred_o_</span> <span class="o">/</span> <span class="n">X_o_</span>
+                <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;phi_obs&#39;</span><span class="p">,</span> <span class="n">phi</span><span class="p">,</span> <span class="mf">1e-3</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="n">phi_hat</span><span class="p">)</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Low-dimensional auxiliary variable -based model</span>
+                <span class="c1"># Var(S_X) = n, but pm.Normal takes STANDARD DEVIATION as parameter.</span>
+                <span class="n">S_X</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;S_X&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">at</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span>
+                <span class="n">S_Y</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;S_Y&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">at</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span>
+                <span class="n">S_A</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;S_A&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">at</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span>
+                <span class="n">Z_XX</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;Z_XX&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># Independent part of sum of squares (independent of sum of X)</span>
+                <span class="n">U_XY</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;U_XY&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># First part of &quot;chi-squared difference distribution&quot;</span>
+                <span class="n">V_XY</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;V_XY&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># Second part of &quot;chi-squared difference distribution&quot;</span>
+                <span class="n">U_XA</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;U_XA&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># First part of &quot;chi-squared difference distribution&quot;</span>
+                <span class="n">V_XA</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;V_XA&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># Second part of &quot;chi-squared difference distribution&quot;</span>
+                <span class="c1"># N_E = N_E  # Just to be explicit.</span>
+                <span class="n">S_9</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;S_9&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">S_X</span> <span class="o">*</span> <span class="n">S_A</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">+</span>
+                                            <span class="p">(</span><span class="n">U_XA</span> <span class="o">-</span> <span class="n">V_XA</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">))</span>
+                <span class="n">S_8</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;S_8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">S_X</span> <span class="o">*</span> <span class="n">S_Y</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">+</span>
+                                            <span class="p">(</span><span class="n">U_XY</span> <span class="o">-</span> <span class="n">V_XY</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">))</span>
+                <span class="n">S_7</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;S_7&#39;</span><span class="p">,</span> <span class="n">Z_XX</span> <span class="o">-</span> <span class="n">S_X</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">)</span>
+                <span class="n">S_6</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;S_6&#39;</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">*</span> <span class="n">alpha_mu_X</span> <span class="o">*</span> <span class="n">alpha_mu_Y</span> <span class="o">+</span>
+                                            <span class="n">alpha_mu_X</span> <span class="o">*</span> <span class="n">alpha_sigma_Y</span> <span class="o">*</span> <span class="n">S_Y</span> <span class="o">+</span>
+                                            <span class="n">alpha_mu_Y</span> <span class="o">*</span> <span class="n">alpha_sigma_X</span> <span class="o">*</span> <span class="n">S_X</span> <span class="o">+</span>
+                                            <span class="n">alpha_sigma_X</span> <span class="o">*</span> <span class="n">alpha_sigma_Y</span> <span class="o">*</span> <span class="n">S_8</span><span class="p">))</span>
+                <span class="n">S_5</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;S_5&#39;</span><span class="p">,</span> <span class="n">N_E</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">*</span> <span class="n">alpha_mu_X</span> <span class="o">*</span> <span class="n">alpha_mu_A</span> <span class="o">+</span>
+                                            <span class="n">alpha_mu_X</span> <span class="o">*</span> <span class="n">alpha_sigma_A</span> <span class="o">*</span> <span class="n">S_A</span> <span class="o">+</span>
+                                            <span class="n">alpha_mu_A</span> <span class="o">*</span> <span class="n">alpha_sigma_X</span> <span class="o">*</span> <span class="n">S_X</span> <span class="o">+</span>
+                                            <span class="n">alpha_sigma_X</span> <span class="o">*</span> <span class="n">alpha_sigma_A</span> <span class="o">*</span> <span class="n">S_9</span><span class="p">))</span>
+                <span class="n">S_4</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;S_4&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">*</span> <span class="n">alpha_mu_X</span> <span class="o">+</span> <span class="n">alpha_sigma_X</span> <span class="o">*</span> <span class="n">S_X</span><span class="p">))</span>
+                <span class="c1"># Sum of S_1, S_2, and S_3 (denominator):</span>
+                <span class="n">S_123</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;S_123&#39;</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">*</span> <span class="n">alpha_mu_X</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span>  <span class="c1"># S_1</span>
+                                                 <span class="mi">2</span> <span class="o">*</span> <span class="n">alpha_mu_X</span> <span class="o">*</span> <span class="n">alpha_sigma_X</span> <span class="o">*</span> <span class="n">S_X</span> <span class="o">+</span>  <span class="c1"># S_2</span>
+                                                 <span class="n">alpha_sigma_X</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">S_7</span><span class="p">))</span>  <span class="c1"># S_3</span>
+                <span class="c1"># Equation for phi.</span>
+                <span class="n">phi</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;phi&#39;</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span><span class="p">[</span><span class="s1">&#39;b&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span><span class="p">[</span><span class="s1">&#39;d&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">N_E</span> <span class="o">+</span>\
+                                        <span class="p">(</span><span class="n">S_4</span> <span class="o">+</span> <span class="n">S_5</span> <span class="o">+</span> <span class="n">S_6</span><span class="p">)</span> <span class="o">/</span> <span class="n">S_123</span><span class="p">))</span>
+                <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;X_o&#39;</span><span class="p">,</span> <span class="n">alpha_mu_X</span><span class="p">,</span> <span class="n">alpha_sigma_X</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="n">X_o_</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">X_o_</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># Shape is already defined at pm.Data(). Probably cannot be changed here.</span>
+                <span class="n">phi_hat</span> <span class="o">=</span> <span class="n">pred_o_</span> <span class="o">/</span> <span class="n">X_o_</span>
+                <span class="c1"># Note that treating phi as a normally distributed RV instead of a point value</span>
+                <span class="c1"># is a modeling trick.</span>
+                <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;phi_obs&#39;</span><span class="p">,</span> <span class="n">phi</span><span class="p">,</span> <span class="mf">1e-3</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="n">phi_hat</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AgentModel.sample">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel.sample">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X_o</span><span class="p">,</span> <span class="n">pred_o</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Sample from the posterior given observed data.</span>
+<span class="sd">        Stores latest trace in self.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X_o (np.ndarray): Vector of observed features.</span>
+<span class="sd">            pred_o (np.ndarray): Vector of observed predictions.</span>
+<span class="sd">            draws (int): Size of sample to draw from the posterior.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns:</span>
+<span class="sd">            None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span> <span class="o">=</span> <span class="n">draws</span>
+        <span class="c1"># Replace placeholders with actual data:</span>
+        <span class="n">pm</span><span class="o">.</span><span class="n">set_data</span><span class="p">({</span><span class="s1">&#39;X_o_&#39;</span><span class="p">:</span> <span class="n">X_o</span><span class="p">,</span> <span class="s1">&#39;pred_o_&#39;</span><span class="p">:</span> <span class="n">pred_o</span><span class="p">},</span> <span class="n">model</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">)</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">:</span>
+            <span class="n">trace</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">draws</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span><span class="p">,</span>
+                              <span class="n">tune</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+                              <span class="n">target_accept</span><span class="o">=</span><span class="mf">.85</span><span class="p">,</span>
+                              <span class="n">chains</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+                              <span class="n">random_seed</span><span class="o">=</span><span class="n">rng</span><span class="p">,</span>
+                              <span class="n">max_treedepth</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span>
+                              <span class="n">init</span><span class="o">=</span><span class="s2">&quot;jitter+adapt_diag&quot;</span><span class="p">,</span>
+                              <span class="n">callback</span><span class="o">=</span><span class="n">printing_callback</span><span class="p">,</span>
+                              <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trace</span> <span class="o">=</span> <span class="n">trace</span>
+        <span class="c1"># Store observed variable in self</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">X_o</span> <span class="o">=</span> <span class="n">X_o</span>
+        <span class="k">return</span></div>
+
+
+<div class="viewcode-block" id="AgentModel.sample_prior_predictive">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel.sample_prior_predictive">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample_prior_predictive</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Method for sampling from distribution based on the</span>
+<span class="sd">        agent&#39;s prior beliefs.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            draws (int): Size of sample to draw</span>
+<span class="sd">            rng (int): Random number generator or seed for reproducibility</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_draws</span> <span class="o">=</span> <span class="n">draws</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">:</span>
+            <span class="n">tmp</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">sample_prior_predictive</span><span class="p">(</span><span class="n">draws</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_draws</span><span class="p">,</span>
+                                            <span class="n">var_names</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">predictive_var_names</span><span class="p">,</span>
+                                            <span class="n">random_seed</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_samples</span> <span class="o">=</span> <span class="n">tmp</span>
+        <span class="n">parameter_array</span> <span class="o">=</span> <span class="p">{</span><span class="n">var</span><span class="p">:</span> <span class="n">tmp</span><span class="o">.</span><span class="n">prior</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">predictive_var_names</span><span class="p">}</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_draws</span><span class="p">):</span>
+            <span class="c1"># Pick parameters from row i</span>
+            <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">column</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">parameter_array</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+            <span class="c1"># Update scm-parameters</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">predictive_scm</span><span class="o">.</span><span class="n">update_parameters</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
+            <span class="c1"># sample() (generates X, Y, A, mu_A_cond, sigma_A_cond):</span>
+            <span class="n">X</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="o">*</span><span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">predictive_scm</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+            <span class="n">samples</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">X</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">Y</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_predictive_samples</span> <span class="o">=</span> <span class="n">samples</span>
+        <span class="k">return</span> <span class="n">samples</span></div>
+
+
+<div class="viewcode-block" id="AgentModel.sample_prior_predictive_do_A">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel.sample_prior_predictive_do_A">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample_prior_predictive_do_A</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">A_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Method for estimating the outcome for a patient with features X</span>
+<span class="sd">        based on the agent&#39;s prior beliefs. Draws one potential</span>
+<span class="sd">        outcome for every draw in trace.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X (np.array): Feature to condition on</span>
+<span class="sd">            A_treatment (float): Fixed treatment value</span>
+<span class="sd">            rng (int or rng): Random number generator or seed for reproducibility</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sample_prior_predictive</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+        <span class="n">parameter_array</span> <span class="o">=</span> <span class="p">{</span><span class="n">var</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_samples</span><span class="o">.</span><span class="n">prior</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">predictive_var_names</span><span class="p">}</span>
+        <span class="n">do_A_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_draws</span><span class="p">,))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_draws</span><span class="p">):</span>
+            <span class="c1"># Pick parameters from row i</span>
+            <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">column</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">parameter_array</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+            <span class="c1"># Update scm-parameters</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">predictive_scm</span><span class="o">.</span><span class="n">update_parameters</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
+            <span class="c1"># Sample prior predictive given do(A)</span>
+            <span class="c1"># Returns tuple with samples, mean, and standard deviation</span>
+            <span class="c1"># First (array) will not fall into an array nicely with the second (value) and third (value)</span>
+            <span class="n">tmp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">predictive_scm</span><span class="o">.</span><span class="n">sample_do_A</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">A_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+            <span class="c1"># Only one sample, hence standard deviation will be zero and mean will equal sample value.</span>
+            <span class="c1"># Should be sample 1000?</span>
+            <span class="n">do_A_samples</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">tmp</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="c1"># Estimate mean and standard deviation from sample</span>
+        <span class="n">do_A_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">do_A_samples</span><span class="p">)</span>
+        <span class="n">do_A_std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">do_A_samples</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">do_A_samples</span><span class="p">,</span> <span class="n">do_A_mean</span><span class="p">,</span> <span class="n">do_A_std</span></div>
+
+
+<div class="viewcode-block" id="AgentModel.sample_prior_predictive_CATE">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel.sample_prior_predictive_CATE">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample_prior_predictive_CATE</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This method returns a sample from the prior CATE-distribution,</span>
+<span class="sd">        and its sample mean and standard deviation.</span>
+<span class="sd">        Currently CATE is not dependent on X and is hence ATE. It also does</span>
+<span class="sd">        not require conditioning on X.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            A1_treatment (float): Dosage value of higher dose treatment</span>
+<span class="sd">            A0_treatment (float): Dosage value of lower dose treatment</span>
+<span class="sd">            X (np.array): Feature to condition on.</span>
+<span class="sd">            rng: seed or initialized random number generator for reproducibility</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sample_prior_predictive</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+        <span class="n">parameter_array</span> <span class="o">=</span> <span class="p">{</span><span class="n">var</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_samples</span><span class="o">.</span><span class="n">prior</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">predictive_var_names</span><span class="p">}</span>
+        <span class="n">CATE_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_draws</span><span class="p">,))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_draws</span><span class="p">):</span>
+            <span class="c1"># Pick parameters from row i</span>
+            <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">column</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">parameter_array</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+            <span class="c1"># Update scm-parameters</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">predictive_scm</span><span class="o">.</span><span class="n">update_parameters</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
+            <span class="c1"># sample_CATE (generates X, Y, A, mu_A_cond, sigma_A_cond)</span>
+            <span class="n">CATE_samples</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="o">*</span><span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">predictive_scm</span><span class="o">.</span><span class="n">sample_CATE</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+        <span class="c1"># Estimate mean and standard deviation from sample</span>
+        <span class="n">CATE_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">CATE_samples</span><span class="p">)</span>
+        <span class="n">CATE_std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">CATE_samples</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">CATE_samples</span><span class="p">,</span> <span class="n">CATE_mean</span><span class="p">,</span> <span class="n">CATE_std</span></div>
+
+
+<div class="viewcode-block" id="AgentModel.get_prior_CATE_mu">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel.get_prior_CATE_mu">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_prior_CATE_mu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The method returns the mean of the CATE-distribution times</span>
+<span class="sd">        A1_treatment - A0_treatment. The current SCM is such that N_E is not</span>
+<span class="sd">        dependent on X and the treatment effect only depends on</span>
+<span class="sd">        N_E and size of A_treatment.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            A1_treatment (float): Dosage value of higher dose treatment</span>
+<span class="sd">            A0_treatment (float): Dosage value of lower dose treatment</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">A1_treatment</span> <span class="o">-</span> <span class="n">A0_treatment</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_E_mu&#39;</span><span class="p">]</span></div>
+
+    
+<div class="viewcode-block" id="AgentModel.sample_prior_predictive_summaries">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel.sample_prior_predictive_summaries">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample_prior_predictive_summaries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Method that estimates mean, variance, skewness, and kurtosis</span>
+<span class="sd">        of the variables X, A, and Y in the prior samples.</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            rng (int or rng): Seed or initialized random number generator for</span>
+<span class="sd">                reproducibility. Used only if prior samples were not drawn earlier.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_predictive_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sample_prior_predictive</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+        <span class="n">tmp_X</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_predictive_samples</span><span class="p">]</span>
+        <span class="n">tmp_A</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_predictive_samples</span><span class="p">]</span>
+        <span class="n">tmp_Y</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_predictive_samples</span><span class="p">]</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_X_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_A_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_Y_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_X_std&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_A_std&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_Y_std&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_X_skew&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_A_skew&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_Y_skew&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_X_kurtosis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_A_kurtosis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_Y_kurtosis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">results</span></div>
+
+
+<div class="viewcode-block" id="AgentModel.sample_posterior_predictive">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel.sample_posterior_predictive">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample_posterior_predictive</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This method generates a sample from the agent&#39;s posterior beliefs.</span>
+<span class="sd">        Using the trace stored in self, this method replaces the parameter</span>
+<span class="sd">        values in self.predictive_scm and draws a posterior predictive</span>
+<span class="sd">        sample from this.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            rng (int or rng): Random number generator or seed for reproducibility</span>
+
+<span class="sd">        Notes:</span>
+<span class="sd">        Consider VECTORIZING this method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">parameter_array</span> <span class="o">=</span> <span class="p">{</span><span class="n">var</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">predictive_var_names</span><span class="p">}</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span><span class="p">):</span>
+            <span class="c1"># Pick parameters from row i</span>
+            <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">column</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">parameter_array</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+            <span class="c1"># Update scm-parameters</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">predictive_scm</span><span class="o">.</span><span class="n">update_parameters</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
+            <span class="c1"># sample() (generates X, Y, A, mu_A_cond, sigma_A_cond):</span>
+            <span class="n">samples</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">predictive_scm</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">posterior_predictive_samples</span> <span class="o">=</span> <span class="n">samples</span>
+        <span class="k">return</span> <span class="n">samples</span></div>
+
+
+<div class="viewcode-block" id="AgentModel.sample_posterior_predictive_CATE">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel.sample_posterior_predictive_CATE">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample_posterior_predictive_CATE</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This method returns a sample from the posterior predictive</span>
+<span class="sd">        CATE-distribution, and its sample mean and standard deviation.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X (np.array): Feature to condition on</span>
+<span class="sd">            A1_treatment (float): Higher dose treatment value</span>
+<span class="sd">            A0_treatment (float): Lower dose treatment value</span>
+<span class="sd">            rng (int or rng): Random number generator or seed for reproducibility</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">parameter_array</span> <span class="o">=</span> <span class="p">{</span><span class="n">var</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">predictive_var_names</span><span class="p">}</span>
+        <span class="n">CATE_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span><span class="p">,))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span><span class="p">):</span>
+            <span class="c1"># Pick parameters from row i</span>
+            <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">column</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">parameter_array</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+            <span class="c1"># Update scm-parameters</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">predictive_scm</span><span class="o">.</span><span class="n">update_parameters</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
+            <span class="c1"># Sample (generates CATE for that version of the scm):</span>
+            <span class="n">CATE_samples</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="o">*</span><span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">predictive_scm</span><span class="o">.</span><span class="n">sample_CATE</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+        <span class="c1"># Estimate mean and standard deviation from sample</span>
+        <span class="n">CATE_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">CATE_samples</span><span class="p">)</span>
+        <span class="n">CATE_std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">CATE_samples</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">CATE_samples</span><span class="p">,</span> <span class="n">CATE_mean</span><span class="p">,</span> <span class="n">CATE_std</span></div>
+
+
+<div class="viewcode-block" id="AgentModel.sample_posterior_predictive_do_A">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel.sample_posterior_predictive_do_A">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample_posterior_predictive_do_A</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">A_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Method for estimating the outcome for a patient with features X</span>
+<span class="sd">        based on the agent&#39;s posterior beliefs. Draws one potential</span>
+<span class="sd">        outcome for every draw in trace.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X (np.array): Feature to condition on</span>
+<span class="sd">            A_treatment (float): Fixed treatment value</span>
+<span class="sd">            rng (int or rng): Random number generator or seed for reproducibility</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">parameter_array</span> <span class="o">=</span> <span class="p">{</span><span class="n">var</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">predictive_var_names</span><span class="p">}</span>
+        <span class="n">potential_outcomes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span><span class="p">,))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span><span class="p">):</span>
+            <span class="c1"># Pick parameters from row i</span>
+            <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">column</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">parameter_array</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+            <span class="c1"># Update scm-parameters</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">predictive_scm</span><span class="o">.</span><span class="n">update_parameters</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
+            <span class="c1"># Sample (generates CATE for that version of the scm):</span>
+            <span class="n">potential_outcomes</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="o">*</span><span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">predictive_scm</span><span class="o">.</span><span class="n">sample_do_A</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">A_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+        <span class="c1"># Estimate mean and standard deviation</span>
+        <span class="n">do_A_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">potential_outcomes</span><span class="p">)</span>
+        <span class="n">do_A_std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">potential_outcomes</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">potential_outcomes</span><span class="p">,</span> <span class="n">do_A_mean</span><span class="p">,</span> <span class="n">do_A_std</span></div>
+
+    
+<div class="viewcode-block" id="AgentModel.sample_posterior_predictive_summaries">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel.sample_posterior_predictive_summaries">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample_posterior_predictive_summaries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Docstring for sample_posterior_predictive_summaries</span>
+<span class="sd">        </span>
+<span class="sd">        :param self: Description</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">posterior_predictive_samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sample_posterior_predictive</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+        <span class="n">tmp_X</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">posterior_predictive_samples</span><span class="p">]</span>
+        <span class="n">tmp_A</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">posterior_predictive_samples</span><span class="p">]</span>
+        <span class="n">tmp_Y</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">posterior_predictive_samples</span><span class="p">]</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_X_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_A_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_Y_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_X_std&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_A_std&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_Y_std&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_X_skew&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_A_skew&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_Y_skew&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_X_kurtosis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_A_kurtosis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_Y_kurtosis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">results</span></div>
+
+
+<div class="viewcode-block" id="AgentModel.save_agent_model">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel.save_agent_model">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">save_agent_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">file_name</span><span class="o">=</span><span class="s1">&#39;agent_model&#39;</span><span class="p">,</span> <span class="n">folder</span><span class="o">=</span><span class="s1">&#39;./saved_models/&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Save the entire agent model (trace + configuration).</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            file_name (str): Base filename without extension (e.g., &#39;agent_model&#39;)</span>
+<span class="sd">                Will create three files:</span>
+<span class="sd">                - {file_name}.joblib (model configuration)</span>
+<span class="sd">                - {file_name}_trace.nc (trace data)</span>
+<span class="sd">                - {file_name}_prior_samples.nc (prior sample data)</span>
+<span class="sd">            folder (str): Folder to save models into.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+        <span class="n">Path</span><span class="p">(</span><span class="s1">&#39;./saved_models&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">file_name</span> <span class="o">=</span> <span class="n">folder</span> <span class="o">+</span> <span class="n">file_name</span>
+        <span class="c1"># Save trace separately using ArviZ (if it exists)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">to_netcdf</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s1">_trace.nc&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Trace saved to </span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s2">_trace.nc&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_samples</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">prior_samples</span><span class="o">.</span><span class="n">to_netcdf</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s1">_prior_samples.nc&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Prior samples saved to </span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s2">_prior_samples.nc&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Temporarily remove trace and PyMC model (can&#39;t pickle easily)</span>
+        <span class="n">trace_backup</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span>
+        <span class="n">prior_samples_backup</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_samples</span>
+        <span class="n">model_backup</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trace</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_samples</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Save the rest (configuration, constants, etc.)</span>
+        <span class="n">joblib</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s1">.joblib&#39;</span><span class="p">)</span>
+        <span class="c1"># Restore the attributes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trace</span> <span class="o">=</span> <span class="n">trace_backup</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_samples</span> <span class="o">=</span> <span class="n">prior_samples_backup</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">model_backup</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Complete agent model saved to </span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s2">.joblib&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AgentModel.load_agent_model">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel.load_agent_model">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">load_agent_model</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">file_name</span><span class="o">=</span><span class="s1">&#39;./agent_model&#39;</span><span class="p">,</span> <span class="n">folder</span><span class="o">=</span><span class="s1">&#39;./saved_models/&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Load a saved agent model.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            file_name: Base filename without extension (e.g., &#39;agent_model&#39;)</span>
+<span class="sd">                Expects to find:</span>
+<span class="sd">                - {file_name}.joblib (model configuration)</span>
+<span class="sd">                - {file_name}_trace.nc (trace data, optional)</span>
+<span class="sd">                - {file_name}_prior_samples.nc (prior sample data, optional)</span>
+<span class="sd">            folder (str): Folder the models are saved in</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            agent_model.AgentModel</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">file_name</span> <span class="o">=</span> <span class="n">folder</span> <span class="o">+</span> <span class="n">file_name</span>
+        <span class="c1"># Load the model structure</span>
+        <span class="n">agent</span> <span class="o">=</span> <span class="n">joblib</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s1">.joblib&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Agent model loaded from </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">file_name</span><span class="p">))</span>
+
+        <span class="c1"># Store values that will be overwritten by __init__</span>
+        <span class="n">posterior_draws</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">posterior_draws</span>
+        <span class="n">prior_draws</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">prior_draws</span>
+        <span class="n">X_o</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">X_o</span>
+
+        <span class="c1"># Reconstruct PyMC model (it was None when saved)</span>
+        <span class="c1"># This reinitializes agent.model based on saved configuration</span>
+        <span class="n">agent</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">plate_size</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">plate_size</span><span class="p">,</span>
+            <span class="n">prior_parameters</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">,</span>
+            <span class="n">scm_constants</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">scm_constants</span><span class="p">,</span>
+            <span class="n">predictive_var_names</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">predictive_var_names</span><span class="p">,</span>
+            <span class="n">low_dim_aux_plate</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">low_dim_aux_plate</span><span class="p">,</span>
+            <span class="n">test</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">test</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Restore values that were overwritten by __init__</span>
+        <span class="n">agent</span><span class="o">.</span><span class="n">posterior_draws</span> <span class="o">=</span> <span class="n">posterior_draws</span>
+        <span class="n">agent</span><span class="o">.</span><span class="n">prior_draws</span> <span class="o">=</span> <span class="n">prior_draws</span>
+        <span class="n">agent</span><span class="o">.</span><span class="n">X_o</span> <span class="o">=</span> <span class="n">X_o</span>
+
+        <span class="c1"># Load trace</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">agent</span><span class="o">.</span><span class="n">trace</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">from_netcdf</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s1">_trace.nc&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+            <span class="n">agent</span><span class="o">.</span><span class="n">trace</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Trace not loaded (file </span><span class="si">{}</span><span class="s2">_trace.nc does not exist.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">file_name</span><span class="p">))</span>
+        <span class="c1"># Load prior samples</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">agent</span><span class="o">.</span><span class="n">prior_samples</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">from_netcdf</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s1">_prior_samples.nc&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+            <span class="n">agent</span><span class="o">.</span><span class="n">prior_samples</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Prior samples not loaded (file </span><span class="si">{}</span><span class="s2">_prior_samples.nc does not exist).&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">file_name</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">agent</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
