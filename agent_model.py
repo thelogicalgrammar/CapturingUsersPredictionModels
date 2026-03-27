@@ -193,7 +193,7 @@ class AgentModel():
                                             (U_XA - V_XA) / 2))
                 S_8 = pm.Deterministic('S_8', (S_X * S_Y / self.plate_size +
                                             (U_XY - V_XY) / 2))
-                S_7 = pm.Deterministic('S_7', Z_XX - S_X**2 / self.plate_size)
+                S_7 = pm.Deterministic('S_7', Z_XX + S_X**2 / self.plate_size)
                 S_6 = pm.Deterministic('S_6', (self.plate_size * alpha_mu_X * alpha_mu_Y +
                                             alpha_mu_X * alpha_sigma_Y * S_Y +
                                             alpha_mu_Y * alpha_sigma_X * S_X +
