@@ -11,6 +11,8 @@ import numpy as np
 scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
                         'alpha_mu_A': 2, 'alpha_sigma_A': 1.0,
                         'alpha_mu_Y': 0.0, 'alpha_sigma_Y': 0.1,
+                        'N_B': -0.1,
+                        'N_D': 0.125,
                         'N_E': 1.0}
 
 
@@ -42,6 +44,12 @@ def generate_slurm_parameter_file(parameters_file='./slurm/tmp/parameters.txt'):
             # N_E_mu "narrow": This covers [-0.5, 2.5].
             'N_E_mu': [scm_noise_parameters['N_E'] + deviation * 0.05 for deviation in deviations] + 
                 [scm_noise_parameters['N_E'] + deviation / 10 * 0.05 for deviation in deviations],
+            # N_B_mu:
+            'N_B_mu': [scm_noise_parameters['N_B'] + deviation * 0.05 for deviation in deviations] + 
+                [scm_noise_parameters['N_B'] + deviation / 10 * 0.05 for deviation in deviations],
+            # N_D_mu:
+            'N_D_mu': [scm_noise_parameters['N_D'] + deviation * 0.05 for deviation in deviations] + 
+                [scm_noise_parameters['N_D'] + deviation / 10 * 0.05 for deviation in deviations],
            }
 
     # Parameters for scan over controlled values of X_o (+-4 SD):

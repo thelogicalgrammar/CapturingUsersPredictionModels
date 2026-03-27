@@ -36,19 +36,19 @@ class AgentModel():
     """
     Class for agent models with structural equations:
 
-    :math:`Y_i = a + b X_i + N_{E} A_i + N_{Yi}`
+    :math:`Y_i = a + N_b X_i + N_{E} A_i + N_{Yi}`
 
-    :math:`A_i = d X_i + N_{Ai}`
+    :math:`A_i = N_d X_i + N_{Ai}`
 
     :math:`X_i = N_{Xi}`
 
     where N_{Xi}, N_{Ai}, N_{Yi} are normal noise variables drawn J times
-    for every instantiation of the plate and N_{E} is a normal variable
-    drawn once per instantiation of the plate.
+    for every instantiation of the plate and N_{E}, N_b, and N_d are
+    normal variables drawn once per instantiation of the plate.
 
     Args:
         plate_size (int): size of the plate (number of i.i.d. samples).
-        scm_constants (dict): dictionary with structural equation scm_constants 'a', 'b', and 'd'.
+        scm_constants (dict): dictionary with structural equation scm_constants 'a' (previously also b and d).
             If scm_constants is None, then it defaults to values in the paper (28.8.2025).
         prior_parameters (dict): dictionary with parameters for prior distributions
             If prior_parameters is None, then it defaults to values in the paper (28.8.2025).
@@ -71,6 +71,7 @@ class AgentModel():
             {'mu_X': 80, 'sigma_X': 0.1, 'mu_sigma_X': 10, 'sigma_sigma_X':0.1,
              'mu_A': 2, 'sigma_A': 1, 'mu_sigma_A': 1, 'sigma_sigma_A':0.1,
              'mu_Y': 0, 'sigma_Y': 0.01, 'mu_sigma_Y': 0.1, 'sigma_sigma_Y' : 0.01,
+             'N_B_mu': -0.1, 'N_B_sigma': 1, 'N_D_mu': 0.125, 'N_D_sigma': 1,
              'N_E_mu': 1.0, 'N_E_sigma': 1}
         if prior_parameters is None:
             # Use default values.
@@ -89,8 +90,8 @@ class AgentModel():
 
         # Variable names of the predictive variables.
         default_predictive_var_names =\
-            ['alpha_mu_X', 'alpha_sigma_X', 'alpha_mu_A', 'alpha_sigma_A', 
-             'alpha_mu_Y', 'alpha_sigma_Y', 'N_E']
+            ['alpha_mu_X', 'alpha_sigma_X', 'alpha_mu_A', 'alpha_sigma_A',
+             'alpha_mu_Y', 'alpha_sigma_Y', 'N_E', 'N_B', 'N_D']
         if predictive_var_names is None:
             self.predictive_var_names = default_predictive_var_names
         else:
@@ -106,7 +107,7 @@ class AgentModel():
         # predictive sampling (samples from the agent's beliefs replaces the
         # original values).
         # Note that N_{E} is essentially replacing "c"
-        default_scm_constants = {'a': 12, 'b': -0.1, 'd': 0.125}
+        default_scm_constants = {'a': 12}  #, 'b': -0.1, 'd': 0.125}
         if scm_constants is None:
             self.scm_constants = default_scm_constants
         else:
@@ -162,13 +163,15 @@ class AgentModel():
                 'mu_sigma_Y'], sigma = self.prior_parameters['sigma_sigma_Y'], lower = 0)
             # changed from Exponential to truncated normal
             N_E = pm.Normal('N_E', self.prior_parameters['N_E_mu'], self.prior_parameters['N_E_sigma'])
+            N_B = pm.Normal('N_B', self.prior_parameters['N_B_mu'], self.prior_parameters['N_B_sigma'])
+            N_D = pm.Normal('N_D', self.prior_parameters['N_D_mu'], self.prior_parameters['N_D_sigma'])
 
             if not low_dim_aux_plate:
                 # Full-plate model
                 # Plate in model (for i in 1...plate_size):
                 X = pm.Normal('X', alpha_mu_X, alpha_sigma_X, shape=self.plate_size)
-                A = pm.Normal('A', self.scm_constants['d'] * X + alpha_mu_A, alpha_sigma_A, shape=self.plate_size)
-                Y = pm.Normal('Y', self.scm_constants['a'] + self.scm_constants['b'] * X + N_E * A + alpha_mu_Y, alpha_sigma_Y, shape=self.plate_size)
+                A = pm.Normal('A', N_D * X + alpha_mu_A, alpha_sigma_A, shape=self.plate_size)
+                Y = pm.Normal('Y', self.scm_constants['a'] + N_B * X + N_E * A + alpha_mu_Y, alpha_sigma_Y, shape=self.plate_size)
 
                 # Is this element-wise multiplication? Could use dot product.
                 phi = pm.Deterministic('phi', pm.math.sum(X * Y) / pm.math.sum(X**2))
@@ -208,7 +211,7 @@ class AgentModel():
                                                  2 * alpha_mu_X * alpha_sigma_X * S_X +  # S_2
                                                  alpha_sigma_X**2 * S_7))  # S_3
                 # Equation for phi.
-                phi = pm.Deterministic('phi', (self.scm_constants['b'] + self.scm_constants['d'] * N_E +\
+                phi = pm.Deterministic('phi', (N_B + N_D * N_E +\
                                         (S_4 + S_5 + S_6) / S_123))
                 pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_, shape=X_o_.shape)  # Shape is already defined at pm.Data(). Probably cannot be changed here.
                 phi_hat = pred_o_ / X_o_

@@ -30,8 +30,8 @@ class SCM:
     N_Xi ~ N(alpha_mu_X, alpha_sigma_X) \n
     N_Yi ~ N(alpha_mu_Y, alpha_sigma_Y) \n
     N_Ai ~ N(alpha_mu_A, alpha_sigma_A) \n
-    Y_i = a + b * X_i + N_E * A_i + N_Yi \n
-    A_i = d * X_i + N_Ai \n
+    Y_i = a + N_B * X_i + N_E * A_i + N_Yi \n
+    A_i = N_D * X_i + N_Ai \n
     X_i = N_Xi
 
     Args:
@@ -44,8 +44,8 @@ class SCM:
         N_E (float): Effect size. The effect size is a fixed number. All
             variability is explained by variance in other RVs.
         a (float): Constant for SCM
-        b (float): Constant for SCM
-        d (float): Constant for SCM
+        N_B (float): Constant for SCM
+        N_D (float): Constant for SCM
     """
     alpha_mu_X: float = 80
     alpha_sigma_X: float = 10
@@ -55,8 +55,8 @@ class SCM:
     alpha_sigma_Y: float = 0.1
     N_E: float = 1.0
     a: float = 12.0
-    b: float = -0.1
-    d: float = 0.125
+    N_B: float = -0.1
+    N_D: float = 0.125
 
     def update_parameters(self, parameter_dict):
         """
@@ -109,7 +109,7 @@ class SCM:
             # Sample N_A and calculate A
             N_A = rng.normal(self.alpha_mu_A, self.alpha_sigma_A, size=draws)
             # Calculate A
-            A = self.d * X + N_A
+            A = self.N_D * X + N_A
         # Sample N_Y, center around zero and add self.alpha_mu_Y later
         # to also be able to extract parameter mu_Y_cond.
         N_Y_0_centered = rng.normal(0, self.alpha_sigma_Y, size=draws)
@@ -118,7 +118,7 @@ class SCM:
         # the sampled values (this is not what "conditional" usually refers to).
         # If X was passed, the output Y is conditional on the passed value. 
         # If A was passed, the output Y is conditional on do(A).
-        mu_Y_cond = self.a + self.b * X + self.N_E * A + self.alpha_mu_Y
+        mu_Y_cond = self.a + self.N_B * X + self.N_E * A + self.alpha_mu_Y
         std_Y_cond = np.full_like(mu_Y_cond, self.alpha_sigma_Y)
         # Model defines the treatement effect as independent of X.
         Y = mu_Y_cond + N_Y_0_centered
@@ -198,55 +198,6 @@ class SCM:
             A0_treatment (float): Dosage value of lower dose treatment
         """
         return (A1_treatment - A0_treatment) * self.N_E
-
-
-class BinaryA_SCM(SCM):
-    """
-    A specific SCM with binary treatment A, continuous X and Y.
-    This class inherits from SCM and sets the A_type to "binary".
-    """
-    def __init__(self, alpha_mu_X, alpha_sigma_X, alpha_mu_A,
-                 alpha_sigma_Y, N_E):
-        super().__init__(
-            alpha_mu_X=alpha_mu_X,
-            alpha_sigma_X=alpha_sigma_X,
-            alpha_mu_A=alpha_mu_A,
-            alpha_sigma_Y=alpha_sigma_Y,
-            N_E=N_E,
-        )
-
-    def sample(self, X=None, A=None, draws=1, rng=None):
-        """
-        Definition of SCM structure (and variables)
-        If N_A is passed, A is calculated. If A is passed,
-        it is used as is.
-
-        Args:
-            X (float): Optional input. If provided, output will be conditional on X.
-            A (float): Optional input. If provided, output will be conditional on do(A).
-            draws (int): Size of sample to generate.
-            rng (int or rng): seed or initialized random number generator for reproducibility
-        """
-        # Sample noise when needed:
-        rng = np.random.default_rng(rng)
-        if X is None:
-            # Sample N_X and calculate X
-            N_X = rng.normal(self.alpha_mu_X, self.alpha_sigma_X, size=draws)
-            X = N_X
-        if A is None:
-            # Sample N_A and calculate A
-            N_A = rng.normal(self.alpha_mu_A, self.alpha_sigma_A, size=draws)
-            # Calculate A
-            # Binary treatment A
-            # p(A = 1 | X, N_A) = sigmoid(d * X**2 + N_A)
-            # 'd' controls the strength of the relationship between X and A.
-            p_A = sigmoid(self.d * X**2 + N_A)  # P(A = 1 | X, N_A)
-            A = rng.binomial(1, p_A)  # binary treatment
-        # Sample N_y
-        N_Y = rng.normal(self.alpha_mu_Y, self.alpha_sigma_Y, size=draws)
-        # Agent assumes the treatement effect is independent of X and constant.
-        Y = self.a + self.b * X + self.N_E * A + N_Y
-        return X, A, Y
 
 
 if __name__ == "__main__":

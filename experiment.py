@@ -39,17 +39,19 @@ plate_size = 1000
 scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
                         'alpha_mu_A': 2, 'alpha_sigma_A': 1.0,
                         'alpha_mu_Y': 0.0, 'alpha_sigma_Y': 0.1,
+                        'N_B': -0.1, 'N_D': 0.125,
                         'N_E': 1.0}
 
 # Set scm agent priors to the same
 predictive_var_names = [k for k in scm_noise_parameters.keys() if k != 'alpha_sigma_A']
-scm_constants = {'a': 12.0, 'b': -0.1, 'd': 0.125}
+scm_constants = {'a': 12.0} 
 draws = 1000  # Number of draws for trace. Warmup is set to 1000.
 # Default values of agent priors. One value is overwritten in main().
 agent_priors =\
     {'mu_X': 80, 'sigma_X': 0.1, 'mu_sigma_X': 10, 'sigma_sigma_X':0.1,
      'mu_A': 2, 'sigma_A': 1, 'mu_sigma_A': 1, 'sigma_sigma_A':0.1,
      'mu_Y': 0, 'sigma_Y': 0.01, 'mu_sigma_Y': 0.1, 'sigma_sigma_Y' : 0.01,
+     'N_B_mu': -0.1, 'N_B_sigma': 1.0, 'N_D_mu': 0.125, 'N_D_sigma': 1.0,
      'N_E_mu': 1.0, 'N_E_sigma': 1}
 # changed agent prior sigma_Y from 1 to 0.1, this is a choice
 # changed prior of lambda_X from 10 to 0.1, this was a mistake
@@ -67,7 +69,7 @@ rng = 4  # Selected by fair die
 
 def main(X_o, agent_priors, modified_prior,
          A1_treatment=A1_treatment, A0_treatment=A0_treatment,
-         plate_size=plate_size, draws=1000,
+         plate_size=plate_size, draws=draws,
          scm_noise_parameters=scm_noise_parameters,
          scm_constants=scm_constants,
          parameter_descriptions=parameter_descriptions,
