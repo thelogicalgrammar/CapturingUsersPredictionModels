@@ -297,17 +297,19 @@ def plot_CATEs(file_name='./results/results_18_2.csv'):
         file_name (str): Path and name of result file.
     """
     scans = ['wide', 'focused']
-    var_names = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
-    mean_of_vars = [80.0, None, 0.0, 2.0]
-    std_of_vars = [10, None, 0.1, 1]  # N_E does not really have a variance.
+    var_names = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A', 'N_B_mu', 'N_D_mu']
+    mean_of_vars = [80.0, None, 0.0, 2.0, None, None]
+    std_of_vars = [10, None, 0.1, 1, None, None]  # N_E does not really have a variance.
     # Limits for wide scan results:
-    x_lim_arrays = [[(-30, 30), (-.5, 2.5), (-30, 30), (-30, 30)],
-                    [(-3, 3), (.7, 1.3), (-3, 3), (-3, 3)]]  # This second for focused plots
-    y_lims = [(None, None), (-30, 50), (-15, 35), (None, None)]
+    x_lim_arrays = [[(-30, 30), (-.5, 2.5), (-30, 30), (-30, 30), (None, None), (None, None)],
+                    [(-3, 3), (.7, 1.3), (-3, 3), (-3, 3), (None, None), (None, None)]]  # This second for focused plots
+    y_lims = [(None, None), (-30, 50), (-15, 35), (None, None), (None, None), (None, None)]
     x_labels = ['Deviation of prior belief $\\alpha_{\\mu_X}$ from $\\mu_X$ in units of SD ($\\alpha_{\\sigma_X}$)',
                 'Prior belief on $N_E$',
                 'Deviation of prior belief $\\alpha_{\\mu_Y}$ from $\\mu_Y$ in units of SD ($\\alpha_{\\sigma_Y}$)',
-                'Deviation of prior belief $\\alpha_{\\mu_Y}$ from $\\mu_A$ in units of SD ($\\alpha_{\\sigma_A}$)']
+                'Deviation of prior belief $\\alpha_{\\mu_Y}$ from $\\mu_A$ in units of SD ($\\alpha_{\\sigma_A}$)',
+                'Prior belief on $N_B$',
+                'Prior belief on $N_D$']
     for scan, x_lims in zip(scans, x_lim_arrays):
         for var_name, x_label, mean_of_var, std_of_var, x_lim, y_lim in zip(var_names, x_labels, mean_of_vars, std_of_vars, x_lims, y_lims):
             plot_CATE_for_var(var=var_name, std_of_x=std_of_var,
@@ -325,15 +327,15 @@ def plot_all_Y(file_name='./results/results_18_2.csv'):
         file_name (str): Path and name of result file.
     """
     scans = ['wide', 'focused']
-    var_names = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
-    mean_of_vars = [80.0, None, 0.0, 2.0]
-    std_of_vars = [10.0, None, 0.1, 1.0]  # N_E does not really have a variance.
-    keep_rates = [2, 1, 1, 1]
+    var_names = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A', 'N_B_mu', 'N_D_mu']
+    mean_of_vars = [80.0, None, 0.0, 2.0, None, None]
+    std_of_vars = [10.0, None, 0.1, 1.0, None, None]  # N_E does not really have a variance.
+    keep_rates = [2, 1, 1, 1, 1, 1]
     # labels = ['Prior beliefs on $\\mu_X$', 'Prior beliefs on $N_E$',
     #             'Prior beliefs on $\\mu_Y$', 'Prior beliefs on $\\mu_A$']
     # Limits for wide and focused scan plots:
-    x_lim_array = [[(-30, 30), (-.5, 2.5), (-30, 30), (-30, 30)],
-                   [(-3, 3), (.7, 1.3), (-3, 3), (-3, 3)]]
+    x_lim_array = [[(-30, 30), (-.5, 2.5), (-30, 30), (-30, 30), (None, None), (None, None)],
+                   [(-3, 3), (.7, 1.3), (-3, 3), (-3, 3), (None, None), (None, None)]]
     # Forcing sns to use matplotlib styles:
     plt.clf()
     sns.set_theme(style='white')
@@ -362,7 +364,7 @@ def match_to_grid(summary, mod_var_name, scan_type):
     scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
                             'alpha_mu_A': 2, 'alpha_sigma_A': 1.0,
                             'alpha_mu_Y': 0.0, 'alpha_sigma_Y': 0.1,
-                            'N_E': 1.0}
+                            'N_B': -0.1, 'N_D': 0.125, 'N_E': 1.0}
 
     deviations = [i for i in range(-30, 31)]  # 31 because not inclusive of upper bound.
     if scan_type == 'wide':
@@ -370,14 +372,18 @@ def match_to_grid(summary, mod_var_name, scan_type):
             'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
             'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
             'mu_Y': [scm_noise_parameters['alpha_mu_Y'] + deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
-            'N_E_mu': [scm_noise_parameters['N_E'] + deviation * 0.05 for deviation in deviations]
+            'N_E_mu': [scm_noise_parameters['N_E'] + deviation * 0.05 for deviation in deviations],
+            'N_B_mu': [scm_noise_parameters['N_B'] + deviation * 0.05 for deviation in deviations],
+            'N_D_mu': [scm_noise_parameters['N_D'] + deviation * 0.05 for deviation in deviations]
             }
     elif scan_type == 'focused':
         params = {
             'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation / 10 * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
             'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation / 10 * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
             'mu_Y': [scm_noise_parameters['alpha_mu_Y'] + deviation / 10 * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
-            'N_E_mu': [scm_noise_parameters['N_E'] + deviation / 10 * 0.05 for deviation in deviations]
+            'N_E_mu': [scm_noise_parameters['N_E'] + deviation / 10 * 0.05 for deviation in deviations],
+            'N_B_mu': [scm_noise_parameters['N_B'] + deviation / 10 * 0.05 for deviation in deviations],
+            'N_D_mu': [scm_noise_parameters['N_D'] + deviation / 10 * 0.05 for deviation in deviations]
             }
     # Summary stats and outputs both have a leading column with the x-value (prior setting)
     grid = params[mod_var_name]
@@ -457,7 +463,7 @@ def plot_prior_and_posterior_Y(summary, variable_name, mean_x, std_x=None,
             'Y': values}  # 
     # Format ticks:
     x_ticks = np.unique(categories)
-    if variable_name=='N_E_mu':
+    if variable_name=='N_E_mu' or variable_name=='N_B_mu' or variable_name=='N_D_mu':
         # Two decimals in ticks for both N_E plots:
         x_ticks = ['{:.2f}'.format(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
         # x_ticks = [str(val) if i%5==0 else '' for i, val in enumerate(x_ticks)]
@@ -481,7 +487,7 @@ def plot_prior_and_posterior_Y(summary, variable_name, mean_x, std_x=None,
     plt.clf()
 
 
-def plot_all(file_name='./results/results_18_2.csv'):
+def plot_all(file_name='./results/results.csv'):
     """
     Function that reads in all results from ./results/results.csv and
     creates boxplots for all variables found in column "Modified variables".

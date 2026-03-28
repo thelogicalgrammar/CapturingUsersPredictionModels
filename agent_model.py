@@ -71,7 +71,7 @@ class AgentModel():
             {'mu_X': 80, 'sigma_X': 0.1, 'mu_sigma_X': 10, 'sigma_sigma_X':0.1,
              'mu_A': 2, 'sigma_A': 1, 'mu_sigma_A': 1, 'sigma_sigma_A':0.1,
              'mu_Y': 0, 'sigma_Y': 0.01, 'mu_sigma_Y': 0.1, 'sigma_sigma_Y' : 0.01,
-             'N_B_mu': -0.1, 'N_B_sigma': 1, 'N_D_mu': 0.125, 'N_D_sigma': 1,
+             'N_B_mu': -0.1, 'N_B_sigma': 0.01, 'N_D_mu': 0.125, 'N_D_sigma': 0.01,
              'N_E_mu': 1.0, 'N_E_sigma': 1}
         if prior_parameters is None:
             # Use default values.

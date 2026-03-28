@@ -51,7 +51,7 @@ agent_priors =\
     {'mu_X': 80, 'sigma_X': 0.1, 'mu_sigma_X': 10, 'sigma_sigma_X':0.1,
      'mu_A': 2, 'sigma_A': 1, 'mu_sigma_A': 1, 'sigma_sigma_A':0.1,
      'mu_Y': 0, 'sigma_Y': 0.01, 'mu_sigma_Y': 0.1, 'sigma_sigma_Y' : 0.01,
-     'N_B_mu': -0.1, 'N_B_sigma': 1.0, 'N_D_mu': 0.125, 'N_D_sigma': 1.0,
+     'N_B_mu': -0.1, 'N_B_sigma': 0.010, 'N_D_mu': 0.125, 'N_D_sigma': 0.010,
      'N_E_mu': 1.0, 'N_E_sigma': 1}
 # changed agent prior sigma_Y from 1 to 0.1, this is a choice
 # changed prior of lambda_X from 10 to 0.1, this was a mistake
