@@ -31,17 +31,17 @@ def generate_slurm_parameter_file(parameters_file='./slurm/tmp/parameters.txt'):
     deviations = [i for i in range(-30, 31)]  # 31 because not inclusive of upper bound.
     params = {
             # The following takes care of mu_A wide
-            'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations] +
-                [scm_noise_parameters['alpha_mu_A'] + deviation / 10 * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
+            'mu_A': [scm_noise_parameters['alpha_mu_A'] + deviation * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
+                #[scm_noise_parameters['alpha_mu_A'] + deviation / 10 * scm_noise_parameters['alpha_sigma_A'] for deviation in deviations],
             # This takes care of mu_X wide
-            'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations] +
-                [scm_noise_parameters['alpha_mu_X'] + deviation / 10 * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
+            'mu_X': [scm_noise_parameters['alpha_mu_X'] + deviation * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
+                #[scm_noise_parameters['alpha_mu_X'] + deviation / 10 * scm_noise_parameters['alpha_sigma_X'] for deviation in deviations],
             # mu_Y narrow: This still needs multiple decimals stored in parameters.txt to work.
-            'mu_Y': [scm_noise_parameters['alpha_mu_Y'] + deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations] +
-                [scm_noise_parameters['alpha_mu_Y'] + deviation / 10 * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
+            'mu_Y': [scm_noise_parameters['alpha_mu_Y'] + deviation * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
+                #[scm_noise_parameters['alpha_mu_Y'] + deviation / 10 * scm_noise_parameters['alpha_sigma_Y'] for deviation in deviations],
             # N_E_mu "narrow": This covers [-0.5, 2.5].
-            'N_E_mu': [scm_noise_parameters['N_E'] + deviation * 0.05 for deviation in deviations] + 
-                [scm_noise_parameters['N_E'] + deviation / 10 * 0.05 for deviation in deviations],
+            'N_E_mu': [scm_noise_parameters['N_E'] + deviation * 0.05 for deviation in deviations],
+                #[scm_noise_parameters['N_E'] + deviation / 10 * 0.05 for deviation in deviations],
            }
 
     # Parameters for scan over controlled values of X_o (+-4 SD):
