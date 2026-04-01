@@ -298,7 +298,7 @@ class AgentModel():
             # Sample prior predictive given do(A)
             # Returns tuple with samples, mean, and standard deviation
             # First (array) will not fall into an array nicely with the second (value) and third (value)
-            tmp = self.predictive_scm.sample_do_A(X, A_treatment, rng=rng)
+            tmp = self.predictive_scm.sample_do_A(A_treatment, X, rng=rng)
             # Only one sample, hence standard deviation will be zero and mean will equal sample value.
             # Should be sample 1000?
             do_A_samples[i] = tmp[0][0]
@@ -447,7 +447,7 @@ class AgentModel():
             # Update scm-parameters
             self.predictive_scm.update_parameters(parameters)
             # Sample (generates CATE for that version of the scm):
-            potential_outcomes[i], *_ = self.predictive_scm.sample_do_A(X, A_treatment, rng=rng)
+            potential_outcomes[i], *_ = self.predictive_scm.sample_do_A(A_treatment, X, rng=rng)
         # Estimate mean and standard deviation
         do_A_mean = np.mean(potential_outcomes)
         do_A_std = np.std(potential_outcomes)
