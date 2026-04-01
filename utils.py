@@ -303,7 +303,8 @@ def plot_CATEs(file_name='./results/results_18_2.csv'):
     # Limits for wide scan results:
     x_lim_arrays = [[(-30, 30), (-.5, 2.5), (-30, 30), (-30, 30), (None, None), (None, None)],
                     [(-3, 3), (.7, 1.3), (-3, 3), (-3, 3), (None, None), (None, None)]]  # This second for focused plots
-    y_lims = [(None, None), (-30, 50), (-15, 35), (None, None), (None, None), (None, None)]
+    #y_lims = [(None, None), (-30, 50), (-15, 35), (None, None), (None, None), (None, None)]
+    y_lims = [(-50, 50), (-50, 50), (-15, 35), (-50, 50), (-50, 50), (-50, 50)]
     x_labels = ['Deviation of prior belief $\\alpha_{\\mu_X}$ from $\\mu_X$ in units of SD ($\\alpha_{\\sigma_X}$)',
                 'Prior belief on $N_E$',
                 'Deviation of prior belief $\\alpha_{\\mu_Y}$ from $\\mu_Y$ in units of SD ($\\alpha_{\\sigma_Y}$)',
