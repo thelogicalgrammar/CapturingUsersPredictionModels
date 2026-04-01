@@ -67,7 +67,7 @@ rng = 4  # Selected by fair die
 
 def main(X_o, agent_priors, modified_prior,
          A1_treatment=A1_treatment, A0_treatment=A0_treatment,
-         plate_size=plate_size, draws=1000,
+         plate_size=plate_size, draws=draws,
          scm_noise_parameters=scm_noise_parameters,
          scm_constants=scm_constants,
          parameter_descriptions=parameter_descriptions,
