@@ -2,7 +2,8 @@
 A simple script to check what jobs in the original parameter-file
 original_parameters.txt finished (i.e. had results written to csv-file).
 The script generates a new parameter.txt listing the missing jobs for
-a new array job.
+a new array job. After running this script, set the number of arrays
+in slurm/array_job.sh to 1/4 of the number of missing jobs.
 """
 import csv
 

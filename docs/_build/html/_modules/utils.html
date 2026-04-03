@@ -317,14 +317,14 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">plot_CATE_for_var</span><span class="p">(</span><span class="n">var</span><span class="p">,</span> <span class="n">mean_of_x</span><span class="p">,</span> <span class="n">std_of_x</span><span class="p">,</span> <span class="n">x_label</span><span class="p">,</span> <span class="n">file_name</span><span class="p">,</span> <span class="n">x_lim</span><span class="p">,</span> <span class="n">y_lim</span><span class="p">,</span> <span class="n">scan</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Args:</span>
-<span class="sd">    var (str): Name of variable of interest</span>
-<span class="sd">    mean_of_x (float): Mean of horizontal scale (x) to center on.</span>
-<span class="sd">    std_of_x (float): Standard deviation of the horizontal scale (x).</span>
-<span class="sd">        Used for normalizing plot.</span>
-<span class="sd">    x_label (str): Label that will be visible under the x-axis</span>
-<span class="sd">    file_name (str): File name and path of the result file to parse.</span>
-<span class="sd">    x_lim ((float, float)): +-Limits of horizontal axis</span>
-<span class="sd">    y_lim ((float, float)): +-Limits of vertical axis</span>
+<span class="sd">        var (str): Name of variable of interest</span>
+<span class="sd">        mean_of_x (float): Mean of horizontal scale (x) to center on.</span>
+<span class="sd">        std_of_x (float): Standard deviation of the horizontal scale (x).</span>
+<span class="sd">            Used for normalizing plot.</span>
+<span class="sd">        x_label (str): Label that will be visible under the x-axis</span>
+<span class="sd">        file_name (str): File name and path of the result file to parse.</span>
+<span class="sd">        x_lim ((float, float)): +-Limits of horizontal axis</span>
+<span class="sd">        y_lim ((float, float)): +-Limits of vertical axis</span>
 
 <span class="sd">    Notes:</span>
 <span class="sd">    Uncertainty of true model (with default values) is tiny.</span>
@@ -388,7 +388,7 @@
 <span class="sd">    Function for plotting CATEs.</span>
 <span class="sd">    </span>
 <span class="sd">    Args:</span>
-<span class="sd">    file_name (str): Path and name of result file.</span>
+<span class="sd">        file_name (str): Path and name of result file.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">scans</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;wide&#39;</span><span class="p">,</span> <span class="s1">&#39;focused&#39;</span><span class="p">]</span>
     <span class="n">var_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;mu_X&#39;</span><span class="p">,</span> <span class="s1">&#39;N_E_mu&#39;</span><span class="p">,</span> <span class="s1">&#39;mu_Y&#39;</span><span class="p">,</span> <span class="s1">&#39;mu_A&#39;</span><span class="p">]</span>
@@ -419,7 +419,7 @@
 <span class="sd">    under treatment selected based on beliefs.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">    file_name (str): Path and name of result file.</span>
+<span class="sd">        file_name (str): Path and name of result file.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">scans</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;wide&#39;</span><span class="p">,</span> <span class="s1">&#39;focused&#39;</span><span class="p">]</span>
     <span class="n">var_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;mu_X&#39;</span><span class="p">,</span> <span class="s1">&#39;N_E_mu&#39;</span><span class="p">,</span> <span class="s1">&#39;mu_Y&#39;</span><span class="p">,</span> <span class="s1">&#39;mu_A&#39;</span><span class="p">]</span>

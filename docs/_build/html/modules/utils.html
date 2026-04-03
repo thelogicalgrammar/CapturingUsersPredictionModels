@@ -127,17 +127,20 @@ from the result-file.</p></li>
 <dl class="py function">
 <dt class="sig sig-object py" id="utils.plot_CATE_for_var">
 <span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_CATE_for_var</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">var</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mean_of_x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">std_of_x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_label</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_lim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_lim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#plot_CATE_for_var"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_CATE_for_var" title="Link to this definition"></a></dt>
-<dd><p>Args:
-var (str): Name of variable of interest
-mean_of_x (float): Mean of horizontal scale (x) to center on.
-std_of_x (float): Standard deviation of the horizontal scale (x).</p>
-<blockquote>
-<div><p>Used for normalizing plot.</p>
-</div></blockquote>
-<p>x_label (str): Label that will be visible under the x-axis
-file_name (str): File name and path of the result file to parse.
-x_lim ((float, float)): +-Limits of horizontal axis
-y_lim ((float, float)): +-Limits of vertical axis</p>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>var</strong> (<em>str</em>) – Name of variable of interest</p></li>
+<li><p><strong>mean_of_x</strong> (<em>float</em>) – Mean of horizontal scale (x) to center on.</p></li>
+<li><p><strong>std_of_x</strong> (<em>float</em>) – Standard deviation of the horizontal scale (x).
+Used for normalizing plot.</p></li>
+<li><p><strong>x_label</strong> (<em>str</em>) – Label that will be visible under the x-axis</p></li>
+<li><p><strong>file_name</strong> (<em>str</em>) – File name and path of the result file to parse.</p></li>
+<li><p><strong>x_lim</strong> (<em>(</em><em>float</em><em>, </em><em>float</em><em>)</em>) – +-Limits of horizontal axis</p></li>
+<li><p><strong>y_lim</strong> (<em>(</em><em>float</em><em>, </em><em>float</em><em>)</em>) – +-Limits of vertical axis</p></li>
+</ul>
+</dd>
+</dl>
 <p>Notes:
 Uncertainty of true model (with default values) is tiny.</p>
 </dd></dl>
@@ -146,8 +149,11 @@ Uncertainty of true model (with default values) is tiny.</p>
 <dt class="sig sig-object py" id="utils.plot_CATEs">
 <span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_CATEs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/results_18_2.csv'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#plot_CATEs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_CATEs" title="Link to this definition"></a></dt>
 <dd><p>Function for plotting CATEs.</p>
-<p>Args:
-file_name (str): Path and name of result file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>file_name</strong> (<em>str</em>) – Path and name of result file.</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">
@@ -164,8 +170,11 @@ and might need tweaking with new data (e.g. plot ranges).</p>
 <span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_all_Y</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/results_18_2.csv'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#plot_all_Y"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_all_Y" title="Link to this definition"></a></dt>
 <dd><p>Method for plotting all boxplots for outcomes Y
 under treatment selected based on beliefs.</p>
-<p>Args:
-file_name (str): Path and name of result file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>file_name</strong> (<em>str</em>) – Path and name of result file.</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">

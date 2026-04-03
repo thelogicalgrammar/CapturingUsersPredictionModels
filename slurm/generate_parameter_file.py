@@ -1,5 +1,7 @@
 """
-This file generates a parameter file for slurm-parameters
+This file generates a parameter file for a slurm array job. After running
+this script, line 3 in ./slurm/array_job.sh will need to be adjusted
+to 1/4 of the number of parametersets generated (#lines in parameters.txt).
 """
 import os
 import shutil
@@ -16,7 +18,7 @@ scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
 
 def generate_slurm_parameter_file(parameters_file='./slurm/tmp/parameters.txt'):
     """
-    Function for generating parameters for slurm script
+    Function for generating parameters for slurm array job. 
 
     Args:
         parameters_file (str): File name of file to write parameters to.

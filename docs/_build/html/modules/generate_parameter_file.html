@@ -84,11 +84,13 @@
              
   <section id="module-slurm.generate_parameter_file">
 <span id="generate-parameter-file"></span><h1>Generate Parameter File<a class="headerlink" href="#module-slurm.generate_parameter_file" title="Link to this heading"></a></h1>
-<p>This file generates a parameter file for slurm-parameters</p>
+<p>This file generates a parameter file for a slurm array job. After running
+this script, line 3 in ./slurm/array_job.sh will need to be adjusted
+to 1/4 of the number of parametersets generated (#lines in parameters.txt).</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="slurm.generate_parameter_file.generate_slurm_parameter_file">
 <span class="sig-prename descclassname"><span class="pre">slurm.generate_parameter_file.</span></span><span class="sig-name descname"><span class="pre">generate_slurm_parameter_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parameters_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./slurm/tmp/parameters.txt'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/slurm/generate_parameter_file.html#generate_slurm_parameter_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#slurm.generate_parameter_file.generate_slurm_parameter_file" title="Link to this definition"></a></dt>
-<dd><p>Function for generating parameters for slurm script</p>
+<dd><p>Function for generating parameters for slurm array job.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>parameters_file</strong> (<em>str</em>) – File name of file to write parameters to.</p>
