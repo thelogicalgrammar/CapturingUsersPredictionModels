@@ -115,7 +115,7 @@ class AgentModel():
                             if item not in default_scm_constants.keys()]
             err_msg = "{} passed with scm_constants, " \
                 "but not part of model specification.".format(extra_scm_items)
-            assert len(extra_items) < 1, err_msg
+            assert len(extra_scm_items) < 1, err_msg
             self.scm_constants = scm_constants
         # SCM parameters to update in prior predictive and posterior predictive sampling
         # and an SCM which variables are updated with samples from the agent's beliefs
