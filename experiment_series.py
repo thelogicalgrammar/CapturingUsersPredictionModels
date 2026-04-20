@@ -18,6 +18,14 @@ import experiment
 
 # Number of runs for every parameter value
 N_ITERATIONS = 50
+PLATE_SIZE = 1000
+DRAWS = 1000
+TUNE = 1000
+TARGET_ACCEPT = .85
+CHAINS = 4
+MAX_TREEDEPTH = 15
+INIT = "jitter+adapt_diag"
+LOW_DIM_AUX_PLATE = True
 
 # Default data generating parameters
 scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
@@ -74,6 +82,14 @@ def main():
             print("Iteration {}".format(iteration))
             print("Running experiment with {} set to {}. X_o is {}".format(param_name, value, X_o))
             experiment.main(X_o, tmp_agent_priors, modified_prior,
+                            plate_size=PLATE_SIZE,
+                            draws=DRAWS,
+                            tune=TUNE,
+                            target_accept=TARGET_ACCEPT,
+                            chains=CHAINS,
+                            max_treedepth=MAX_TREEDEPTH,
+                            init=INIT,
+                            low_dim_aux_plate=LOW_DIM_AUX_PLATE,
                             parameter_descriptions=parameter_descriptions,
                             rng=rng)
 

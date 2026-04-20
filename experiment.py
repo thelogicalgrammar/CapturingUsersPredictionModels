@@ -65,9 +65,37 @@ parameter_descriptions = {'agent_priors': 'Default',
                           'scm_noise_parameters': 'Default'}
 rng = 4  # Selected by fair die
 
+
+def format_features_for_regression(X):
+    """
+    Convert scalar and multivariate feature arrays to the two-dimensional
+    representation expected by scikit-learn.
+    """
+    X = np.asarray(X)
+    if X.ndim == 1:
+        return X.reshape(-1, 1)
+    if X.ndim == 2:
+        return X
+    raise ValueError("X must be one- or two-dimensional.")
+
+
+def format_observation_for_regression(X_o):
+    """
+    Convert one observed patient feature vector to the two-dimensional shape
+    expected by scikit-learn prediction methods.
+    """
+    X_o = np.asarray(X_o)
+    if X_o.ndim == 0:
+        return X_o.reshape(-1, 1)
+    if X_o.ndim == 1:
+        return X_o.reshape(1, -1)
+    raise ValueError("X_o must be scalar or one-dimensional.")
+
 def main(X_o, agent_priors, modified_prior,
          A1_treatment=A1_treatment, A0_treatment=A0_treatment,
-         plate_size=plate_size, draws=draws,
+         plate_size=plate_size, draws=draws, tune=1000,
+         target_accept=.85, chains=4, max_treedepth=15,
+         init="jitter+adapt_diag", low_dim_aux_plate=True,
          scm_noise_parameters=scm_noise_parameters,
          scm_constants=scm_constants,
          parameter_descriptions=parameter_descriptions,
@@ -85,6 +113,13 @@ def main(X_o, agent_priors, modified_prior,
             for regression model. Measure of "evidence" for predictions from
             decision support model.
         draws (int): Size of sample to generate in sampling events.
+        tune (int): Number of tuning iterations for NUTS.
+        target_accept (float): Target acceptance probability for NUTS.
+        chains (int): Number of chains in posterior sampling.
+        max_treedepth (int): Maximum tree depth for NUTS.
+        init (str): Initialization method passed to PyMC.
+        low_dim_aux_plate (bool): If true use the reduced model. If false
+            use the full-plate model.
         scm_noise_parameters (dict): Dict with keys needed in SCM-class.
         scm_constants (dict): Constants defining the relationships in the SCM.
         rng (int or rng): Seed or rng for reproducibility.
@@ -105,11 +140,12 @@ def main(X_o, agent_priors, modified_prior,
 
     # 3. Train prediction model on historical data.
     #    Calculated as the Moore-Penrose pseudo-inverse. No randomness.
-    pred_model = LinearRegression(fit_intercept=False).fit(X.reshape(-1, 1), Y_historical)
+    pred_model = LinearRegression(fit_intercept=False).fit(
+        format_features_for_regression(X), Y_historical)
 
     # 4. The prediction model is next used for decision support. The physician
     #    inputs the data of the patient and the prediction model produces a prediction.
-    pred_o = pred_model.predict(X_o.reshape(-1, 1))  # The observed prediction
+    pred_o = pred_model.predict(format_observation_for_regression(X_o))  # The observed prediction
     # print("The predicted outcome for this patient weighing {}kg is {}.".format(X_o, pred_o[0]))
 
     # 5. Define the agent model.
@@ -117,7 +153,8 @@ def main(X_o, agent_priors, modified_prior,
     agent_model = am.AgentModel(prior_parameters=agent_priors,
                                 scm_constants=scm_constants,
                                 predictive_var_names=predictive_var_names,
-                                plate_size=plate_size)
+                                plate_size=plate_size,
+                                low_dim_aux_plate=low_dim_aux_plate)
 
     # 6. Predictive estimates and treatment decision under prior beliefs
     prior_CATE_mu = agent_model.get_prior_CATE_mu(A1_treatment, A0_treatment)
@@ -128,7 +165,10 @@ def main(X_o, agent_priors, modified_prior,
 
     # 7. Predictive estimates and treatment decision under posterior beliefs
     # The agent's beliefs are updated / the posterior given the observed data is sampled.
-    agent_model.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o[0]), draws=draws, rng=rng)
+    agent_model.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o[0]),
+                       draws=draws, tune=tune, target_accept=target_accept,
+                       chains=chains, max_treedepth=max_treedepth,
+                       init=init, rng=rng)
     # Model diagnostics
     rhat_values = az.rhat(agent_model.trace)
     ess_bulk_values = az.ess(agent_model.trace, method='bulk')

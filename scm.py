@@ -58,6 +58,55 @@ class SCM:
     b: float = -0.1
     d: float = 0.125
 
+    def __post_init__(self):
+        self._normalize_covariate_parameters()
+
+    @property
+    def n_covariates(self):
+        return int(self.alpha_mu_X.size)
+
+    def _normalize_covariate_parameters(self):
+        """
+        Normalize covariate-related parameters to one-dimensional numpy arrays.
+        Scalars are broadcast if another covariate parameter determines k > 1.
+        """
+        covariate_parameter_names = ('alpha_mu_X', 'alpha_sigma_X', 'b', 'd')
+        raw_parameters = {}
+        n_covariates = 1
+        for parameter_name in covariate_parameter_names:
+            parameter = np.atleast_1d(np.asarray(getattr(self, parameter_name), dtype=float))
+            if parameter.ndim != 1:
+                raise ValueError(f"{parameter_name} must be scalar or one-dimensional.")
+            raw_parameters[parameter_name] = parameter
+            n_covariates = max(n_covariates, parameter.size)
+
+        for parameter_name, parameter in raw_parameters.items():
+            if parameter.size == 1 and n_covariates > 1:
+                parameter = np.full(n_covariates, parameter.item(), dtype=float)
+            elif parameter.size != n_covariates:
+                text = f"{parameter_name} must have length {n_covariates}, not {parameter.size}."
+                raise ValueError(text)
+            setattr(self, parameter_name, parameter)
+
+    def _coerce_X(self, X):
+        """
+        Convert X to a matrix representation with shape (n, k) for internal use.
+        Returns the original numpy representation, the matrix representation, and
+        whether X encodes a single observation.
+        """
+        X_array = np.asarray(X, dtype=float)
+        if self.n_covariates == 1:
+            X_matrix = X_array.reshape(-1, 1)
+            single_observation = X_array.shape == ()
+            return X_array, X_matrix, single_observation
+
+        if X_array.shape == (self.n_covariates,):
+            return X_array, X_array.reshape(1, -1), True
+        if X_array.ndim >= 2 and X_array.shape[-1] == self.n_covariates:
+            return X_array, X_array.reshape(-1, self.n_covariates), False
+        text = f"X must have shape ({self.n_covariates},) or (..., {self.n_covariates})."
+        raise ValueError(text)
+
     def update_parameters(self, parameter_dict):
         """
         Method to update chosen parameters in SCM
@@ -71,6 +120,7 @@ class SCM:
                 setattr(self, key, value)
             else:
                 raise ValueError("Unknown parameter: {}".format(key))
+        self._normalize_covariate_parameters()
 
     def sample(self, X=None, A=None, draws=1, rng=None):
         """
@@ -103,27 +153,60 @@ class SCM:
         rng = np.random.default_rng(rng)
         if X is None:
             # Sample N_X and calculate X
-            N_X = rng.normal(self.alpha_mu_X, self.alpha_sigma_X, size=draws)
-            X = N_X
+            X_matrix = rng.normal(self.alpha_mu_X, self.alpha_sigma_X,
+                                  size=(draws, self.n_covariates))
+            X_output = X_matrix[:, 0] if self.n_covariates == 1 else X_matrix
+            single_observation = False
+        else:
+            X_output, X_matrix, single_observation = self._coerce_X(X)
         if A is None:
             # Sample N_A and calculate A
-            N_A = rng.normal(self.alpha_mu_A, self.alpha_sigma_A, size=draws)
-            # Calculate A
-            A = self.d * X + N_A
+            if X is None:
+                A_mu = X_matrix @ self.d
+            elif single_observation:
+                A_mu = np.full(draws, X_matrix[0] @ self.d, dtype=float)
+            else:
+                A_mu = X_matrix @ self.d
+            N_A = rng.normal(self.alpha_mu_A, self.alpha_sigma_A, size=A_mu.shape[0])
+            A_array = A_mu + N_A
+            A_output = A_array
+        else:
+            A_output = np.asarray(A, dtype=float)
+            if X is None or single_observation:
+                if A_output.shape == ():
+                    A_array = np.full(draws, A_output.item(), dtype=float)
+                else:
+                    A_array = A_output.reshape(-1)
+                    if A_array.size == 1:
+                        A_array = np.full(draws, A_array.item(), dtype=float)
+                    elif A_array.size != draws:
+                        raise ValueError("A must be scalar or have length equal to draws.")
+            else:
+                A_array = A_output.reshape(-1)
+                if A_array.size == 1:
+                    A_array = np.full(X_matrix.shape[0], A_array.item(), dtype=float)
+                elif A_array.size != X_matrix.shape[0]:
+                    raise ValueError("A must be scalar or match the number of X observations.")
         # Sample N_Y, center around zero and add self.alpha_mu_Y later
         # to also be able to extract parameter mu_Y_cond.
-        N_Y_0_centered = rng.normal(0, self.alpha_sigma_Y, size=draws)
+        N_Y_0_centered = rng.normal(0, self.alpha_sigma_Y, size=A_array.shape[0])
         # Estimate conditional parameters for Y|X,do(A) ~ N(mu_Y, sigma_Y)
         # If neither X nor A was passed, the generated Y is "conditional" on
         # the sampled values (this is not what "conditional" usually refers to).
         # If X was passed, the output Y is conditional on the passed value. 
         # If A was passed, the output Y is conditional on do(A).
-        mu_Y_cond = self.a + self.b * X + self.N_E * A + self.alpha_mu_Y
-        std_Y_cond = np.full_like(mu_Y_cond, self.alpha_sigma_Y)
+        if X is None:
+            X_effect = X_matrix @ self.b
+        elif single_observation:
+            X_effect = np.full(A_array.shape[0], X_matrix[0] @ self.b, dtype=float)
+        else:
+            X_effect = X_matrix @ self.b
+        mu_Y_cond = self.a + X_effect + self.N_E * A_array + self.alpha_mu_Y
+        std_Y_cond = np.full_like(mu_Y_cond, self.alpha_sigma_Y, dtype=float)
         # Model defines the treatement effect as independent of X.
         Y = mu_Y_cond + N_Y_0_centered
         # {'X': X, 'Y': Y, 'A': A, 'mu_Y_cond': mu_Y_cond, 'std_Y_cond': std_Y_cond}
-        return X, A, Y, mu_Y_cond, std_Y_cond
+        return X_output, A_output, Y, mu_Y_cond, std_Y_cond
 
     def sample_do_A(self, A_treatment, X: np.ndarray, draws: int = 1,
                     rng=None) -> np.ndarray:
@@ -229,9 +312,13 @@ class BinaryA_SCM(SCM):
         """
         # Sample noise when needed:
         rng = np.random.default_rng(rng)
+        alpha_mu_X = self.alpha_mu_X.item()
+        alpha_sigma_X = self.alpha_sigma_X.item()
+        b = self.b.item()
+        d = self.d.item()
         if X is None:
             # Sample N_X and calculate X
-            N_X = rng.normal(self.alpha_mu_X, self.alpha_sigma_X, size=draws)
+            N_X = rng.normal(alpha_mu_X, alpha_sigma_X, size=draws)
             X = N_X
         if A is None:
             # Sample N_A and calculate A
@@ -240,12 +327,12 @@ class BinaryA_SCM(SCM):
             # Binary treatment A
             # p(A = 1 | X, N_A) = sigmoid(d * X**2 + N_A)
             # 'd' controls the strength of the relationship between X and A.
-            p_A = sigmoid(self.d * X**2 + N_A)  # P(A = 1 | X, N_A)
+            p_A = sigmoid(d * X**2 + N_A)  # P(A = 1 | X, N_A)
             A = rng.binomial(1, p_A)  # binary treatment
         # Sample N_y
         N_Y = rng.normal(self.alpha_mu_Y, self.alpha_sigma_Y, size=draws)
         # Agent assumes the treatement effect is independent of X and constant.
-        Y = self.a + self.b * X + self.N_E * A + N_Y
+        Y = self.a + b * X + self.N_E * A + N_Y
         return X, A, Y
 
 

@@ -9,7 +9,14 @@ CapturingUsersPredictionModels
    modules/scm
    modules/experiment
    modules/experiment_series
+   modules/scalability_experiment
    modules/utils
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Validation Scripts
+
+   modules/test_multivariate_intercept_reduction
 
 .. toctree::
    :maxdepth: 1
