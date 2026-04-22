@@ -159,7 +159,7 @@ def main(X_o, agent_priors, modified_prior,
     # 6. Predictive estimates and treatment decision under prior beliefs
     prior_CATE_mu = agent_model.get_prior_CATE_mu(A1_treatment, A0_treatment)
     prior_CATE_samples_, prior_CATE_mean, prior_CATE_std = \
-        agent_model.sample_prior_predictive_CATE(X_o, A1_treatment, A0_treatment)
+        agent_model.sample_prior_predictive_CATE(X_o, A1_treatment, A0_treatment, rng=rng)
     prior_treatment = A1_treatment if prior_CATE_mean > threshold else A0_treatment
     prior_predictive_summaries = agent_model.sample_prior_predictive_summaries(rng=rng)
 
