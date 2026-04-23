@@ -14,6 +14,8 @@ def parse_args():
     parser.add_argument('--output-file', type=Path,
                         default=Path('./slurm/tmp/scalability_parameters.txt'))
     parser.add_argument('--output-dir', type=Path, required=True)
+    parser.add_argument('--model-variants', nargs='+',
+                        default=['full_no_intercept'])
     parser.add_argument('--k-values', type=int, nargs='+', default=[1, 2, 3, 5, 10])
     parser.add_argument('--plate-sizes', type=int, nargs='+', default=[1000])
     parser.add_argument('--seeds', type=int, nargs='+', default=[4])
@@ -36,10 +38,11 @@ def main():
     args = parse_args()
     args.output_file.parent.mkdir(parents=True, exist_ok=True)
     lines = []
-    for n_covariates, plate_size, seed in itertools.product(
-            args.k_values, args.plate_sizes, args.seeds):
-        run_name = f"k{n_covariates}_plate{plate_size}_seed{seed}"
+    for model_variant, n_covariates, plate_size, seed in itertools.product(
+            args.model_variants, args.k_values, args.plate_sizes, args.seeds):
+        run_name = f"{model_variant}_k{n_covariates}_plate{plate_size}_seed{seed}"
         line = (
+            f"--model-variant {model_variant} "
             f"--n-covariates {n_covariates} "
             f"--plate-size {plate_size} "
             f"--draws {args.draws} "

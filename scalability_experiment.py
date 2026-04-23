@@ -1,11 +1,12 @@
 """
-Run one multivariate full-plate scalability experiment.
+Run one multivariate scalability experiment.
 
 This script is intentionally separate from experiment.py. The original
 experiment pipeline is kept as the paper-facing baseline, while this
 driver focuses on:
 
-- multivariate full-plate runs
+- full-plate and reduced plate runs
+- OLS with and without intercept
 - reproducible baseline parameterization across k
 - runtime measurement
 - posterior diagnostics logging for later aggregation
@@ -53,6 +54,12 @@ agent_priors_default = {
 A1_treatment = 20.0
 A0_treatment = 10.0
 threshold = 5.0
+model_variants = (
+    'full_no_intercept',
+    'reduced_no_intercept',
+    'full_intercept',
+    'reduced_intercept',
+)
 
 
 def format_features_for_regression(X):
@@ -199,6 +206,79 @@ def build_observed_patient(n_covariates, scm_noise_parameters, x_o_mode, rng):
     return X_o.reshape(n_covariates)
 
 
+def model_uses_intercept(model_variant):
+    """
+    Return whether the external prediction model includes an intercept.
+    """
+    if model_variant in ('full_intercept', 'reduced_intercept'):
+        return True
+    if model_variant in ('full_no_intercept', 'reduced_no_intercept'):
+        return False
+    raise ValueError(f"Unknown model variant '{model_variant}'.")
+
+
+def model_uses_reduction(model_variant):
+    """
+    Return whether the agent model uses a reduced plate.
+    """
+    if model_variant in ('reduced_no_intercept', 'reduced_intercept'):
+        return True
+    if model_variant in ('full_no_intercept', 'full_intercept'):
+        return False
+    raise ValueError(f"Unknown model variant '{model_variant}'.")
+
+
+def build_agent_model(model_variant, agent_priors, scm_constants, plate_size):
+    """
+    Build the AgentModel subclass for one scalability run.
+    """
+    if model_variant == 'full_no_intercept':
+        return am.AgentModelWithMultivariate(
+            prior_parameters=agent_priors,
+            scm_constants=scm_constants,
+            plate_size=plate_size,
+            low_dim_aux_plate=False,
+        )
+    if model_variant == 'reduced_no_intercept':
+        return am.AgentModelWithMultivariate(
+            prior_parameters=agent_priors,
+            scm_constants=scm_constants,
+            plate_size=plate_size,
+            low_dim_aux_plate=True,
+        )
+    if model_variant == 'full_intercept':
+        return am.AgentModelWithIntercept(
+            prior_parameters=agent_priors,
+            scm_constants=scm_constants,
+            plate_size=plate_size,
+            low_dim_aux_plate=False,
+        )
+    if model_variant == 'reduced_intercept':
+        return am.AgentModelWithIntercept(
+            prior_parameters=agent_priors,
+            scm_constants=scm_constants,
+            plate_size=plate_size,
+            low_dim_aux_plate=True,
+        )
+    raise ValueError(f"Unknown model variant '{model_variant}'.")
+
+
+def build_trace_var_names(model_variant):
+    """
+    Return variables to store in scalability traces.
+
+    Full plates contain many latent observations. They are sampled by NUTS but
+    do not need to be stored for runtime and convergence diagnostics.
+    """
+    var_names = [
+        'alpha_mu_X', 'alpha_sigma_X', 'alpha_mu_A', 'alpha_sigma_A',
+        'alpha_mu_Y', 'alpha_sigma_Y', 'N_E', 'N_b', 'N_d', 'phi',
+    ]
+    if model_uses_intercept(model_variant):
+        var_names.append('alpha')
+    return var_names
+
+
 def write_single_row_csv(row, output_path):
     """
     Write one summary row to CSV.
@@ -253,13 +333,13 @@ def build_output_paths(output_dir, run_name):
 
 def run_scalability_experiment(n_covariates, plate_size, draws, tune,
                                chains, target_accept, max_treedepth, init,
-                               coefficient_scaling, x_o_mode, seed,
+                               model_variant, coefficient_scaling, x_o_mode, seed,
                                output_dir, run_name,
                                A1_treatment=A1_treatment,
                                A0_treatment=A0_treatment,
                                threshold=threshold):
     """
-    Run a single full-plate multivariate scalability experiment.
+    Run a single multivariate scalability experiment.
     """
     total_start_time = time.time()
     rng = np.random.default_rng(seed)
@@ -275,16 +355,17 @@ def run_scalability_experiment(n_covariates, plate_size, draws, tune,
     historical_data_runtime = time.time() - historical_data_start_time
 
     prediction_model_start_time = time.time()
-    pred_model = LinearRegression(fit_intercept=False).fit(
+    fit_intercept = model_uses_intercept(model_variant)
+    pred_model = LinearRegression(fit_intercept=fit_intercept).fit(
         format_features_for_regression(X), Y_historical)
     pred_o = float(pred_model.predict(format_observation_for_regression(X_o))[0])
     prediction_model_runtime = time.time() - prediction_model_start_time
 
-    agent_model = am.AgentModel(
-        prior_parameters=agent_priors,
+    agent_model = build_agent_model(
+        model_variant=model_variant,
+        agent_priors=agent_priors,
         scm_constants=scm_constants,
         plate_size=plate_size,
-        low_dim_aux_plate=False,
     )
 
     prior_runtime_start_time = time.time()
@@ -306,6 +387,9 @@ def run_scalability_experiment(n_covariates, plate_size, draws, tune,
         max_treedepth=max_treedepth,
         init=init,
         rng=rng,
+        var_names=build_trace_var_names(model_variant),
+        progressbar=False,
+        compute_convergence_checks=False,
     )
     posterior_sampling_runtime = time.time() - posterior_sampling_start_time
 
@@ -356,6 +440,9 @@ def run_scalability_experiment(n_covariates, plate_size, draws, tune,
     summary = {
         'run_name': run_name,
         'seed': seed,
+        'model_variant': model_variant,
+        'fit_intercept': fit_intercept,
+        'uses_reduction': model_uses_reduction(model_variant),
         'n_covariates': n_covariates,
         'plate_size': plate_size,
         'draws': draws,
@@ -410,6 +497,7 @@ def run_scalability_experiment(n_covariates, plate_size, draws, tune,
 
     for row in diagnostics_rows:
         row['run_name'] = run_name
+        row['model_variant'] = model_variant
         row['n_covariates'] = n_covariates
         row['plate_size'] = plate_size
         row['draws'] = draws
@@ -431,7 +519,9 @@ def parse_args():
     """
     Parse command line arguments for one scalability run.
     """
-    parser = argparse.ArgumentParser(description="Run one multivariate full-plate scalability experiment.")
+    parser = argparse.ArgumentParser(
+        description="Run one multivariate scalability experiment."
+    )
     parser.add_argument('--n-covariates', type=int, required=True)
     parser.add_argument('--plate-size', type=int, required=True)
     parser.add_argument('--draws', type=int, default=1000)
@@ -440,6 +530,8 @@ def parse_args():
     parser.add_argument('--target-accept', type=float, default=.85)
     parser.add_argument('--max-treedepth', type=int, default=15)
     parser.add_argument('--init', type=str, default='jitter+adapt_diag')
+    parser.add_argument('--model-variant', choices=model_variants,
+                        default='full_no_intercept')
     parser.add_argument('--coefficient-scaling', choices=('inverse_k', 'none'),
                         default='inverse_k')
     parser.add_argument('--x-o-mode', choices=('mean', 'sample'), default='mean')
@@ -458,7 +550,7 @@ def main():
     if run_name is None:
         time_stamp = time.strftime('%Y%m%d_%H%M%S')
         run_name = (
-            f"k{args.n_covariates}_plate{args.plate_size}_"
+            f"{args.model_variant}_k{args.n_covariates}_plate{args.plate_size}_"
             f"seed{args.seed}_{time_stamp}"
         )
     summary, diagnostics_rows, output_paths = run_scalability_experiment(
@@ -470,6 +562,7 @@ def main():
         target_accept=args.target_accept,
         max_treedepth=args.max_treedepth,
         init=args.init,
+        model_variant=args.model_variant,
         coefficient_scaling=args.coefficient_scaling,
         x_o_mode=args.x_o_mode,
         seed=args.seed,
@@ -480,6 +573,12 @@ def main():
     print(f"Summary JSON: {output_paths['summary_json']}")
     print(f"Summary CSV: {output_paths['summary_csv']}")
     print(f"Diagnostics CSV: {output_paths['diagnostics_csv']}")
+    print(
+        "Model: "
+        f"variant={summary['model_variant']}, "
+        f"fit_intercept={summary['fit_intercept']}, "
+        f"uses_reduction={summary['uses_reduction']}"
+    )
     print(
         "Diagnostics: "
         f"divergences={summary['n_divergences']}, "

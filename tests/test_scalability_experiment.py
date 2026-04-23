@@ -16,6 +16,45 @@ import scalability_experiment as se
 print("Testing only that the scalability experiment driver runs end-to-end.")
 
 
+def test_scalability_experiment_variant_helpers():
+    variants = (
+        'full_no_intercept',
+        'reduced_no_intercept',
+        'full_intercept',
+        'reduced_intercept',
+    )
+    expected_uses_intercept = {
+        'full_no_intercept': False,
+        'reduced_no_intercept': False,
+        'full_intercept': True,
+        'reduced_intercept': True,
+    }
+    expected_uses_reduction = {
+        'full_no_intercept': False,
+        'reduced_no_intercept': True,
+        'full_intercept': False,
+        'reduced_intercept': True,
+    }
+    for variant in variants:
+        model = se.build_agent_model(
+            model_variant=variant,
+            agent_priors=se.build_agent_priors(1),
+            scm_constants=se.build_scm_constants(1, 'inverse_k'),
+            plate_size=5,
+        )
+        assert model is not None
+        assert se.model_uses_intercept(variant) == expected_uses_intercept[variant]
+        assert se.model_uses_reduction(variant) == expected_uses_reduction[variant]
+        trace_var_names = se.build_trace_var_names(variant)
+        assert 'phi' in trace_var_names
+        assert 'N_b' in trace_var_names
+        assert 'N_d' in trace_var_names
+        if se.model_uses_intercept(variant):
+            assert 'alpha' in trace_var_names
+        else:
+            assert 'alpha' not in trace_var_names
+
+
 def test_scalability_experiment_driver():
     with tempfile.TemporaryDirectory() as tmp_dir:
         output_dir = Path(tmp_dir)
@@ -28,13 +67,15 @@ def test_scalability_experiment_driver():
             target_accept=.9,
             max_treedepth=10,
             init='jitter+adapt_diag',
+            model_variant='full_no_intercept',
             coefficient_scaling='inverse_k',
             x_o_mode='mean',
             seed=4,
             output_dir=output_dir,
-            run_name='test_scalability_driver',
+            run_name='test_scalability_driver_full_no_intercept',
         )
 
+        assert summary['model_variant'] == 'full_no_intercept'
         assert summary['n_covariates'] == 1
         assert summary['plate_size'] == 5
         assert np.isfinite(summary['total_runtime'])
