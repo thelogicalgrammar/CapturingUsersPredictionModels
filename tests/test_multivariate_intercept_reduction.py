@@ -30,10 +30,14 @@ def make_prior_parameters(k):
             'mu_sigma_X': 10.0, 'sigma_sigma_X': 0.1,
             'mu_A': 2.0, 'sigma_A': 1.0,
             'mu_sigma_A': 1.0, 'sigma_sigma_A': 0.1,
-            'mu_Y': 0.0, 'sigma_Y': 0.01,
+            'mu_Y': 12.0, 'sigma_Y': 0.01,
             'mu_sigma_Y': 0.1, 'sigma_sigma_Y': 0.01,
             'N_E_mu': 1.0, 'N_E_sigma': 1.0,
+            'N_b_mu': -0.1, 'N_b_sigma': 0.1,
+            'N_d_mu': 0.125, 'N_d_sigma': 0.1,
         }
+    N_b_mu = np.linspace(-0.1, 0.1, k)
+    N_d_mu = np.linspace(0.125, -0.05, k)
     return {
         'mu_X': np.linspace(80.0, 80.0 + 5.0 * (k - 1), k),
         'sigma_X': np.full(k, 0.1),
@@ -41,9 +45,11 @@ def make_prior_parameters(k):
         'sigma_sigma_X': np.full(k, 0.1),
         'mu_A': 2.0, 'sigma_A': 1.0,
         'mu_sigma_A': 1.0, 'sigma_sigma_A': 0.1,
-        'mu_Y': 0.0, 'sigma_Y': 0.01,
+        'mu_Y': 12.0, 'sigma_Y': 0.01,
         'mu_sigma_Y': 0.1, 'sigma_sigma_Y': 0.01,
         'N_E_mu': 1.0, 'N_E_sigma': 1.0,
+        'N_b_mu': N_b_mu, 'N_b_sigma': np.full(k, 0.1),
+        'N_d_mu': N_d_mu, 'N_d_sigma': np.full(k, 0.1),
     }
 
 
@@ -52,9 +58,9 @@ def make_scm_constants(k):
     Create SCM constants with non-trivial multivariate effects.
     """
     if k == 1:
-        return {'a': 12.0, 'b': -0.1, 'd': 0.125}
+        return {'a': 0.0, 'b': -0.1, 'd': 0.125}
     return {
-        'a': 12.0,
+        'a': 0.0,
         'b': np.linspace(-0.1, 0.1, k),
         'd': np.linspace(0.125, -0.05, k),
     }
@@ -154,6 +160,20 @@ def draw_parameter_samples(k, repetitions, rng):
     parameter_samples['N_E'] = rng.normal(
         prior_parameters['N_E_mu'], prior_parameters['N_E_sigma'], size=repetitions
     )
+    if k == 1:
+        parameter_samples['N_b'] = rng.normal(
+            prior_parameters['N_b_mu'], prior_parameters['N_b_sigma'], size=repetitions
+        )
+        parameter_samples['N_d'] = rng.normal(
+            prior_parameters['N_d_mu'], prior_parameters['N_d_sigma'], size=repetitions
+        )
+    else:
+        parameter_samples['N_b'] = rng.normal(
+            prior_parameters['N_b_mu'], prior_parameters['N_b_sigma'], size=(repetitions, k)
+        )
+        parameter_samples['N_d'] = rng.normal(
+            prior_parameters['N_d_mu'], prior_parameters['N_d_sigma'], size=(repetitions, k)
+        )
     return parameter_samples
 
 
@@ -163,15 +183,13 @@ def draw_reduced_samples(k, plate_size, repetitions, rng):
     """
     rng = np.random.default_rng(rng)
     parameter_samples = draw_parameter_samples(k, repetitions, rng)
-    scm_constants = make_scm_constants(k)
     if k == 1:
         s = rng.normal(0, np.sqrt(plate_size), size=repetitions)
         W = rng.chisquare(plate_size - 1, size=repetitions)
         g = rng.normal(0, 1, size=repetitions)
         h = rng.normal(0, 1, size=repetitions)
-        beta = scm_constants['b'] + parameter_samples['N_E'] * scm_constants['d']
-        c = (scm_constants['a'] + parameter_samples['N_E'] * parameter_samples['alpha_mu_A'] +
-             parameter_samples['alpha_mu_Y'])
+        beta = parameter_samples['N_b'] + parameter_samples['N_E'] * parameter_samples['N_d']
+        c = parameter_samples['N_E'] * parameter_samples['alpha_mu_A'] + parameter_samples['alpha_mu_Y']
         tau = np.sqrt(parameter_samples['N_E']**2 * parameter_samples['alpha_sigma_A']**2 +
                       parameter_samples['alpha_sigma_Y']**2)
         W_minus_half_g = g / np.sqrt(W)
@@ -185,9 +203,8 @@ def draw_reduced_samples(k, plate_size, repetitions, rng):
     W = wishart.rvs(df=plate_size - 1, scale=np.eye(k), size=repetitions, random_state=rng)
     g = rng.normal(0, 1, size=(repetitions, k))
     h = rng.normal(0, 1, size=repetitions)
-    beta = scm_constants['b'] + parameter_samples['N_E'][:, None] * scm_constants['d']
-    c = (scm_constants['a'] + parameter_samples['N_E'] * parameter_samples['alpha_mu_A'] +
-         parameter_samples['alpha_mu_Y'])
+    beta = parameter_samples['N_b'] + parameter_samples['N_E'][:, None] * parameter_samples['N_d']
+    c = parameter_samples['N_E'] * parameter_samples['alpha_mu_A'] + parameter_samples['alpha_mu_Y']
     tau = np.sqrt(parameter_samples['N_E']**2 * parameter_samples['alpha_sigma_A']**2 +
                   parameter_samples['alpha_sigma_Y']**2)
     W_minus_half_g = np.zeros_like(g)
@@ -205,12 +222,11 @@ def smoke_test_agent_model(k, plate_size, seed):
     """
     Check that the actual AgentModel path builds and samples.
     """
-    model = am.AgentModel(
+    model = am.AgentModelWithIntercept(
         plate_size=plate_size,
         prior_parameters=make_prior_parameters(k),
         scm_constants=make_scm_constants(k),
         low_dim_aux_plate=True,
-        fit_intercept=True,
     )
     with model.model:
         samples = pm.sample_prior_predictive(
@@ -225,6 +241,17 @@ def smoke_test_agent_model(k, plate_size, seed):
         assert phi_samples.shape == (3,)
     else:
         assert phi_samples.shape == (3, k)
+
+    X_o = 80.0 if k == 1 else make_prior_parameters(k)['mu_X']
+    prior_samples = model.sample_prior_predictive(draws=3, rng=seed)
+    prior_do, prior_do_mean, prior_do_std = model.sample_prior_predictive_do_A(
+        X_o, 20, rng=seed)
+    prior_summary = model.sample_prior_predictive_summaries(rng=seed)
+    assert len(prior_samples) == 3
+    assert prior_do.shape == (3,)
+    assert np.isfinite(prior_do_mean)
+    assert np.isfinite(prior_do_std)
+    assert len(prior_summary) == 12
 
 
 def draw_full_plate_samples(k, plate_size, parameter_samples, rng):
@@ -245,7 +272,9 @@ def draw_full_plate_samples(k, plate_size, parameter_samples, rng):
             alpha_mu_Y=parameter_samples['alpha_mu_Y'][i],
             alpha_sigma_Y=parameter_samples['alpha_sigma_Y'][i],
             N_E=parameter_samples['N_E'][i],
-            **scm_constants,
+            a=scm_constants['a'],
+            b=parameter_samples['N_b'][i],
+            d=parameter_samples['N_d'][i],
         )
         X, A, Y, *_ = current_scm.sample(draws=plate_size, rng=rng)
         if k == 1:
@@ -355,12 +384,13 @@ def main():
     parser.add_argument('--plate-size', type=int, default=1000)
     parser.add_argument('--repetitions', type=int, default=2000)
     parser.add_argument('--seed', type=int, default=4)
+    parser.add_argument('--k-values', type=int, nargs='+', default=[1, 2, 5])
     parser.add_argument('--output-dir', default=None)
     args = parser.parse_args()
 
     start_time = time.time()
     results = []
-    for k in [1, 2, 5]:
+    for k in args.k_values:
         results.append(
             validate_one_k(
                 k=k,
@@ -375,6 +405,7 @@ def main():
         'plate_size': args.plate_size,
         'repetitions': args.repetitions,
         'seed': args.seed,
+        'k_values': args.k_values,
         'elapsed_time': elapsed_time,
         'success': overall_success,
         'results': results,

@@ -49,39 +49,40 @@ class AgentModel():
 
     Args:
         plate_size (int): size of the plate (number of i.i.d. samples).
-        scm_constants (dict): dictionary with structural equation scm_constants 'a', 'b', and 'd'.
-            If scm_constants is None, then it defaults to values in the paper (28.8.2025).
+        scm_constants (dict): dictionary with structural equation values
+            'a', 'b', and 'd'.
         prior_parameters (dict): dictionary with parameters for prior distributions
             If prior_parameters is None, then it defaults to values in the paper (28.8.2025).
         low_dim_aux_plate (bool): If true the plate is estimated using low-dimensional
             auxiliary variables. This speeds up inference. If false, the plate is explicitly 
             modeled.
-        fit_intercept (bool): If true, use the reduced OLS model with intercept.
-            If false, the prediction model is OLS without intercept.
+        fit_intercept (bool): Reserved for backwards-compatible validation.
+            Use AgentModelWithIntercept for OLS with intercept.
         test (bool): If true, the model is set up in testing mode enabling multiple observed
             data points to be input. This is mainly for testing that the model works as intended.
     
     Returns:
         None
     """
-    def __init__(self, plate_size, prior_parameters=None, 
+    def __init__(self, plate_size, prior_parameters=None,
                  scm_constants=None, predictive_var_names=None,
                  low_dim_aux_plate=True, fit_intercept=False, test=False):
         self.plate_size = plate_size
-        
+
         # Prior parameters
-        default_prior_parameters =\
-            {'mu_X': 80, 'sigma_X': 0.1, 'mu_sigma_X': 10, 'sigma_sigma_X':0.1,
-             'mu_A': 2, 'sigma_A': 1, 'mu_sigma_A': 1, 'sigma_sigma_A':0.1,
-             'mu_Y': 0, 'sigma_Y': 0.01, 'mu_sigma_Y': 0.1, 'sigma_sigma_Y' : 0.01,
-             'N_E_mu': 1.0, 'N_E_sigma': 1}
+        use_default_scm_constants = scm_constants is None
+        default_prior_parameters = self._default_prior_parameters(
+            use_default_scm_constants)
         if prior_parameters is None:
             # Use default values.
             self.prior_parameters = default_prior_parameters
         else:
-            # Validate input parameters:
+            allowed_parameters = (
+                list(default_prior_parameters.keys()) +
+                self._optional_prior_parameters()
+            )
             extra_items = [item for item in prior_parameters.keys()
-                        if item not in default_prior_parameters.keys()]
+                           if item not in allowed_parameters]
             err_msg = "{} passed with prior_parameters, " \
                 "but not part of model specification.".format(extra_items)
             assert len(extra_items) < 1, err_msg
@@ -92,46 +93,37 @@ class AgentModel():
         self.test = test
 
         # Variable names of the predictive variables.
-        default_predictive_var_names =\
-            ['alpha_mu_X', 'alpha_sigma_X', 'alpha_mu_A', 'alpha_sigma_A', 
-             'alpha_mu_Y', 'alpha_sigma_Y', 'N_E']
+        default_predictive_var_names = self._default_predictive_var_names()
         if predictive_var_names is None:
             self.predictive_var_names = default_predictive_var_names
         else:
-            # Validate input
             extra_items = [item for item in predictive_var_names
-                        if item not in default_predictive_var_names]
+                           if item not in default_predictive_var_names]
             err_msg = "{} passed with predictive_var_names, " \
                 "but not part of model specification.".format(extra_items)
             assert len(extra_items) < 1, err_msg
             self.predictive_var_names = predictive_var_names
 
         # SCM parameters. These change during runtime for prior and posterior
-        # predictive sampling (samples from the agent's beliefs replaces the
+        # predictive sampling (samples from the agent's beliefs replace the
         # original values).
-        # Note that N_{E} is essentially replacing "c"
-        default_scm_constants = {'a': 12, 'b': -0.1, 'd': 0.125}
+        default_scm_constants = self._default_scm_constants()
         if scm_constants is None:
             self.scm_constants = default_scm_constants
         else:
-            # Validate input
-            extra_scm_items = [item for item in scm_constants.keys() 
-                            if item not in default_scm_constants.keys()]
+            extra_scm_items = [item for item in scm_constants.keys()
+                               if item not in default_scm_constants.keys()]
             err_msg = "{} passed with scm_constants, " \
                 "but not part of model specification.".format(extra_scm_items)
             assert len(extra_scm_items) < 1, err_msg
             self.scm_constants = scm_constants
 
-        self.n_covariates = self._infer_n_covariates()
-        self.prior_parameters = self._normalize_prior_parameters(self.prior_parameters)
-        self.scm_constants = self._normalize_scm_constants(self.scm_constants)
-        if self.fit_intercept and not self.low_dim_aux_plate:
-            raise NotImplementedError("OLS with intercept is currently only supported for low_dim_aux_plate=True.")
-        if self.n_covariates > 1 and self.low_dim_aux_plate and not self.fit_intercept:
-            raise NotImplementedError("Multivariate AgentModel is currently only supported for low_dim_aux_plate=False.")
-        # SCM parameters to update in prior predictive and posterior predictive sampling
-        # and an SCM which variables are updated with samples from the agent's beliefs
-        # for predictive sampling:
+        self._prepare_structural_parameters()
+        self._validate_model_configuration()
+
+        # SCM parameters to update in prior predictive and posterior predictive
+        # sampling, and an SCM whose variables are updated with samples from the
+        # agent's beliefs for predictive sampling.
         self.predictive_scm = scm.SCM(**self.scm_constants)
 
         # Placeholders
@@ -143,233 +135,218 @@ class AgentModel():
         self.prior_draws = None  # Number of draws in prior samples
         self.X_o = None  # Placeholder for observed observation.
 
-        self.model = pm.Model()
-        with self.model:
+        self.model = self._build_model()
+
+    def _default_prior_parameters(self, use_default_scm_constants):
+        """
+        Return default prior parameters for the base no-intercept model.
+        """
+        return {'mu_X': 80, 'sigma_X': 0.1, 'mu_sigma_X': 10, 'sigma_sigma_X':0.1,
+                'mu_A': 2, 'sigma_A': 1, 'mu_sigma_A': 1, 'sigma_sigma_A':0.1,
+                'mu_Y': 0, 'sigma_Y': 0.01, 'mu_sigma_Y': 0.1, 'sigma_sigma_Y' : 0.01,
+                'N_E_mu': 1.0, 'N_E_sigma': 1}
+
+    def _optional_prior_parameters(self):
+        """
+        Return prior parameters accepted beyond the base model defaults.
+        """
+        return []
+
+    def _default_predictive_var_names(self):
+        """
+        Return variables sampled for predictive calculations.
+        """
+        return ['alpha_mu_X', 'alpha_sigma_X', 'alpha_mu_A', 'alpha_sigma_A',
+                'alpha_mu_Y', 'alpha_sigma_Y', 'N_E']
+
+    def _default_scm_constants(self):
+        """
+        Return structural constants for the base no-intercept model.
+        """
+        return {'a': 12, 'b': -0.1, 'd': 0.125}
+
+    def _initialize_prior_parameters(self, prior_parameters,
+                                      use_default_scm_constants):
+        """
+        Validate or create the prior-parameter dictionary.
+        """
+        default_prior_parameters = self._default_prior_parameters(
+            use_default_scm_constants)
+        if prior_parameters is None:
+            return default_prior_parameters
+
+        allowed_parameters = (
+            list(default_prior_parameters.keys()) + self._optional_prior_parameters()
+        )
+        extra_items = [item for item in prior_parameters.keys()
+                       if item not in allowed_parameters]
+        err_msg = "{} passed with prior_parameters, " \
+            "but not part of model specification.".format(extra_items)
+        assert len(extra_items) < 1, err_msg
+        return prior_parameters
+
+    def _initialize_predictive_var_names(self, predictive_var_names):
+        """
+        Validate or create the predictive variable-name list.
+        """
+        default_predictive_var_names = self._default_predictive_var_names()
+        if predictive_var_names is None:
+            return default_predictive_var_names
+
+        extra_items = [item for item in predictive_var_names
+                       if item not in default_predictive_var_names]
+        err_msg = "{} passed with predictive_var_names, " \
+            "but not part of model specification.".format(extra_items)
+        assert len(extra_items) < 1, err_msg
+        return predictive_var_names
+
+    def _initialize_scm_constants(self, scm_constants):
+        """
+        Validate or create the structural constants dictionary.
+        """
+        default_scm_constants = self._default_scm_constants()
+        if scm_constants is None:
+            return default_scm_constants
+
+        extra_scm_items = [item for item in scm_constants.keys()
+                           if item not in default_scm_constants.keys()]
+        err_msg = "{} passed with scm_constants, " \
+            "but not part of model specification.".format(extra_scm_items)
+        assert len(extra_scm_items) < 1, err_msg
+        return scm_constants
+
+    def _prepare_structural_parameters(self):
+        """
+        Hook for subclasses to transform structural parameters before model build.
+        """
+        return
+
+    def _validate_model_configuration(self):
+        """
+        Validate combinations supported by the base no-intercept model.
+        """
+        if self.fit_intercept:
+            raise NotImplementedError(
+                "Use AgentModelWithIntercept for OLS with intercept."
+            )
+
+    def _build_model(self):
+        """
+        Build the PyMC graph for the base no-intercept model.
+        """
+        model = pm.Model()
+        with model:
             # Note that the normal distribution in PyMC is parameterized
             # with mu and sigma (not variance, sigma^2).
             # Placeholders for observed data:
             # Named with underscore to distinguish from random variables.
-            if not test:
+            if not self.test:
                 # Default flow.
-                if self.n_covariates == 1:
-                    X_o_default = np.asarray(0.0)
-                else:
-                    X_o_default = np.zeros(self.n_covariates)
-                X_o_ = pm.Data('X_o_', X_o_default)
-                pred_o_ = pm.Data('pred_o_', np.asarray(0.0))
+                X_o_ = pm.Data('X_o_', None)
+                pred_o_ = pm.Data('pred_o_', None)
             else:
                 # For testing the validity of the code with 100 observed variables.
                 # Should make the posterior shift more clearly.
-                if self.n_covariates == 1:
-                    X_o_test = np.zeros(100)
-                else:
-                    X_o_test = np.zeros((100, self.n_covariates))
-                X_o_ = pm.Data('X_o_', X_o_test)
+                X_o_ = pm.Data('X_o_', np.zeros(100))
                 pred_o_ = pm.Data('pred_o_', np.zeros(100))
 
             # Outside of the plate:
-            if self.n_covariates == 1:
-                alpha_mu_X = pm.Normal('alpha_mu_X', self.prior_parameters['mu_X'], self.prior_parameters['sigma_X'])
-                # Is an exponential distribution well-behaved as a prior?
-                alpha_sigma_X = pm.TruncatedNormal('alpha_sigma_X', mu = self.prior_parameters[
-                    'mu_sigma_X'], sigma = self.prior_parameters['sigma_sigma_X'], lower = 0) #
-            else:
-                alpha_mu_X = pm.Normal('alpha_mu_X', self.prior_parameters['mu_X'],
-                                       self.prior_parameters['sigma_X'],
-                                       shape=self.n_covariates)
-                alpha_sigma_X = pm.TruncatedNormal('alpha_sigma_X',
-                                                   mu=self.prior_parameters['mu_sigma_X'],
-                                                   sigma=self.prior_parameters['sigma_sigma_X'],
-                                                   lower=0,
-                                                   shape=self.n_covariates)
-            # changed from Exponential to truncated normal
-            alpha_mu_A = pm.Normal('alpha_mu_A', self.prior_parameters['mu_A'], self.prior_parameters['sigma_A'])
-            # alpha_sigma_A = 1  # pm.Exponential('sigma_A', 10)  # sigma_A is not learned.
-            alpha_sigma_A = pm.TruncatedNormal('alpha_sigma_A', mu = self.prior_parameters[
-                'mu_sigma_A'], sigma = self.prior_parameters['sigma_sigma_A'], lower = 0)
-            alpha_mu_Y = pm.Normal('alpha_mu_Y', self.prior_parameters['mu_Y'], self.prior_parameters['sigma_Y'])
-            alpha_sigma_Y = pm.TruncatedNormal('alpha_sigma_Y', mu = self.prior_parameters[
-                'mu_sigma_Y'], sigma = self.prior_parameters['sigma_sigma_Y'], lower = 0)
-            # changed from Exponential to truncated normal
-            N_E = pm.Normal('N_E', self.prior_parameters['N_E_mu'], self.prior_parameters['N_E_sigma'])
+            alpha_mu_X = pm.Normal('alpha_mu_X', self.prior_parameters['mu_X'],
+                                   self.prior_parameters['sigma_X'])
+            alpha_sigma_X = pm.TruncatedNormal('alpha_sigma_X',
+                                               mu=self.prior_parameters['mu_sigma_X'],
+                                               sigma=self.prior_parameters['sigma_sigma_X'],
+                                               lower=0)
+            alpha_mu_A = pm.Normal('alpha_mu_A', self.prior_parameters['mu_A'],
+                                   self.prior_parameters['sigma_A'])
+            alpha_sigma_A = pm.TruncatedNormal('alpha_sigma_A',
+                                               mu=self.prior_parameters['mu_sigma_A'],
+                                               sigma=self.prior_parameters['sigma_sigma_A'],
+                                               lower=0)
+            alpha_mu_Y = pm.Normal('alpha_mu_Y', self.prior_parameters['mu_Y'],
+                                   self.prior_parameters['sigma_Y'])
+            alpha_sigma_Y = pm.TruncatedNormal('alpha_sigma_Y',
+                                               mu=self.prior_parameters['mu_sigma_Y'],
+                                               sigma=self.prior_parameters['sigma_sigma_Y'],
+                                               lower=0)
+            N_E = pm.Normal('N_E', self.prior_parameters['N_E_mu'],
+                            self.prior_parameters['N_E_sigma'])
 
-            if not low_dim_aux_plate:
+            if not self.low_dim_aux_plate:
                 # Full-plate model
-                if self.n_covariates == 1:
-                    # Plate in model (for i in 1...plate_size):
-                    X = pm.Normal('X', alpha_mu_X, alpha_sigma_X, shape=self.plate_size)
-                    A = pm.Normal('A', self.scm_constants['d'] * X + alpha_mu_A, alpha_sigma_A, shape=self.plate_size)
-                    Y = pm.Normal('Y', self.scm_constants['a'] + self.scm_constants['b'] * X + N_E * A + alpha_mu_Y, alpha_sigma_Y, shape=self.plate_size)
+                # Plate in model (for i in 1...plate_size):
+                X = pm.Normal('X', alpha_mu_X, alpha_sigma_X, shape=self.plate_size)
+                A = pm.Normal('A', self.scm_constants['d'] * X + alpha_mu_A,
+                              alpha_sigma_A, shape=self.plate_size)
+                Y = pm.Normal('Y', self.scm_constants['a'] +
+                              self.scm_constants['b'] * X + N_E * A +
+                              alpha_mu_Y, alpha_sigma_Y,
+                              shape=self.plate_size)
 
-                    # Is this element-wise multiplication? Could use dot product.
-                    phi = pm.Deterministic('phi', pm.math.sum(X * Y) / pm.math.sum(X**2))
-                    # Create testing mode where a large number of observations could be input.
-                    pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
-                    phi_hat = pred_o_ / X_o_
-                    pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
-                else:
-                    X = pm.Normal('X', alpha_mu_X, alpha_sigma_X,
-                                  shape=(self.plate_size, self.n_covariates))
-                    A = pm.Normal('A', at.dot(X, self.scm_constants['d']) + alpha_mu_A,
-                                  alpha_sigma_A, shape=self.plate_size)
-                    Y = pm.Normal('Y', self.scm_constants['a'] +
-                                  at.dot(X, self.scm_constants['b']) +
-                                  N_E * A + alpha_mu_Y,
-                                  alpha_sigma_Y, shape=self.plate_size)
-
-                    XtX = at.dot(X.T, X)
-                    XtY = at.dot(X.T, Y)
-                    phi = pm.Deterministic('phi', at.linalg.solve(XtX, XtY))
-                    if test:
-                        pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
-                                  observed=X_o_, shape=X_o_.shape)
-                    else:
-                        pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
-                                  observed=X_o_, shape=self.n_covariates)
-                    pred_reconstructed = at.dot(X_o_, phi)
-                    pm.Normal('phi_obs', pred_reconstructed, 1e-3, observed=pred_o_)
+                # Is this element-wise multiplication? Could use dot product.
+                phi = pm.Deterministic('phi', pm.math.sum(X * Y) / pm.math.sum(X**2))
+                # Create testing mode where a large number of observations could be input.
+                pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
+                phi_hat = pred_o_ / X_o_
+                pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
 
             else:
                 # Low-dimensional auxiliary variable -based model
-                if not self.fit_intercept:
-                    # Var(S_X) = n, but pm.Normal takes STANDARD DEVIATION as parameter.
-                    S_X = pm.Normal('S_X', mu=0, sigma=at.sqrt(self.plate_size))
-                    S_Y = pm.Normal('S_Y', mu=0, sigma=at.sqrt(self.plate_size))
-                    S_A = pm.Normal('S_A', mu=0, sigma=at.sqrt(self.plate_size))
-                    Z_XX = pm.ChiSquared('Z_XX', self.plate_size - 1)  # Independent part of sum of squares (independent of sum of X)
-                    U_XY = pm.ChiSquared('U_XY', self.plate_size - 1)  # First part of "chi-squared difference distribution"
-                    V_XY = pm.ChiSquared('V_XY', self.plate_size - 1)  # Second part of "chi-squared difference distribution"
-                    U_XA = pm.ChiSquared('U_XA', self.plate_size - 1)  # First part of "chi-squared difference distribution"
-                    V_XA = pm.ChiSquared('V_XA', self.plate_size - 1)  # Second part of "chi-squared difference distribution"
-                    # N_E = N_E  # Just to be explicit.
-                    S_9 = pm.Deterministic('S_9', (S_X * S_A / self.plate_size +
-                                                (U_XA - V_XA) / 2))
-                    S_8 = pm.Deterministic('S_8', (S_X * S_Y / self.plate_size +
-                                                (U_XY - V_XY) / 2))
-                    S_7 = pm.Deterministic('S_7', Z_XX + S_X**2 / self.plate_size)
-                    S_6 = pm.Deterministic('S_6', (self.plate_size * alpha_mu_X * alpha_mu_Y +
-                                                alpha_mu_X * alpha_sigma_Y * S_Y +
-                                                alpha_mu_Y * alpha_sigma_X * S_X +
-                                                alpha_sigma_X * alpha_sigma_Y * S_8))
-                    S_5 = pm.Deterministic('S_5', N_E * (self.plate_size * alpha_mu_X * alpha_mu_A +
-                                                alpha_mu_X * alpha_sigma_A * S_A +
-                                                alpha_mu_A * alpha_sigma_X * S_X +
-                                                alpha_sigma_X * alpha_sigma_A * S_9))
-                    S_4 = pm.Deterministic('S_4', self.scm_constants['a'] * (self.plate_size * alpha_mu_X + alpha_sigma_X * S_X))
-                    # Sum of S_1, S_2, and S_3 (denominator):
-                    S_123 = pm.Deterministic('S_123', (self.plate_size * alpha_mu_X**2 +  # S_1
-                                                     2 * alpha_mu_X * alpha_sigma_X * S_X +  # S_2
-                                                     alpha_sigma_X**2 * S_7))  # S_3
-                    # Equation for phi.
-                    phi = pm.Deterministic('phi', (self.scm_constants['b'] + self.scm_constants['d'] * N_E +\
-                                            (S_4 + S_5 + S_6) / S_123))
-                    pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_, shape=X_o_.shape)  # Shape is already defined at pm.Data(). Probably cannot be changed here.
-                    phi_hat = pred_o_ / X_o_
-                    # Note that treating phi as a normally distributed RV instead of a point value
-                    # is a modeling trick.
-                    pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
-                else:
-                    if self.n_covariates == 1:
-                        alpha_mu_X_vector = at.stack([alpha_mu_X])
-                        alpha_sigma_X_vector = at.stack([alpha_sigma_X])
-                        beta = at.stack([self.scm_constants['b'] + N_E * self.scm_constants['d']])
-                    else:
-                        alpha_mu_X_vector = alpha_mu_X
-                        alpha_sigma_X_vector = alpha_sigma_X
-                        beta = self.scm_constants['b'] + N_E * self.scm_constants['d']
-
-                    s = pm.Normal('s', mu=0, sigma=at.sqrt(self.plate_size), shape=self.n_covariates)
-                    W_chol = pm.WishartBartlett('W_chol', S=np.eye(self.n_covariates),
-                                                nu=self.plate_size - 1,
-                                                return_cholesky=True)
-                    g = pm.Normal('g', mu=0, sigma=1, shape=self.n_covariates)
-                    h = pm.Normal('h', mu=0, sigma=1)
-
-                    c = self.scm_constants['a'] + N_E * alpha_mu_A + alpha_mu_Y
-                    tau = at.sqrt(N_E**2 * alpha_sigma_A**2 + alpha_sigma_Y**2)
-                    W_minus_half_g = at.slinalg.solve_triangular(W_chol.T, g, lower=False)
-                    phi_vector = beta + tau * W_minus_half_g / alpha_sigma_X_vector
-                    alpha = pm.Deterministic('alpha', c + tau * h / at.sqrt(self.plate_size) -
-                                             tau * at.dot(alpha_mu_X_vector / alpha_sigma_X_vector +
-                                                          s / self.plate_size,
-                                                          W_minus_half_g))
-                    if self.n_covariates == 1:
-                        phi = pm.Deterministic('phi', phi_vector[0])
-                        pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_, shape=X_o_.shape)
-                        pred_reconstructed = alpha + X_o_ * phi
-                    else:
-                        phi = pm.Deterministic('phi', phi_vector)
-                        if test:
-                            pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
-                                      observed=X_o_, shape=X_o_.shape)
-                        else:
-                            pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
-                                      observed=X_o_, shape=self.n_covariates)
-                        pred_reconstructed = alpha + at.dot(X_o_, phi)
-                    pm.Normal('phi_obs', pred_reconstructed, 1e-3, observed=pred_o_)
-
-    def _infer_n_covariates(self):
-        """
-        Infer the number of covariates from X-prior parameters and scm constants.
-        Scalars imply a single covariate unless another parameter determines k > 1.
-        """
-        n_covariates = 1
-        covariate_prior_names = ('mu_X', 'sigma_X', 'mu_sigma_X', 'sigma_sigma_X')
-        for parameter_name in covariate_prior_names:
-            parameter = np.atleast_1d(np.asarray(self.prior_parameters[parameter_name], dtype=float))
-            if parameter.ndim != 1:
-                raise ValueError(f"{parameter_name} must be scalar or one-dimensional.")
-            n_covariates = max(n_covariates, parameter.size)
-        for parameter_name in ('b', 'd'):
-            parameter = np.atleast_1d(np.asarray(self.scm_constants[parameter_name], dtype=float))
-            if parameter.ndim != 1:
-                raise ValueError(f"{parameter_name} must be scalar or one-dimensional.")
-            n_covariates = max(n_covariates, parameter.size)
-        return n_covariates
-
-    def _normalize_covariate_parameter(self, parameter, parameter_name):
-        """
-        Normalize scalar and one-dimensional covariate parameters.
-        Scalars are broadcast if k > 1.
-        """
-        parameter = np.atleast_1d(np.asarray(parameter, dtype=float))
-        if parameter.ndim != 1:
-            raise ValueError(f"{parameter_name} must be scalar or one-dimensional.")
-        if parameter.size == 1 and self.n_covariates > 1:
-            parameter = np.full(self.n_covariates, parameter.item(), dtype=float)
-        elif parameter.size != self.n_covariates:
-            text = f"{parameter_name} must have length {self.n_covariates}, not {parameter.size}."
-            raise ValueError(text)
-        if self.n_covariates == 1:
-            return parameter.item()
-        return parameter
-
-    def _normalize_prior_parameters(self, prior_parameters):
-        """
-        Normalize X-related prior parameters to be consistent with k.
-        """
-        normalized_parameters = prior_parameters.copy()
-        covariate_prior_names = ('mu_X', 'sigma_X', 'mu_sigma_X', 'sigma_sigma_X')
-        for parameter_name in covariate_prior_names:
-            normalized_parameters[parameter_name] = self._normalize_covariate_parameter(
-                prior_parameters[parameter_name], parameter_name)
-        return normalized_parameters
-
-    def _normalize_scm_constants(self, scm_constants):
-        """
-        Normalize covariate-related scm constants to be consistent with k.
-        """
-        normalized_constants = scm_constants.copy()
-        for parameter_name in ('b', 'd'):
-            normalized_constants[parameter_name] = self._normalize_covariate_parameter(
-                scm_constants[parameter_name], parameter_name)
-        return normalized_constants
+                # Var(S_X) = n, but pm.Normal takes STANDARD DEVIATION as parameter.
+                S_X = pm.Normal('S_X', mu=0, sigma=at.sqrt(self.plate_size))
+                S_Y = pm.Normal('S_Y', mu=0, sigma=at.sqrt(self.plate_size))
+                S_A = pm.Normal('S_A', mu=0, sigma=at.sqrt(self.plate_size))
+                Z_XX = pm.ChiSquared('Z_XX', self.plate_size - 1)  # Independent part of sum of squares (independent of sum of X)
+                U_XY = pm.ChiSquared('U_XY', self.plate_size - 1)  # First part of "chi-squared difference distribution"
+                V_XY = pm.ChiSquared('V_XY', self.plate_size - 1)  # Second part of "chi-squared difference distribution"
+                U_XA = pm.ChiSquared('U_XA', self.plate_size - 1)  # First part of "chi-squared difference distribution"
+                V_XA = pm.ChiSquared('V_XA', self.plate_size - 1)  # Second part of "chi-squared difference distribution"
+                # N_E = N_E  # Just to be explicit.
+                S_9 = pm.Deterministic('S_9', (S_X * S_A / self.plate_size +
+                                               (U_XA - V_XA) / 2))
+                S_8 = pm.Deterministic('S_8', (S_X * S_Y / self.plate_size +
+                                               (U_XY - V_XY) / 2))
+                S_7 = pm.Deterministic('S_7', Z_XX + S_X**2 / self.plate_size)
+                S_6 = pm.Deterministic('S_6', (self.plate_size * alpha_mu_X * alpha_mu_Y +
+                                               alpha_mu_X * alpha_sigma_Y * S_Y +
+                                               alpha_mu_Y * alpha_sigma_X * S_X +
+                                               alpha_sigma_X * alpha_sigma_Y * S_8))
+                S_5 = pm.Deterministic('S_5', N_E * (self.plate_size * alpha_mu_X * alpha_mu_A +
+                                               alpha_mu_X * alpha_sigma_A * S_A +
+                                               alpha_mu_A * alpha_sigma_X * S_X +
+                                               alpha_sigma_X * alpha_sigma_A * S_9))
+                S_4 = pm.Deterministic('S_4', self.scm_constants['a'] *
+                                       (self.plate_size * alpha_mu_X +
+                                        alpha_sigma_X * S_X))
+                # Sum of S_1, S_2, and S_3 (denominator):
+                S_123 = pm.Deterministic('S_123',
+                                         (self.plate_size * alpha_mu_X**2 +
+                                          2 * alpha_mu_X * alpha_sigma_X * S_X +
+                                          alpha_sigma_X**2 * S_7))
+                # Equation for phi.
+                phi = pm.Deterministic('phi',
+                                       (self.scm_constants['b'] +
+                                        self.scm_constants['d'] * N_E +
+                                        (S_4 + S_5 + S_6) / S_123))
+                pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_,
+                          shape=X_o_.shape)
+                phi_hat = pred_o_ / X_o_
+                # Note that treating phi as a normally distributed RV instead of a point value
+                # is a modeling trick.
+                pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
+        return model
 
     def _check_predictive_sampling_supported(self):
         """
-        Predictive sampling methods are adapted after the model graph.
+        Hook for subclasses to guard predictive sampling.
         """
         return
+
+    def _update_predictive_scm(self, parameters):
+        """
+        Update the SCM used by direct predictive methods.
+        """
+        self.predictive_scm.update_parameters(parameters)
 
     def _extract_parameter_array(self, sample_group):
         """
@@ -390,7 +367,8 @@ class AgentModel():
 
     def sample(self, X_o, pred_o, draws=1000, tune=1000,
                target_accept=.85, chains=4, max_treedepth=15,
-               init="jitter+adapt_diag", rng=None):
+               init="jitter+adapt_diag", rng=None, var_names=None,
+               progressbar=True, compute_convergence_checks=True):
         """
         Sample from the posterior given observed data.
         Stores latest trace in self.
@@ -404,6 +382,10 @@ class AgentModel():
             chains (int): Number of chains.
             max_treedepth (int): Maximum tree depth for NUTS.
             init (str): Initialization method passed to PyMC.
+            var_names (list): Variables to store in the returned trace.
+            progressbar (bool): Whether to show the PyMC progress bar.
+            compute_convergence_checks (bool): Whether PyMC should run its
+                built-in convergence checks after sampling.
         
         Returns:
             None
@@ -419,6 +401,9 @@ class AgentModel():
                               random_seed=rng,
                               max_treedepth=max_treedepth,
                               init=init,
+                              var_names=var_names,
+                              progressbar=progressbar,
+                              compute_convergence_checks=compute_convergence_checks,
                               callback=printing_callback,
                               )
         self.trace = trace
@@ -448,7 +433,7 @@ class AgentModel():
             # Pick parameters from row i
             parameters = {key: column[i] for key, column in parameter_array.items()}
             # Update scm-parameters
-            self.predictive_scm.update_parameters(parameters)
+            self._update_predictive_scm(parameters)
             # sample() (generates X, Y, A, mu_A_cond, sigma_A_cond):
             X, A, Y, *_ = self.predictive_scm.sample(rng=rng)
             samples.append([X, A, Y])
@@ -475,7 +460,7 @@ class AgentModel():
             # Pick parameters from row i
             parameters = {key: column[i] for key, column in parameter_array.items()}
             # Update scm-parameters
-            self.predictive_scm.update_parameters(parameters)
+            self._update_predictive_scm(parameters)
             # Sample prior predictive given do(A)
             # Returns tuple with samples, mean, and standard deviation
             # First (array) will not fall into an array nicely with the second (value) and third (value)
@@ -510,7 +495,7 @@ class AgentModel():
             # Pick parameters from row i
             parameters = {key: column[i] for key, column in parameter_array.items()}
             # Update scm-parameters
-            self.predictive_scm.update_parameters(parameters)
+            self._update_predictive_scm(parameters)
             # sample_CATE (generates X, Y, A, mu_A_cond, sigma_A_cond)
             CATE_samples[i], *_ = self.predictive_scm.sample_CATE(X, A1_treatment, A0_treatment, rng=rng)
         # Estimate mean and standard deviation from sample
@@ -581,7 +566,7 @@ class AgentModel():
             # Pick parameters from row i
             parameters = {key: column[i] for key, column in parameter_array.items()}
             # Update scm-parameters
-            self.predictive_scm.update_parameters(parameters)
+            self._update_predictive_scm(parameters)
             # sample() (generates X, Y, A, mu_A_cond, sigma_A_cond):
             samples.append(self.predictive_scm.sample(rng=rng))
         self.posterior_predictive_samples = samples
@@ -605,7 +590,7 @@ class AgentModel():
             # Pick parameters from row i
             parameters = {key: column[i] for key, column in parameter_array.items()}
             # Update scm-parameters
-            self.predictive_scm.update_parameters(parameters)
+            self._update_predictive_scm(parameters)
             # Sample (generates CATE for that version of the scm):
             CATE_samples[i], *_ = self.predictive_scm.sample_CATE(X, A1_treatment, A0_treatment, rng=rng)
         # Estimate mean and standard deviation from sample
@@ -631,7 +616,7 @@ class AgentModel():
             # Pick parameters from row i
             parameters = {key: column[i] for key, column in parameter_array.items()}
             # Update scm-parameters
-            self.predictive_scm.update_parameters(parameters)
+            self._update_predictive_scm(parameters)
             # Sample (generates CATE for that version of the scm):
             potential_outcomes[i], *_ = self.predictive_scm.sample_do_A(A_treatment, X, rng=rng)
         # Estimate mean and standard deviation
@@ -762,3 +747,636 @@ class AgentModel():
             agent.prior_samples = None
             print("Prior samples not loaded (file {}_prior_samples.nc does not exist).".format(file_name))
         return agent
+
+
+class _AgentModelWithCovariates(AgentModel):
+    """
+    Base class for multivariate extensions.
+
+    This class handles k-dimensional parameter normalization and the
+    multivariate shapes of observed data and population parameters, while the
+    historical AgentModel remains scalar and visually close to Otto's main
+    branch.
+    """
+    def __init__(self, plate_size, prior_parameters=None,
+                 scm_constants=None, predictive_var_names=None,
+                 low_dim_aux_plate=True, fit_intercept=False, test=False):
+        use_default_scm_constants = scm_constants is None
+        base_scm_constants = self._initialize_scm_constants(scm_constants)
+        self.scm_constants = base_scm_constants
+        base_prior_parameters = self._initialize_prior_parameters(
+            prior_parameters, use_default_scm_constants)
+        self.n_covariates = self._infer_n_covariates(
+            base_prior_parameters, base_scm_constants)
+        normalized_scm_constants = self._normalize_scm_constants(base_scm_constants)
+        normalized_prior_parameters = self._normalize_prior_parameters(
+            base_prior_parameters)
+        super().__init__(plate_size=plate_size,
+                         prior_parameters=normalized_prior_parameters,
+                         scm_constants=normalized_scm_constants,
+                         predictive_var_names=predictive_var_names,
+                         low_dim_aux_plate=low_dim_aux_plate,
+                         fit_intercept=fit_intercept,
+                         test=test)
+
+    def _covariate_prior_names(self):
+        """
+        Return names of X-related prior parameters.
+        """
+        return ('mu_X', 'sigma_X', 'mu_sigma_X', 'sigma_sigma_X')
+
+    def _structural_prior_names(self):
+        """
+        Return names of structural-coefficient prior parameters.
+        """
+        return tuple()
+
+    def _infer_n_covariates(self, prior_parameters, scm_constants):
+        """
+        Infer the number of covariates from X-prior parameters and scm
+        constants.
+        """
+        n_covariates = 1
+        for parameter_name in self._covariate_prior_names():
+            parameter = np.atleast_1d(np.asarray(prior_parameters[parameter_name], dtype=float))
+            if parameter.ndim != 1:
+                raise ValueError(f"{parameter_name} must be scalar or one-dimensional.")
+            n_covariates = max(n_covariates, parameter.size)
+        for parameter_name in self._structural_prior_names():
+            if parameter_name in prior_parameters:
+                parameter = np.atleast_1d(np.asarray(prior_parameters[parameter_name], dtype=float))
+                if parameter.ndim != 1:
+                    raise ValueError(f"{parameter_name} must be scalar or one-dimensional.")
+                n_covariates = max(n_covariates, parameter.size)
+        for parameter_name in ('b', 'd'):
+            parameter = np.atleast_1d(np.asarray(scm_constants[parameter_name], dtype=float))
+            if parameter.ndim != 1:
+                raise ValueError(f"{parameter_name} must be scalar or one-dimensional.")
+            n_covariates = max(n_covariates, parameter.size)
+        return n_covariates
+
+    def _normalize_covariate_parameter(self, parameter, parameter_name):
+        """
+        Normalize scalar and one-dimensional covariate parameters.
+        """
+        parameter = np.atleast_1d(np.asarray(parameter, dtype=float))
+        if parameter.ndim != 1:
+            raise ValueError(f"{parameter_name} must be scalar or one-dimensional.")
+        if parameter.size == 1 and self.n_covariates > 1:
+            parameter = np.full(self.n_covariates, parameter.item(), dtype=float)
+        elif parameter.size != self.n_covariates:
+            text = f"{parameter_name} must have length {self.n_covariates}, not {parameter.size}."
+            raise ValueError(text)
+        if self.n_covariates == 1:
+            return parameter.item()
+        return parameter
+
+    def _normalize_prior_parameters(self, prior_parameters):
+        """
+        Normalize X-related prior parameters to be consistent with k.
+        """
+        normalized_parameters = prior_parameters.copy()
+        for parameter_name in self._covariate_prior_names():
+            normalized_parameters[parameter_name] = self._normalize_covariate_parameter(
+                prior_parameters[parameter_name], parameter_name)
+        for parameter_name in self._structural_prior_names():
+            if parameter_name in prior_parameters:
+                normalized_parameters[parameter_name] = self._normalize_covariate_parameter(
+                    prior_parameters[parameter_name], parameter_name)
+        return normalized_parameters
+
+    def _normalize_scm_constants(self, scm_constants):
+        """
+        Normalize covariate-related scm constants to be consistent with k.
+        """
+        normalized_constants = scm_constants.copy()
+        for parameter_name in ('b', 'd'):
+            normalized_constants[parameter_name] = self._normalize_covariate_parameter(
+                scm_constants[parameter_name], parameter_name)
+        return normalized_constants
+
+    def _build_observed_data(self):
+        """
+        Create PyMC data placeholders for multivariate observed data.
+        """
+        if not self.test:
+            if self.n_covariates == 1:
+                X_o_ = pm.Data('X_o_', np.asarray(0.0))
+            else:
+                X_o_ = pm.Data('X_o_', np.zeros(self.n_covariates))
+            pred_o_ = pm.Data('pred_o_', np.asarray(0.0))
+        else:
+            if self.n_covariates == 1:
+                X_o_ = pm.Data('X_o_', np.zeros(100))
+            else:
+                X_o_ = pm.Data('X_o_', np.zeros((100, self.n_covariates)))
+            pred_o_ = pm.Data('pred_o_', np.zeros(100))
+        return X_o_, pred_o_
+
+    def _build_population_parameters(self):
+        """
+        Build the PyMC variables shared by all multivariate graph variants.
+        """
+        if self.n_covariates == 1:
+            alpha_mu_X = pm.Normal('alpha_mu_X', self.prior_parameters['mu_X'],
+                                   self.prior_parameters['sigma_X'])
+            alpha_sigma_X = pm.TruncatedNormal('alpha_sigma_X',
+                                               mu=self.prior_parameters['mu_sigma_X'],
+                                               sigma=self.prior_parameters['sigma_sigma_X'],
+                                               lower=0)
+        else:
+            alpha_mu_X = pm.Normal('alpha_mu_X', self.prior_parameters['mu_X'],
+                                   self.prior_parameters['sigma_X'],
+                                   shape=self.n_covariates)
+            alpha_sigma_X = pm.TruncatedNormal('alpha_sigma_X',
+                                               mu=self.prior_parameters['mu_sigma_X'],
+                                               sigma=self.prior_parameters['sigma_sigma_X'],
+                                               lower=0,
+                                               shape=self.n_covariates)
+        alpha_mu_A = pm.Normal('alpha_mu_A', self.prior_parameters['mu_A'], self.prior_parameters['sigma_A'])
+        alpha_sigma_A = pm.TruncatedNormal('alpha_sigma_A', mu=self.prior_parameters[
+            'mu_sigma_A'], sigma=self.prior_parameters['sigma_sigma_A'], lower=0)
+        alpha_mu_Y = pm.Normal('alpha_mu_Y', self.prior_parameters['mu_Y'], self.prior_parameters['sigma_Y'])
+        alpha_sigma_Y = pm.TruncatedNormal('alpha_sigma_Y', mu=self.prior_parameters[
+            'mu_sigma_Y'], sigma=self.prior_parameters['sigma_sigma_Y'], lower=0)
+        N_E = pm.Normal('N_E', self.prior_parameters['N_E_mu'], self.prior_parameters['N_E_sigma'])
+        return {
+            'alpha_mu_X': alpha_mu_X,
+            'alpha_sigma_X': alpha_sigma_X,
+            'alpha_mu_A': alpha_mu_A,
+            'alpha_sigma_A': alpha_sigma_A,
+            'alpha_mu_Y': alpha_mu_Y,
+            'alpha_sigma_Y': alpha_sigma_Y,
+            'N_E': N_E,
+        }
+
+
+class _AgentModelWithRandomStructuralCoefficients(_AgentModelWithCovariates):
+    """
+    Base class for models with latent structural coefficients.
+
+    Subclasses use N_b and N_d in the PyMC graph while keeping b and d as
+    legacy SCM configuration inputs.
+    """
+    def _default_prior_parameters(self, use_default_scm_constants):
+        """
+        Return default prior parameters with latent structural coefficients.
+        """
+        prior_parameters = super()._default_prior_parameters(use_default_scm_constants)
+        prior_parameters['mu_Y'] = 12 if use_default_scm_constants else 0
+        prior_parameters.update({
+            'N_b_mu': self.scm_constants['b'],
+            'N_b_sigma': 0.1,
+            'N_d_mu': self.scm_constants['d'],
+            'N_d_sigma': 0.1,
+        })
+        return prior_parameters
+
+    def _default_predictive_var_names(self):
+        """
+        Return variables sampled for predictive calculations.
+        """
+        return super()._default_predictive_var_names() + ['N_b', 'N_d']
+
+    def _default_scm_constants(self):
+        """
+        Keep b and d as legacy config inputs, but remove a from the active model.
+        """
+        return {'a': 0, 'b': -0.1, 'd': 0.125}
+
+    def _structural_prior_names(self):
+        """
+        Return names of structural-coefficient prior parameters.
+        """
+        return ('N_b_mu', 'N_b_sigma', 'N_d_mu', 'N_d_sigma')
+
+    def _prepare_structural_parameters(self):
+        """
+        Absorb the legacy structural intercept and set structural priors.
+        """
+        self._absorb_scm_intercept()
+        self._set_default_structural_priors()
+
+    def _absorb_scm_intercept(self):
+        """
+        Remove the structural intercept from the active model.
+        """
+        intercept = float(np.asarray(self.scm_constants.get('a', 0), dtype=float))
+        self.prior_parameters = self.prior_parameters.copy()
+        mu_Y = np.asarray(self.prior_parameters['mu_Y'], dtype=float) + intercept
+        if mu_Y.shape == ():
+            mu_Y = mu_Y.item()
+        self.prior_parameters['mu_Y'] = mu_Y
+        self.scm_constants['a'] = 0
+
+    def _set_default_structural_priors(self):
+        """
+        Set priors for structural coefficients when they are not provided.
+        """
+        self.prior_parameters = self.prior_parameters.copy()
+        self.prior_parameters.setdefault('N_b_mu', self.scm_constants['b'])
+        self.prior_parameters.setdefault('N_b_sigma', 0.1)
+        self.prior_parameters.setdefault('N_d_mu', self.scm_constants['d'])
+        self.prior_parameters.setdefault('N_d_sigma', 0.1)
+
+    def _validate_model_configuration(self):
+        """
+        Validate combinations supported by latent-coefficient subclasses.
+        """
+        return
+
+    def _check_predictive_sampling_supported(self):
+        """
+        Ensure direct predictive methods sample the latent structural coefficients.
+        """
+        missing_items = [item for item in ('N_b', 'N_d')
+                         if item not in self.predictive_var_names]
+        if missing_items:
+            raise ValueError(
+                "Latent-coefficient predictive methods require {} in "
+                "predictive_var_names.".format(missing_items)
+            )
+
+    def _update_predictive_scm(self, parameters):
+        """
+        Map model-level structural coefficients to SCM field names.
+        """
+        parameters = parameters.copy()
+        if 'N_b' in parameters:
+            parameters['b'] = parameters.pop('N_b')
+        if 'N_d' in parameters:
+            parameters['d'] = parameters.pop('N_d')
+        super()._update_predictive_scm(parameters)
+
+    def _build_structural_coefficients(self):
+        """
+        Build latent structural coefficients.
+        """
+        if self.n_covariates == 1:
+            N_b = pm.Normal('N_b', self.prior_parameters['N_b_mu'],
+                            self.prior_parameters['N_b_sigma'])
+            N_d = pm.Normal('N_d', self.prior_parameters['N_d_mu'],
+                            self.prior_parameters['N_d_sigma'])
+        else:
+            N_b = pm.Normal('N_b', self.prior_parameters['N_b_mu'],
+                            self.prior_parameters['N_b_sigma'],
+                            shape=self.n_covariates)
+            N_d = pm.Normal('N_d', self.prior_parameters['N_d_mu'],
+                            self.prior_parameters['N_d_sigma'],
+                            shape=self.n_covariates)
+        return N_b, N_d
+
+
+class AgentModelWithFullPlateFixedCoefficients(_AgentModelWithCovariates):
+    """
+    Agent model for the explicit multivariate OLS-without-intercept plate with
+    fixed structural coefficients.
+
+    This subclass keeps the earlier multivariate full-plate extension separate
+    from Otto's historical scalar AgentModel.
+    """
+    def __init__(self, plate_size, prior_parameters=None,
+                 scm_constants=None, predictive_var_names=None,
+                 low_dim_aux_plate=False, fit_intercept=False, test=False):
+        if fit_intercept:
+            raise ValueError(
+                "AgentModelWithFullPlateFixedCoefficients requires "
+                "fit_intercept=False."
+            )
+        if low_dim_aux_plate:
+            raise ValueError(
+                "AgentModelWithFullPlateFixedCoefficients requires "
+                "low_dim_aux_plate=False."
+            )
+        super().__init__(plate_size=plate_size,
+                         prior_parameters=prior_parameters,
+                         scm_constants=scm_constants,
+                         predictive_var_names=predictive_var_names,
+                         low_dim_aux_plate=False,
+                         fit_intercept=False,
+                         test=test)
+
+    def _validate_model_configuration(self):
+        """
+        Validate combinations supported by the multivariate fixed-coefficient
+        full-plate model.
+        """
+        if self.fit_intercept:
+            raise NotImplementedError(
+                "AgentModelWithFullPlateFixedCoefficients requires "
+                "fit_intercept=False."
+            )
+        if self.low_dim_aux_plate:
+            raise NotImplementedError(
+                "AgentModelWithFullPlateFixedCoefficients requires "
+                "low_dim_aux_plate=False."
+            )
+        if self.n_covariates == 1:
+            raise NotImplementedError(
+                "AgentModelWithFullPlateFixedCoefficients is only supported "
+                "for multivariate inputs. Use AgentModel for k=1."
+            )
+
+    def _build_model(self):
+        """
+        Build the PyMC graph for the explicit multivariate full-plate model
+        with fixed structural coefficients.
+        """
+        model = pm.Model()
+        with model:
+            X_o_, pred_o_ = self._build_observed_data()
+            parameters = self._build_population_parameters()
+            alpha_mu_X = parameters['alpha_mu_X']
+            alpha_sigma_X = parameters['alpha_sigma_X']
+            alpha_mu_A = parameters['alpha_mu_A']
+            alpha_sigma_A = parameters['alpha_sigma_A']
+            alpha_mu_Y = parameters['alpha_mu_Y']
+            alpha_sigma_Y = parameters['alpha_sigma_Y']
+            N_E = parameters['N_E']
+
+            X = pm.Normal('X', alpha_mu_X, alpha_sigma_X,
+                          shape=(self.plate_size, self.n_covariates))
+            A = pm.Normal('A', at.dot(X, self.scm_constants['d']) + alpha_mu_A,
+                          alpha_sigma_A, shape=self.plate_size)
+            Y = pm.Normal('Y', self.scm_constants['a'] +
+                          at.dot(X, self.scm_constants['b']) +
+                          N_E * A + alpha_mu_Y,
+                          alpha_sigma_Y, shape=self.plate_size)
+
+            XtX = at.dot(X.T, X)
+            XtY = at.dot(X.T, Y)
+            phi = pm.Deterministic('phi', at.linalg.solve(XtX, XtY))
+            if self.test:
+                pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                          observed=X_o_, shape=X_o_.shape)
+            else:
+                pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                          observed=X_o_, shape=self.n_covariates)
+            pred_reconstructed = at.dot(X_o_, phi)
+            pm.Normal('phi_obs', pred_reconstructed, 1e-3, observed=pred_o_)
+        return model
+
+
+class AgentModelWithMultivariate(_AgentModelWithRandomStructuralCoefficients):
+    """
+    Agent model for the multivariate OLS-without-intercept family with latent
+    structural coefficients.
+
+    The low_dim_aux_plate flag selects between the explicit full-plate graph
+    and the reduced graph using the auxiliary variables s, W, and g.
+    """
+    def __init__(self, plate_size, prior_parameters=None,
+                 scm_constants=None, predictive_var_names=None,
+                 low_dim_aux_plate=True, fit_intercept=False, test=False):
+        if fit_intercept:
+            raise ValueError(
+                "AgentModelWithMultivariate requires fit_intercept=False."
+            )
+        super().__init__(plate_size=plate_size,
+                         prior_parameters=prior_parameters,
+                         scm_constants=scm_constants,
+                         predictive_var_names=predictive_var_names,
+                         low_dim_aux_plate=low_dim_aux_plate,
+                         fit_intercept=False,
+                         test=test)
+
+    def _validate_model_configuration(self):
+        """
+        Validate combinations supported by the no-intercept latent-coefficient
+        family.
+        """
+        if self.fit_intercept:
+            raise NotImplementedError(
+                "AgentModelWithMultivariate requires fit_intercept=False."
+            )
+
+    def _build_model(self):
+        """
+        Build the PyMC graph for the no-intercept latent-coefficient model.
+        """
+        model = pm.Model()
+        with model:
+            X_o_, pred_o_ = self._build_observed_data()
+            parameters = self._build_population_parameters()
+            alpha_mu_X = parameters['alpha_mu_X']
+            alpha_sigma_X = parameters['alpha_sigma_X']
+            alpha_mu_A = parameters['alpha_mu_A']
+            alpha_sigma_A = parameters['alpha_sigma_A']
+            alpha_mu_Y = parameters['alpha_mu_Y']
+            alpha_sigma_Y = parameters['alpha_sigma_Y']
+            N_E = parameters['N_E']
+            N_b, N_d = self._build_structural_coefficients()
+
+            if not self.low_dim_aux_plate:
+                if self.n_covariates == 1:
+                    X = pm.Normal('X', alpha_mu_X, alpha_sigma_X,
+                                  shape=self.plate_size)
+                    A = pm.Normal('A', N_d * X + alpha_mu_A,
+                                  alpha_sigma_A, shape=self.plate_size)
+                    Y = pm.Normal('Y', N_b * X + N_E * A + alpha_mu_Y,
+                                  alpha_sigma_Y, shape=self.plate_size)
+
+                    phi = pm.Deterministic(
+                        'phi',
+                        pm.math.sum(X * Y) / pm.math.sum(X**2)
+                    )
+                    pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                              observed=X_o_, shape=X_o_.shape)
+                    phi_hat = pred_o_ / X_o_
+                    pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
+                else:
+                    X = pm.Normal('X', alpha_mu_X, alpha_sigma_X,
+                                  shape=(self.plate_size, self.n_covariates))
+                    A = pm.Normal('A', at.dot(X, N_d) + alpha_mu_A,
+                                  alpha_sigma_A, shape=self.plate_size)
+                    Y = pm.Normal('Y', at.dot(X, N_b) + N_E * A + alpha_mu_Y,
+                                  alpha_sigma_Y, shape=self.plate_size)
+
+                    XtX = at.dot(X.T, X)
+                    XtY = at.dot(X.T, Y)
+                    phi = pm.Deterministic('phi', at.linalg.solve(XtX, XtY))
+                    if self.test:
+                        pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                                  observed=X_o_, shape=X_o_.shape)
+                    else:
+                        pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                                  observed=X_o_, shape=self.n_covariates)
+                    pred_reconstructed = at.dot(X_o_, phi)
+                    pm.Normal('phi_obs', pred_reconstructed, 1e-3,
+                              observed=pred_o_)
+            else:
+                if self.n_covariates == 1:
+                    alpha_mu_X_vector = at.stack([alpha_mu_X])
+                    alpha_sigma_X_vector = at.stack([alpha_sigma_X])
+                    beta = at.stack([N_b + N_E * N_d])
+                else:
+                    alpha_mu_X_vector = alpha_mu_X
+                    alpha_sigma_X_vector = alpha_sigma_X
+                    beta = N_b + N_E * N_d
+
+                s = pm.Normal('s', mu=0, sigma=at.sqrt(self.plate_size),
+                              shape=self.n_covariates)
+                W_chol = pm.WishartBartlett('W_chol', S=np.eye(self.n_covariates),
+                                            nu=self.plate_size - 1,
+                                            return_cholesky=True)
+                g = pm.Normal('g', mu=0, sigma=1, shape=self.n_covariates)
+
+                c = N_E * alpha_mu_A + alpha_mu_Y
+                tau = at.sqrt(N_E**2 * alpha_sigma_A**2 + alpha_sigma_Y**2)
+                S_x = self.plate_size * alpha_mu_X_vector + alpha_sigma_X_vector * s
+                W = at.dot(W_chol, W_chol.T)
+                G = (alpha_sigma_X_vector[:, None] * W *
+                     alpha_sigma_X_vector[None, :] +
+                     at.outer(S_x, S_x) / self.plate_size)
+                G_chol = at.linalg.cholesky(G)
+                mean_term = c * at.linalg.solve(G, S_x)
+                noise_term = tau * at.slinalg.solve_triangular(G_chol.T, g, lower=False)
+                phi_vector = beta + mean_term + noise_term
+
+                if self.n_covariates == 1:
+                    phi = pm.Deterministic('phi', phi_vector[0])
+                    pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                              observed=X_o_, shape=X_o_.shape)
+                    phi_hat = pred_o_ / X_o_
+                    pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
+                else:
+                    phi = pm.Deterministic('phi', phi_vector)
+                    if self.test:
+                        pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                                  observed=X_o_, shape=X_o_.shape)
+                    else:
+                        pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                                  observed=X_o_, shape=self.n_covariates)
+                    pred_reconstructed = at.dot(X_o_, phi)
+                    pm.Normal('phi_obs', pred_reconstructed, 1e-3, observed=pred_o_)
+        return model
+
+
+class AgentModelWithIntercept(_AgentModelWithRandomStructuralCoefficients):
+    """
+    Agent model for the OLS-with-intercept family with latent structural
+    coefficients.
+
+    The low_dim_aux_plate flag selects between the explicit full-plate graph
+    and the reduced graph with auxiliary variables s, W, g, and h.
+    """
+    def __init__(self, plate_size, prior_parameters=None,
+                 scm_constants=None, predictive_var_names=None,
+                 low_dim_aux_plate=True, fit_intercept=True, test=False):
+        if not fit_intercept:
+            raise ValueError("AgentModelWithIntercept requires fit_intercept=True.")
+        super().__init__(plate_size=plate_size,
+                         prior_parameters=prior_parameters,
+                         scm_constants=scm_constants,
+                         predictive_var_names=predictive_var_names,
+                         low_dim_aux_plate=low_dim_aux_plate,
+                         fit_intercept=True,
+                         test=test)
+
+    def _build_model(self):
+        """
+        Build the PyMC graph for the intercept latent-coefficient model.
+        """
+        model = pm.Model()
+        with model:
+            X_o_, pred_o_ = self._build_observed_data()
+            parameters = self._build_population_parameters()
+            alpha_mu_X = parameters['alpha_mu_X']
+            alpha_sigma_X = parameters['alpha_sigma_X']
+            alpha_mu_A = parameters['alpha_mu_A']
+            alpha_sigma_A = parameters['alpha_sigma_A']
+            alpha_mu_Y = parameters['alpha_mu_Y']
+            alpha_sigma_Y = parameters['alpha_sigma_Y']
+            N_E = parameters['N_E']
+            N_b, N_d = self._build_structural_coefficients()
+
+            if not self.low_dim_aux_plate:
+                if self.n_covariates == 1:
+                    X = pm.Normal('X', alpha_mu_X, alpha_sigma_X,
+                                  shape=self.plate_size)
+                    A = pm.Normal('A', N_d * X + alpha_mu_A,
+                                  alpha_sigma_A, shape=self.plate_size)
+                    Y = pm.Normal('Y', N_b * X + N_E * A + alpha_mu_Y,
+                                  alpha_sigma_Y, shape=self.plate_size)
+
+                    X_mean = at.mean(X)
+                    Y_mean = at.mean(Y)
+                    X_centered = X - X_mean
+                    Y_centered = Y - Y_mean
+                    phi = pm.Deterministic(
+                        'phi',
+                        pm.math.sum(X_centered * Y_centered) /
+                        pm.math.sum(X_centered**2)
+                    )
+                    alpha = pm.Deterministic('alpha', Y_mean - phi * X_mean)
+                    pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                              observed=X_o_, shape=X_o_.shape)
+                    pred_reconstructed = alpha + X_o_ * phi
+                else:
+                    X = pm.Normal('X', alpha_mu_X, alpha_sigma_X,
+                                  shape=(self.plate_size, self.n_covariates))
+                    A = pm.Normal('A', at.dot(X, N_d) + alpha_mu_A,
+                                  alpha_sigma_A, shape=self.plate_size)
+                    Y = pm.Normal('Y', at.dot(X, N_b) + N_E * A + alpha_mu_Y,
+                                  alpha_sigma_Y, shape=self.plate_size)
+
+                    X_mean = at.mean(X, axis=0)
+                    Y_mean = at.mean(Y)
+                    X_centered = X - X_mean
+                    Y_centered = Y - Y_mean
+                    XtX = at.dot(X_centered.T, X_centered)
+                    XtY = at.dot(X_centered.T, Y_centered)
+                    phi = pm.Deterministic('phi', at.linalg.solve(XtX, XtY))
+                    alpha = pm.Deterministic('alpha', Y_mean - at.dot(X_mean, phi))
+                    if self.test:
+                        pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                                  observed=X_o_, shape=X_o_.shape)
+                    else:
+                        pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                                  observed=X_o_, shape=self.n_covariates)
+                    pred_reconstructed = alpha + at.dot(X_o_, phi)
+            else:
+                if self.n_covariates == 1:
+                    alpha_mu_X_vector = at.stack([alpha_mu_X])
+                    alpha_sigma_X_vector = at.stack([alpha_sigma_X])
+                    beta = at.stack([N_b + N_E * N_d])
+                else:
+                    alpha_mu_X_vector = alpha_mu_X
+                    alpha_sigma_X_vector = alpha_sigma_X
+                    beta = N_b + N_E * N_d
+
+                s = pm.Normal('s', mu=0, sigma=at.sqrt(self.plate_size),
+                              shape=self.n_covariates)
+                W_chol = pm.WishartBartlett('W_chol', S=np.eye(self.n_covariates),
+                                            nu=self.plate_size - 1,
+                                            return_cholesky=True)
+                g = pm.Normal('g', mu=0, sigma=1, shape=self.n_covariates)
+                h = pm.Normal('h', mu=0, sigma=1)
+
+                c = N_E * alpha_mu_A + alpha_mu_Y
+                tau = at.sqrt(N_E**2 * alpha_sigma_A**2 + alpha_sigma_Y**2)
+                W_minus_half_g = at.slinalg.solve_triangular(W_chol.T, g, lower=False)
+                phi_vector = beta + tau * W_minus_half_g / alpha_sigma_X_vector
+                alpha = pm.Deterministic(
+                    'alpha',
+                    c + tau * h / at.sqrt(self.plate_size) -
+                    tau * at.dot(alpha_mu_X_vector / alpha_sigma_X_vector +
+                                 s / self.plate_size,
+                                 W_minus_half_g)
+                )
+                if self.n_covariates == 1:
+                    phi = pm.Deterministic('phi', phi_vector[0])
+                    pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                              observed=X_o_, shape=X_o_.shape)
+                    pred_reconstructed = alpha + X_o_ * phi
+                else:
+                    phi = pm.Deterministic('phi', phi_vector)
+                    if self.test:
+                        pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                                  observed=X_o_, shape=X_o_.shape)
+                    else:
+                        pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                                  observed=X_o_, shape=self.n_covariates)
+                    pred_reconstructed = alpha + at.dot(X_o_, phi)
+            pm.Normal('phi_obs', pred_reconstructed, 1e-3, observed=pred_o_)
+        return model

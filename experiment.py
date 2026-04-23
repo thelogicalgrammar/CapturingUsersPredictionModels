@@ -91,6 +91,51 @@ def format_observation_for_regression(X_o):
         return X_o.reshape(1, -1)
     raise ValueError("X_o must be scalar or one-dimensional.")
 
+
+def infer_n_covariates(agent_priors, scm_constants):
+    """
+    Infer the number of covariates from the experiment configuration.
+    """
+    n_covariates = 1
+    for parameter_name in ('mu_X', 'sigma_X', 'mu_sigma_X', 'sigma_sigma_X'):
+        parameter = np.atleast_1d(np.asarray(agent_priors[parameter_name], dtype=float))
+        if parameter.ndim != 1:
+            raise ValueError(f"{parameter_name} must be scalar or one-dimensional.")
+        n_covariates = max(n_covariates, parameter.size)
+    for parameter_name in ('b', 'd'):
+        parameter = np.atleast_1d(np.asarray(scm_constants[parameter_name], dtype=float))
+        if parameter.ndim != 1:
+            raise ValueError(f"{parameter_name} must be scalar or one-dimensional.")
+        n_covariates = max(n_covariates, parameter.size)
+    return n_covariates
+
+
+def build_agent_model(agent_priors, scm_constants, predictive_var_names,
+                      plate_size, low_dim_aux_plate):
+    """
+    Build the agent model used by the paper-facing experiment pipeline.
+    """
+    n_covariates = infer_n_covariates(agent_priors, scm_constants)
+    if n_covariates == 1:
+        return am.AgentModel(prior_parameters=agent_priors,
+                             scm_constants=scm_constants,
+                             predictive_var_names=predictive_var_names,
+                             plate_size=plate_size,
+                             low_dim_aux_plate=low_dim_aux_plate)
+    if low_dim_aux_plate:
+        raise NotImplementedError(
+            "experiment.py does not implement a multivariate reduced model "
+            "with fixed structural coefficients. Use low_dim_aux_plate=False "
+            "for the full-plate fixed-coefficient model."
+        )
+    return am.AgentModelWithFullPlateFixedCoefficients(
+        prior_parameters=agent_priors,
+        scm_constants=scm_constants,
+        predictive_var_names=predictive_var_names,
+        plate_size=plate_size,
+        low_dim_aux_plate=False,
+    )
+
 def main(X_o, agent_priors, modified_prior,
          A1_treatment=A1_treatment, A0_treatment=A0_treatment,
          plate_size=plate_size, draws=draws, tune=1000,
@@ -150,11 +195,11 @@ def main(X_o, agent_priors, modified_prior,
 
     # 5. Define the agent model.
     #    Using same _constants_ for agent's internal SCM as for data generating SCM.
-    agent_model = am.AgentModel(prior_parameters=agent_priors,
-                                scm_constants=scm_constants,
-                                predictive_var_names=predictive_var_names,
-                                plate_size=plate_size,
-                                low_dim_aux_plate=low_dim_aux_plate)
+    agent_model = build_agent_model(agent_priors=agent_priors,
+                                    scm_constants=scm_constants,
+                                    predictive_var_names=predictive_var_names,
+                                    plate_size=plate_size,
+                                    low_dim_aux_plate=low_dim_aux_plate)
 
     # 6. Predictive estimates and treatment decision under prior beliefs
     prior_CATE_mu = agent_model.get_prior_CATE_mu(A1_treatment, A0_treatment)
