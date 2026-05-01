@@ -755,8 +755,8 @@ class _AgentModelWithCovariates(AgentModel):
 
     This class handles k-dimensional parameter normalization and the
     multivariate shapes of observed data and population parameters, while the
-    historical AgentModel remains scalar and visually close to Otto's main
-    branch.
+    historical no-intercept AgentModel remains scalar and visually close to
+    the upstream main branch.
     """
     def __init__(self, plate_size, prior_parameters=None,
                  scm_constants=None, predictive_var_names=None,
@@ -1033,7 +1033,7 @@ class AgentModelWithFullPlateFixedCoefficients(_AgentModelWithCovariates):
     fixed structural coefficients.
 
     This subclass keeps the earlier multivariate full-plate extension separate
-    from Otto's historical scalar AgentModel.
+    from the historical scalar no-intercept AgentModel.
     """
     def __init__(self, plate_size, prior_parameters=None,
                  scm_constants=None, predictive_var_names=None,

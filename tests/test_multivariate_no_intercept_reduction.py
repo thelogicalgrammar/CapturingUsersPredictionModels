@@ -3,8 +3,8 @@ Validation of the multivariate reduced plate model without intercept.
 
 The reduction is compared against a brute-force plate simulation where
 the full plate is generated from the SCM and OLS is fit without intercept.
-For k = 1, the condensed formula is also compared against Otto's original
-eight-variable scalar reduction.
+For k = 1, the condensed formula is also compared against the historical
+eight-variable scalar no-intercept reduction.
 """
 import argparse
 import json
@@ -288,9 +288,10 @@ def draw_full_plate_samples(k, plate_size, parameter_samples, rng):
     return phi_samples
 
 
-def draw_otto_scalar_reduction_samples(plate_size, repetitions, rng):
+def draw_historical_scalar_no_intercept_reduction_samples(
+        plate_size, repetitions, rng):
     """
-    Draw phi using Otto's original eight-variable scalar reduction.
+    Draw phi using the historical eight-variable scalar no-intercept reduction.
     """
     rng = np.random.default_rng(rng)
     prior_parameters = make_prior_parameters(1)
@@ -366,19 +367,22 @@ def draw_condensed_scalar_constant_samples(plate_size, repetitions, rng):
     return beta + c * S_x / G + tau * g / np.sqrt(G)
 
 
-def validate_scalar_against_otto(plate_size, repetitions, seed):
+def validate_scalar_against_historical_no_intercept_reduction(
+        plate_size, repetitions, seed):
     """
-    Validate that the k=1 formula matches Otto's scalar reduction.
+    Validate that the k=1 formula matches the historical scalar no-intercept
+    reduction.
     """
-    otto_samples = draw_otto_scalar_reduction_samples(
+    historical_samples = draw_historical_scalar_no_intercept_reduction_samples(
         plate_size=plate_size, repetitions=repetitions, rng=seed
     )
     condensed_samples = draw_condensed_scalar_constant_samples(
         plate_size=plate_size, repetitions=repetitions, rng=seed + 1
     )
-    result = compare_samples(otto_samples, condensed_samples)
+    result = compare_samples(historical_samples, condensed_samples)
     print("-" * 60)
-    print("Comparing k = 1 condensed formula against Otto's scalar reduction")
+    print("Comparing k = 1 condensed formula against the "
+          "historical scalar no-intercept reduction")
     print("KS p-value: {:.6f}".format(result['ks_pvalue']))
     print("Normalized Wasserstein: {:.6f}".format(
         result['wasserstein_test']['normalized_wasserstein_distance']))
@@ -438,12 +442,12 @@ def write_results(results, output_dir):
         'k,variable,success,reference_mean,reduced_mean,reference_std,'
         'reduced_std,ks_pvalue,normalized_wasserstein_distance',
     ]
-    scalar_result = results.get('scalar_otto_comparison')
+    scalar_result = results.get('scalar_historical_no_intercept_comparison')
     if scalar_result is not None:
         rows.append(
             '{},{},{},{:.12f},{:.12f},{:.12f},{:.12f},{:.12f},{:.12f}'.format(
                 1,
-                'otto_scalar_phi',
+                'historical_scalar_no_intercept_phi',
                 int(scalar_result['success']),
                 scalar_result['reference_summary']['mean'],
                 scalar_result['reduced_summary']['mean'],
@@ -480,13 +484,14 @@ def main():
     parser.add_argument('--k-values', type=int, nargs='+', default=[1, 2, 5])
     parser.add_argument('--output-dir', default=None)
     parser.add_argument('--skip-agent-smoke', action='store_true')
-    parser.add_argument('--skip-scalar-otto-check', action='store_true')
+    parser.add_argument('--skip-scalar-historical-no-intercept-check',
+                        action='store_true')
     args = parser.parse_args()
 
     start_time = time.time()
     scalar_result = None
-    if not args.skip_scalar_otto_check:
-        scalar_result = validate_scalar_against_otto(
+    if not args.skip_scalar_historical_no_intercept_check:
+        scalar_result = validate_scalar_against_historical_no_intercept_reduction(
             plate_size=args.plate_size,
             repetitions=args.repetitions,
             seed=args.seed,
@@ -513,7 +518,7 @@ def main():
         'k_values': args.k_values,
         'elapsed_time': elapsed_time,
         'success': overall_success,
-        'scalar_otto_comparison': scalar_result,
+        'scalar_historical_no_intercept_comparison': scalar_result,
         'results': results,
     }
     if args.output_dir is not None:
