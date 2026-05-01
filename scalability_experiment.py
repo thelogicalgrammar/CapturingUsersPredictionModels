@@ -13,9 +13,35 @@ driver focuses on:
 """
 import argparse
 import csv
+import faulthandler
 import json
+import os
+import sys
 import time
 from pathlib import Path
+
+_startup_time = time.time()
+
+
+def log_event(message):
+    """
+    Print a timestamped progress message for Slurm logs.
+    """
+    elapsed = time.time() - _startup_time
+    print(
+        f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] "
+        f"[+{elapsed:8.2f}s] {message}",
+        flush=True,
+    )
+
+
+faulthandler.enable(file=sys.stderr)
+_traceback_interval = int(os.environ.get('SCALABILITY_TRACEBACK_INTERVAL', '0'))
+if _traceback_interval > 0:
+    faulthandler.dump_traceback_later(
+        _traceback_interval, repeat=True, file=sys.stderr)
+
+log_event("scalability_experiment.py startup: importing scientific stack")
 
 import arviz as az
 import numpy as np
@@ -23,6 +49,8 @@ from sklearn.linear_model import LinearRegression
 
 import agent_model as am
 import scm
+
+log_event("scientific stack imported")
 
 
 scm_noise_parameters_default = {
@@ -60,6 +88,7 @@ model_variants = (
     'full_intercept',
     'reduced_intercept',
 )
+covariate_prior_names = ('mu_X', 'sigma_X', 'mu_sigma_X', 'sigma_sigma_X')
 
 
 def format_features_for_regression(X):
@@ -164,11 +193,12 @@ def build_scm_constants(n_covariates, coefficient_scaling):
     }
 
 
-def build_agent_priors(n_covariates):
+def build_agent_priors(n_covariates, modified_prior=None,
+                       modified_prior_value=None):
     """
     Build the default agent priors for one scalability run.
     """
-    return {
+    priors = {
         'mu_X': repeat_covariate_parameter(agent_priors_default['mu_X'], n_covariates),
         'sigma_X': repeat_covariate_parameter(agent_priors_default['sigma_X'], n_covariates),
         'mu_sigma_X': repeat_covariate_parameter(agent_priors_default['mu_sigma_X'], n_covariates),
@@ -184,9 +214,22 @@ def build_agent_priors(n_covariates):
         'N_E_mu': agent_priors_default['N_E_mu'],
         'N_E_sigma': agent_priors_default['N_E_sigma'],
     }
+    if modified_prior is None:
+        return priors
+    if modified_prior not in priors:
+        raise ValueError(f"Unknown prior parameter '{modified_prior}'.")
+    if modified_prior_value is None:
+        raise ValueError("modified_prior_value must be set when modified_prior is set.")
+    if modified_prior in covariate_prior_names:
+        priors[modified_prior] = repeat_covariate_parameter(
+            modified_prior_value, n_covariates)
+    else:
+        priors[modified_prior] = modified_prior_value
+    return priors
 
 
-def build_observed_patient(n_covariates, scm_noise_parameters, x_o_mode, rng):
+def build_observed_patient(n_covariates, scm_noise_parameters, x_o_mode, rng,
+                           x_o_deviation=None):
     """
     Build the observed patient features either from the SCM mean or by sampling.
     """
@@ -198,6 +241,12 @@ def build_observed_patient(n_covariates, scm_noise_parameters, x_o_mode, rng):
                        scale=scm_noise_parameters['alpha_sigma_X'],
                        size=np.atleast_1d(scm_noise_parameters['alpha_mu_X']).shape),
             dtype=float,
+        )
+    elif x_o_mode == 'deviation':
+        if x_o_deviation is None:
+            raise ValueError("x_o_deviation must be set when x_o_mode='deviation'.")
+        X_o = np.asarray(scm_noise_parameters['alpha_mu_X'], dtype=float) + (
+            x_o_deviation * np.asarray(scm_noise_parameters['alpha_sigma_X'], dtype=float)
         )
     else:
         raise ValueError(f"Unknown X_o mode '{x_o_mode}'.")
@@ -307,6 +356,7 @@ def summarize_trace_diagnostics(trace):
     """
     Return run-level diagnostics and parameter-level diagnostics.
     """
+    log_event("diagnostics: starting ArviZ summary")
     diagnostics = az.summary(trace, kind='diagnostics', round_to=None)
     diagnostics = diagnostics.reset_index().rename(columns={'index': 'parameter'})
     diagnostics_rows = diagnostics.to_dict(orient='records')
@@ -316,6 +366,7 @@ def summarize_trace_diagnostics(trace):
         'min_ess_bulk': float(diagnostics['ess_bulk'].min()),
         'min_ess_tail': float(diagnostics['ess_tail'].min()),
     }
+    log_event("diagnostics: completed ArviZ summary")
     return diagnostics_summary, diagnostics_rows
 
 
@@ -333,8 +384,12 @@ def build_output_paths(output_dir, run_name):
 
 def run_scalability_experiment(n_covariates, plate_size, draws, tune,
                                chains, target_accept, max_treedepth, init,
-                               model_variant, coefficient_scaling, x_o_mode, seed,
+                               model_variant, coefficient_scaling, x_o_mode,
+                               x_o_deviation, seed,
                                output_dir, run_name,
+                               modified_prior=None,
+                               modified_prior_value=None,
+                               modified_prior_deviation=None,
                                A1_treatment=A1_treatment,
                                A0_treatment=A0_treatment,
                                threshold=threshold):
@@ -342,41 +397,71 @@ def run_scalability_experiment(n_covariates, plate_size, draws, tune,
     Run a single multivariate scalability experiment.
     """
     total_start_time = time.time()
+    log_event(
+        "run started: "
+        f"run_name={run_name}, model_variant={model_variant}, "
+        f"k={n_covariates}, plate_size={plate_size}, seed={seed}, "
+        f"x_o_mode={x_o_mode}, x_o_deviation={x_o_deviation}, "
+        f"modified_prior={modified_prior}, "
+        f"modified_prior_value={modified_prior_value}, "
+        f"modified_prior_deviation={modified_prior_deviation}"
+    )
     rng = np.random.default_rng(seed)
 
+    log_event("setup: building SCM parameters, priors, and observed patient")
     scm_noise_parameters = build_scm_noise_parameters(n_covariates)
     scm_constants = build_scm_constants(n_covariates, coefficient_scaling)
-    agent_priors = build_agent_priors(n_covariates)
-    X_o = build_observed_patient(n_covariates, scm_noise_parameters, x_o_mode, rng)
+    agent_priors = build_agent_priors(
+        n_covariates,
+        modified_prior=modified_prior,
+        modified_prior_value=modified_prior_value,
+    )
+    X_o = build_observed_patient(
+        n_covariates, scm_noise_parameters, x_o_mode, rng,
+        x_o_deviation=x_o_deviation,
+    )
+    log_event(f"setup: X_o={serialize_value(X_o)}")
 
     historical_data_start_time = time.time()
+    log_event("historical data: sampling started")
     data_scm = scm.SCM(**scm_noise_parameters, **scm_constants)
     X, A, Y_historical, *_ = data_scm.sample(draws=plate_size, rng=rng)
     historical_data_runtime = time.time() - historical_data_start_time
+    log_event(f"historical data: completed in {historical_data_runtime:.2f}s")
 
     prediction_model_start_time = time.time()
+    log_event("prediction model: fitting started")
     fit_intercept = model_uses_intercept(model_variant)
     pred_model = LinearRegression(fit_intercept=fit_intercept).fit(
         format_features_for_regression(X), Y_historical)
     pred_o = float(pred_model.predict(format_observation_for_regression(X_o))[0])
     prediction_model_runtime = time.time() - prediction_model_start_time
+    log_event(
+        f"prediction model: completed in {prediction_model_runtime:.2f}s, "
+        f"pred_o={pred_o}"
+    )
 
+    log_event("agent model: build started")
     agent_model = build_agent_model(
         model_variant=model_variant,
         agent_priors=agent_priors,
         scm_constants=scm_constants,
         plate_size=plate_size,
     )
+    log_event("agent model: build completed")
 
     prior_runtime_start_time = time.time()
+    log_event("prior: sampling and CATE evaluation started")
     agent_model.sample_prior_predictive(draws=draws, rng=rng)
     prior_CATE_mu = agent_model.get_prior_CATE_mu(A1_treatment, A0_treatment)
     prior_CATE_samples, prior_CATE_mean, prior_CATE_std = agent_model.sample_prior_predictive_CATE(
         X_o, A1_treatment, A0_treatment, rng=rng)
     prior_treatment = A1_treatment if prior_CATE_mean > threshold else A0_treatment
     prior_runtime = time.time() - prior_runtime_start_time
+    log_event(f"prior: completed in {prior_runtime:.2f}s")
 
     posterior_sampling_start_time = time.time()
+    log_event("posterior: NUTS sampling started")
     agent_model.sample(
         X_o=np.asarray(X_o),
         pred_o=np.asarray(pred_o),
@@ -392,18 +477,25 @@ def run_scalability_experiment(n_covariates, plate_size, draws, tune,
         compute_convergence_checks=False,
     )
     posterior_sampling_runtime = time.time() - posterior_sampling_start_time
+    log_event(
+        f"posterior: NUTS sampling completed in "
+        f"{posterior_sampling_runtime:.2f}s"
+    )
 
     diagnostics_summary, diagnostics_rows = summarize_trace_diagnostics(agent_model.trace)
 
     posterior_runtime_start_time = time.time()
+    log_event("posterior: CATE evaluation started")
     posterior_CATE_samples, posterior_CATE_mean, posterior_CATE_std = (
         agent_model.sample_posterior_predictive_CATE(
             X_o, A1_treatment, A0_treatment, rng=rng)
     )
     posterior_treatment = A1_treatment if posterior_CATE_mean > threshold else A0_treatment
     posterior_runtime = time.time() - posterior_runtime_start_time
+    log_event(f"posterior: CATE evaluation completed in {posterior_runtime:.2f}s")
 
     ground_truth_start_time = time.time()
+    log_event("ground truth: evaluation started")
     true_CATE_mu = data_scm.get_CATE_mu(A1_treatment, A0_treatment)
     true_CATE_samples, true_CATE_mean, true_CATE_std = data_scm.sample_CATE(
         X_o, A1_treatment, A0_treatment, draws=draws, rng=rng)
@@ -414,6 +506,7 @@ def run_scalability_experiment(n_covariates, plate_size, draws, tune,
         data_scm.sample_do_A(A0_treatment, X_o, draws=draws, rng=rng)
     )
     ground_truth_runtime = time.time() - ground_truth_start_time
+    log_event(f"ground truth: completed in {ground_truth_runtime:.2f}s")
 
     prior_decision_correct = bool(
         np.sign(true_CATE_mean - threshold) == np.sign(prior_CATE_mean - threshold))
@@ -453,8 +546,12 @@ def run_scalability_experiment(n_covariates, plate_size, draws, tune,
         'init': init,
         'coefficient_scaling': coefficient_scaling,
         'x_o_mode': x_o_mode,
+        'x_o_deviation': x_o_deviation,
         'X_o': X_o,
         'pred_o': pred_o,
+        'modified_prior': modified_prior,
+        'modified_prior_value': modified_prior_value,
+        'modified_prior_deviation': modified_prior_deviation,
         'A1_treatment': A1_treatment,
         'A0_treatment': A0_treatment,
         'threshold': threshold,
@@ -506,11 +603,13 @@ def run_scalability_experiment(n_covariates, plate_size, draws, tune,
         row['seed'] = seed
 
     output_paths = build_output_paths(output_dir, run_name)
+    log_event("output: writing summary and diagnostics")
     output_paths['summary_json'].parent.mkdir(parents=True, exist_ok=True)
     with output_paths['summary_json'].open('w') as file:
         json.dump(serialize_row(summary), file, indent=2)
     write_single_row_csv(summary, output_paths['summary_csv'])
     write_rows_csv(diagnostics_rows, output_paths['diagnostics_csv'])
+    log_event(f"run completed in {total_runtime:.2f}s")
 
     return summary, diagnostics_rows, output_paths
 
@@ -534,7 +633,12 @@ def parse_args():
                         default='full_no_intercept')
     parser.add_argument('--coefficient-scaling', choices=('inverse_k', 'none'),
                         default='inverse_k')
-    parser.add_argument('--x-o-mode', choices=('mean', 'sample'), default='mean')
+    parser.add_argument('--x-o-mode', choices=('mean', 'sample', 'deviation'),
+                        default='mean')
+    parser.add_argument('--x-o-deviation', type=float, default=None)
+    parser.add_argument('--modified-prior', type=str, default=None)
+    parser.add_argument('--modified-prior-value', type=float, default=None)
+    parser.add_argument('--modified-prior-deviation', type=float, default=None)
     parser.add_argument('--seed', type=int, default=4)
     parser.add_argument('--output-dir', type=Path, required=True)
     parser.add_argument('--run-name', type=str, default=None)
@@ -565,9 +669,13 @@ def main():
         model_variant=args.model_variant,
         coefficient_scaling=args.coefficient_scaling,
         x_o_mode=args.x_o_mode,
+        x_o_deviation=args.x_o_deviation,
         seed=args.seed,
         output_dir=args.output_dir,
         run_name=run_name,
+        modified_prior=args.modified_prior,
+        modified_prior_value=args.modified_prior_value,
+        modified_prior_deviation=args.modified_prior_deviation,
     )
     print(f"Run completed: {summary['run_name']}")
     print(f"Summary JSON: {output_paths['summary_json']}")

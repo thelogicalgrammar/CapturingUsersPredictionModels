@@ -55,6 +55,19 @@ def test_scalability_experiment_variant_helpers():
             assert 'alpha' not in trace_var_names
 
 
+def test_scalability_experiment_sweep_helpers():
+    scm_noise_parameters = se.build_scm_noise_parameters(2)
+    X_o = se.build_observed_patient(
+        2, scm_noise_parameters, 'deviation', np.random.default_rng(1),
+        x_o_deviation=2.0,
+    )
+    assert np.allclose(X_o, np.array([100.0, 100.0]))
+
+    priors = se.build_agent_priors(
+        2, modified_prior='mu_A', modified_prior_value=5.0)
+    assert priors['mu_A'] == 5.0
+
+
 def test_scalability_experiment_driver():
     with tempfile.TemporaryDirectory() as tmp_dir:
         output_dir = Path(tmp_dir)
@@ -67,17 +80,27 @@ def test_scalability_experiment_driver():
             target_accept=.9,
             max_treedepth=10,
             init='jitter+adapt_diag',
-            model_variant='full_no_intercept',
+            model_variant='reduced_no_intercept',
             coefficient_scaling='inverse_k',
-            x_o_mode='mean',
+            x_o_mode='deviation',
+            x_o_deviation=1.0,
             seed=4,
             output_dir=output_dir,
-            run_name='test_scalability_driver_full_no_intercept',
+            run_name='test_scalability_driver_reduced_no_intercept',
+            modified_prior='mu_A',
+            modified_prior_value=5.0,
+            modified_prior_deviation=3.0,
         )
 
-        assert summary['model_variant'] == 'full_no_intercept'
+        assert summary['model_variant'] == 'reduced_no_intercept'
         assert summary['n_covariates'] == 1
         assert summary['plate_size'] == 5
+        assert summary['x_o_mode'] == 'deviation'
+        assert summary['x_o_deviation'] == 1.0
+        assert summary['X_o'] == 90.0
+        assert summary['modified_prior'] == 'mu_A'
+        assert summary['modified_prior_value'] == 5.0
+        assert summary['modified_prior_deviation'] == 3.0
         assert np.isfinite(summary['total_runtime'])
         assert 'n_divergences' in summary
         assert 'max_rhat' in summary
