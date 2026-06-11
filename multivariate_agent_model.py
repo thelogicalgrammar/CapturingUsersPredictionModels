@@ -1,10 +1,25 @@
 """
 Multivariate Bayesian agent model.
 
-The model uses reduced historical-plate representations:
+This is the multivariate counterpart of :class:`agent_model.AgentModel`. The
+AgentModel encapsulates both the agent's beliefs and the thought processes that
+an ideal Bayesian agent would use in the context of decision support. The agent
+has priors, can make a decision based on those, can update his beliefs when
+presented with new information in the form of an observation and a prediction
+for it, and can make decisions based on his posterior beliefs.
 
-    (s, W, g, h) for OLS with intercept
-    (s, W, g) for OLS without intercept
+Here the covariate vector ``X`` is k-dimensional, the predictive model is an
+OLS regression of ``Y`` on ``X`` (with or without intercept), and the agent
+observes a single observed feature vector ``X_o`` together with the scalar
+prediction ``pred_o`` produced for it.
+
+Instead of representing the historical plate of training patients explicitly,
+the model uses the low-dimensional sufficient-statistic reduction of the plate.
+The reduced auxiliary variables are: \n
+- ``(s, W, g, h)`` for the OLS model with intercept, and \n
+- ``(s, W, g)`` for the OLS model without intercept. \n
+These reproduce the OLS coefficients (and intercept) of the external predictive
+model without sampling the n historical observations one by one.
 """
 
 from pathlib import Path
@@ -32,10 +47,43 @@ def printing_callback(trace, draw):
 
 class MultivariateAgentModel:
     """
-    Bayesian agent model with k-dimensional covariates.
+    Class for a multivariate agent model with structural equations:
 
-    If fit_intercept is True, the model uses the reduced variables
-    (s, W, g, h). If fit_intercept is False, it uses (s, W, g).
+    :math:`Y_i = N_b^\\top X_i + N_{E} A_i + N_{Yi}`
+
+    :math:`A_i = N_d^\\top X_i + N_{Ai}`
+
+    :math:`X_i = N_{Xi}`
+
+    where N_{Xi}, N_{Ai}, N_{Yi} are normal noise variables drawn for every
+    instantiation of the plate, N_{E} is a normal variable drawn once per
+    instantiation of the plate, and the coefficient vectors N_b and N_d are
+    likewise drawn once per instantiation. The structural intercept is carried
+    by alpha_mu_Y.
+
+    Rather than modeling the plate of plate_size patients explicitly, the model
+    reduces it to low-dimensional auxiliary variables. With intercept these are
+    (s, W, g, h); without intercept they are (s, W, g). From these the OLS slope
+    vector ``phi`` (and, with intercept, the OLS intercept ``alpha``) of the
+    external predictive model are reconstructed, and the observed prediction is
+    linked to the model through ``alpha + X_o . phi`` (with intercept) or
+    ``X_o . phi`` (without intercept).
+
+    Args:
+        n_covariates (int): Number of covariates k (dimension of X).
+        plate_size (int): Size of the plate (number of i.i.d. samples used to
+            train the predictive model). Must be larger than n_covariates.
+        prior_parameters (dict): Dictionary with parameters for the prior
+            distributions. If None, defaults are used. Vector-valued entries
+            accept a scalar (broadcast to length k) or an array of length k.
+        predictive_var_names (list): Names of the variables sampled for
+            predictive calculations. If None, defaults are used.
+        fit_intercept (bool): If True, the predictive model is an OLS with
+            intercept and the reduced variables (s, W, g, h) are used. If
+            False, the predictive model is slope-only and (s, W, g) are used.
+
+    Returns:
+        None
     """
     def __init__(self, n_covariates, plate_size, prior_parameters=None,
                  predictive_var_names=None, fit_intercept=True):
@@ -77,6 +125,16 @@ class MultivariateAgentModel:
     def _normalize_vector_parameter(self, parameter, parameter_name):
         """
         Convert scalar or one-dimensional input to a vector of length k.
+
+        A scalar is broadcast to a constant vector of length k. A
+        one-dimensional array must already have length k.
+
+        Args:
+            parameter (float or array-like): Value to normalize.
+            parameter_name (str): Name used in error messages.
+
+        Returns:
+            np.ndarray: One-dimensional array of length k.
         """
         parameter = np.atleast_1d(np.asarray(parameter, dtype=float))
         if parameter.ndim != 1:
@@ -92,6 +150,13 @@ class MultivariateAgentModel:
     def _default_prior_parameters(self):
         """
         Return default prior parameters for the multivariate model.
+
+        Vector-valued entries are length-k arrays. The coefficient means
+        ``N_b_mu`` and ``N_d_mu`` are scaled by ``1 / k`` so the aggregate
+        signal stays close to the scalar case.
+
+        Returns:
+            dict: Default prior-parameter dictionary.
         """
         return {
             'mu_X': np.full(self.n_covariates, 80.0),
@@ -117,6 +182,17 @@ class MultivariateAgentModel:
     def _initialize_prior_parameters(self, prior_parameters):
         """
         Validate or create the prior-parameter dictionary.
+
+        If ``prior_parameters`` is None the defaults are used. Otherwise the
+        passed keys are validated against the model specification, merged on
+        top of the defaults, and the vector-valued entries are normalized to
+        length-k arrays.
+
+        Args:
+            prior_parameters (dict or None): User-supplied prior parameters.
+
+        Returns:
+            dict: Validated and normalized prior-parameter dictionary.
         """
         default_prior_parameters = self._default_prior_parameters()
         if prior_parameters is None:
@@ -141,7 +217,14 @@ class MultivariateAgentModel:
 
     def _default_predictive_var_names(self):
         """
-        Return variables sampled for predictive calculations.
+        Return the names of the variables sampled for predictive calculations.
+
+        These are the population-level SCM parameters whose sampled values
+        replace the parameters of the internal predictive SCM during prior and
+        posterior predictive sampling.
+
+        Returns:
+            list: Default predictive variable names.
         """
         return ['alpha_mu_X', 'alpha_sigma_X', 'alpha_mu_A', 'alpha_sigma_A',
                 'alpha_mu_Y', 'alpha_sigma_Y', 'N_E', 'N_b', 'N_d']
@@ -149,6 +232,14 @@ class MultivariateAgentModel:
     def _initialize_predictive_var_names(self, predictive_var_names):
         """
         Validate or create the predictive variable-name list.
+
+        Args:
+            predictive_var_names (list or None): User-supplied variable names.
+                If None, the defaults are used. Otherwise the names are
+                validated against the model specification.
+
+        Returns:
+            list: Validated predictive variable names.
         """
         default_predictive_var_names = self._default_predictive_var_names()
         if predictive_var_names is None:
@@ -162,7 +253,16 @@ class MultivariateAgentModel:
 
     def _build_population_parameters(self):
         """
-        Build PyMC variables outside the historical plate.
+        Build the PyMC variables that live outside the historical plate.
+
+        These are the population-level SCM parameters the agent has priors on:
+        the covariate parameters (vector-valued alpha_mu_X, alpha_sigma_X), the
+        treatment and outcome parameters (alpha_mu_A, alpha_sigma_A, alpha_mu_Y,
+        alpha_sigma_Y), the effect size N_E, and the coefficient vectors N_b
+        and N_d. Standard deviations use a TruncatedNormal lower-bounded at 0.
+
+        Returns:
+            dict: Mapping from parameter name to its PyMC random variable.
         """
         alpha_mu_X = pm.Normal('alpha_mu_X', self.prior_parameters['mu_X'],
                                self.prior_parameters['sigma_X'],
@@ -210,6 +310,24 @@ class MultivariateAgentModel:
     def _build_model(self):
         """
         Build the PyMC model.
+
+        The observed feature vector ``X_o`` and the observed prediction
+        ``pred_o`` enter as :class:`pm.Data` placeholders, updated at sampling
+        time. The plate of plate_size patients is replaced by the reduced
+        auxiliary variables ``s`` (sum of covariate noises), ``W_chol``
+        (Cholesky factor of the Wishart dispersion), ``g`` (centered A/Y
+        noise), and, with intercept, ``h`` (mean A/Y noise).
+
+        With intercept, the OLS slope vector ``phi`` and intercept ``alpha``
+        are reconstructed from (s, W, g, h) and the observed prediction is
+        modeled as ``alpha + X_o . phi``. Without intercept, ``X^T X`` is
+        rebuilt from ``S_x`` and ``W``, the slope-only ``phi`` is reconstructed
+        from (s, W, g), and the prediction is modeled as ``X_o . phi``. In both
+        cases ``X_o`` is also given the covariate likelihood
+        ``N(alpha_mu_X, alpha_sigma_X)``.
+
+        Returns:
+            pm.Model: The constructed PyMC model.
         """
         model = pm.Model()
         with model:
@@ -281,7 +399,23 @@ class MultivariateAgentModel:
     def sample(self, X_o, pred_o, draws=1000, tune=1000, target_accept=.85,
                chains=4, max_treedepth=15, init="jitter+adapt_diag", rng=None):
         """
-        Sample from the posterior given an observed patient and prediction.
+        Sample from the posterior given observed data.
+        Stores the latest trace in self.
+
+        Args:
+            X_o (np.ndarray): Observed feature vector of length k.
+            pred_o (float): Observed scalar prediction for X_o.
+            draws (int): Size of sample to draw from the posterior.
+            tune (int): Number of tuning (warmup) iterations.
+            target_accept (float): Target acceptance probability for NUTS.
+            chains (int): Number of chains to sample.
+            max_treedepth (int): Maximum tree depth for NUTS.
+            init (str): Initialization method passed to pm.sample.
+            rng: Seed or initialized random number generator for
+                reproducibility.
+
+        Returns:
+            None
         """
         X_o = self._normalize_vector_parameter(X_o, 'X_o')
         self.posterior_draws = draws
@@ -303,6 +437,19 @@ class MultivariateAgentModel:
     def _parameter_draws(self, sample_group):
         """
         Convert sampled PyMC variables into one dictionary per draw.
+
+        Chains and draws are flattened into a single draw axis. Each returned
+        dictionary maps a predictive variable name to its value for that draw,
+        with scalars cast to float and vector-valued parameters (e.g. N_b,
+        N_d, alpha_mu_X) kept as arrays. These dictionaries are then used to
+        update the internal predictive SCM.
+
+        Args:
+            sample_group: An ArviZ group (e.g. ``trace.posterior`` or
+                ``prior_samples.prior``) holding the sampled variables.
+
+        Returns:
+            list: One parameter dictionary per draw.
         """
         first_var = self.predictive_var_names[0]
         first_values = sample_group[first_var].values
@@ -326,7 +473,18 @@ class MultivariateAgentModel:
 
     def sample_prior_predictive(self, draws=1000, rng=None):
         """
-        Sample from the distribution based on the agent's prior beliefs.
+        Method for sampling from the distribution based on the agent's prior
+        beliefs. For every draw of the predictive parameters from the prior,
+        the internal predictive SCM is updated and one (X, A, Y) sample is
+        generated from it.
+
+        Args:
+            draws (int): Size of sample to draw.
+            rng: Seed or initialized random number generator for
+                reproducibility.
+
+        Returns:
+            list: One ``[X, A, Y]`` triple per draw.
         """
         with self.model:
             tmp = pm.sample_prior_predictive(
@@ -346,14 +504,29 @@ class MultivariateAgentModel:
 
     def _ensure_prior_samples(self, rng=None):
         """
-        Draw prior samples if needed by a predictive method.
+        Draw prior samples if they have not been drawn yet.
+
+        Args:
+            rng: Seed or initialized random number generator for
+                reproducibility, used only if prior samples are drawn here.
         """
         if self.prior_samples is None:
             self.sample_prior_predictive(rng=rng)
 
     def sample_prior_predictive_do_A(self, X, A_treatment, rng=None):
         """
-        Estimate outcomes under do(A) from the agent's prior beliefs.
+        Method for estimating the outcome for a patient with features X based
+        on the agent's prior beliefs. Draws one potential outcome for every
+        prior draw.
+
+        Args:
+            X (np.array): Feature vector of length k to condition on.
+            A_treatment (float): Fixed treatment value.
+            rng: Seed or initialized random number generator for
+                reproducibility.
+
+        Returns:
+            tuple: ``(do_A_samples, do_A_mean, do_A_std)``.
         """
         self._ensure_prior_samples(rng=rng)
         X = self._normalize_vector_parameter(X, 'X')
@@ -368,7 +541,20 @@ class MultivariateAgentModel:
 
     def sample_prior_predictive_CATE(self, X, A1_treatment, A0_treatment, rng=None):
         """
-        Sample the prior CATE distribution.
+        This method returns a sample from the prior CATE-distribution, and its
+        sample mean and standard deviation. The current SCM is such that N_E is
+        not dependent on X, so the treatment effect only depends on N_E and the
+        size of the treatments.
+
+        Args:
+            X (np.array): Feature vector of length k to condition on.
+            A1_treatment (float): Dosage value of higher dose treatment.
+            A0_treatment (float): Dosage value of lower dose treatment.
+            rng: Seed or initialized random number generator for
+                reproducibility.
+
+        Returns:
+            tuple: ``(CATE_samples, CATE_mean, CATE_std)``.
         """
         self._ensure_prior_samples(rng=rng)
         X = self._normalize_vector_parameter(X, 'X')
@@ -384,13 +570,28 @@ class MultivariateAgentModel:
 
     def get_prior_CATE_mu(self, A1_treatment, A0_treatment):
         """
-        Return the prior mean CATE implied by the agent's N_E prior.
+        Return the prior mean of the CATE-distribution. The current SCM is such
+        that N_E is not dependent on X and the treatment effect only depends on
+        N_E and the size of the treatments.
+
+        Args:
+            A1_treatment (float): Dosage value of higher dose treatment.
+            A0_treatment (float): Dosage value of lower dose treatment.
         """
         return (A1_treatment - A0_treatment) * self.prior_parameters['N_E_mu']
 
     def sample_prior_predictive_summaries(self, rng=None):
         """
-        Estimate moments of X, A, and Y in prior predictive samples.
+        Method that estimates the mean, standard deviation, skewness, and
+        kurtosis of the variables X, A, and Y in the prior predictive samples.
+
+        Args:
+            rng: Seed or initialized random number generator for
+                reproducibility. Used only if prior samples were not drawn
+                earlier.
+
+        Returns:
+            dict: Summary statistics keyed by ``pri_<var>_<moment>``.
         """
         self._ensure_prior_samples(rng=rng)
         tmp_X = [item[0] for item in self.prior_predictive_samples]
@@ -413,7 +614,17 @@ class MultivariateAgentModel:
 
     def sample_posterior_predictive(self, rng=None):
         """
-        Sample from the agent's posterior beliefs.
+        This method generates a sample from the agent's posterior beliefs.
+        Using the trace stored in self, it replaces the parameter values in
+        the internal predictive SCM with each posterior draw and draws a
+        posterior predictive sample from it.
+
+        Args:
+            rng: Seed or initialized random number generator for
+                reproducibility.
+
+        Returns:
+            list: One ``(X, A, Y, mu_Y_cond, std_Y_cond)`` sample per draw.
         """
         parameter_draws = self._parameter_draws(self.trace.posterior)
         self.posterior_draws = len(parameter_draws)
@@ -427,7 +638,18 @@ class MultivariateAgentModel:
     def sample_posterior_predictive_CATE(self, X, A1_treatment, A0_treatment,
                                          rng=None):
         """
-        Sample the posterior CATE distribution.
+        This method returns a sample from the posterior predictive
+        CATE-distribution, and its sample mean and standard deviation.
+
+        Args:
+            X (np.array): Feature vector of length k to condition on.
+            A1_treatment (float): Higher dose treatment value.
+            A0_treatment (float): Lower dose treatment value.
+            rng: Seed or initialized random number generator for
+                reproducibility.
+
+        Returns:
+            tuple: ``(CATE_samples, CATE_mean, CATE_std)``.
         """
         X = self._normalize_vector_parameter(X, 'X')
         parameter_draws = self._parameter_draws(self.trace.posterior)
@@ -443,7 +665,18 @@ class MultivariateAgentModel:
 
     def sample_posterior_predictive_do_A(self, X, A_treatment, rng=None):
         """
-        Estimate outcomes under do(A) from the agent's posterior beliefs.
+        Method for estimating the outcome for a patient with features X based
+        on the agent's posterior beliefs. Draws one potential outcome for every
+        draw in the trace.
+
+        Args:
+            X (np.array): Feature vector of length k to condition on.
+            A_treatment (float): Fixed treatment value.
+            rng: Seed or initialized random number generator for
+                reproducibility.
+
+        Returns:
+            tuple: ``(potential_outcomes, do_A_mean, do_A_std)``.
         """
         X = self._normalize_vector_parameter(X, 'X')
         parameter_draws = self._parameter_draws(self.trace.posterior)
@@ -458,7 +691,17 @@ class MultivariateAgentModel:
 
     def sample_posterior_predictive_summaries(self, rng=None):
         """
-        Estimate moments of X, A, and Y in posterior predictive samples.
+        Method that estimates the mean, standard deviation, skewness, and
+        kurtosis of the variables X, A, and Y in the posterior predictive
+        samples.
+
+        Args:
+            rng: Seed or initialized random number generator for
+                reproducibility. Used only if posterior predictive samples
+                were not drawn earlier.
+
+        Returns:
+            dict: Summary statistics keyed by ``post_<var>_<moment>``.
         """
         if self.posterior_predictive_samples is None:
             self.sample_posterior_predictive(rng=rng)
@@ -483,6 +726,10 @@ class MultivariateAgentModel:
     def trace_diagnostics(self):
         """
         Return basic sampler diagnostics for the current posterior trace.
+
+        Returns:
+            dict: ``max_rhat``, ``min_ess_bulk``, ``min_ess_tail`` (computed
+            with ArviZ), and ``n_divergences``.
         """
         rhat_values = az.rhat(self.trace)
         ess_bulk_values = az.ess(self.trace, method='bulk')
@@ -498,6 +745,17 @@ class MultivariateAgentModel:
                          folder='./saved_models/'):
         """
         Save the agent model configuration and available samples.
+
+        The trace and prior samples are written separately with ArviZ
+        (NetCDF), and the rest of the configuration is pickled with joblib.
+        The PyMC model, trace, and prior samples are temporarily detached
+        before pickling and restored afterwards.
+
+        Args:
+            file_name (str): Base filename without extension. Creates
+                ``{file_name}.joblib`` and, when available,
+                ``{file_name}_trace.nc`` and ``{file_name}_prior_samples.nc``.
+            folder (str): Folder to save the model into.
         """
         folder = Path(folder)
         folder.mkdir(parents=True, exist_ok=True)
@@ -530,6 +788,19 @@ class MultivariateAgentModel:
                          folder='./saved_models/'):
         """
         Load a saved multivariate agent model.
+
+        The configuration is loaded with joblib and the PyMC model is
+        reconstructed by re-running ``__init__``. The trace and prior samples
+        are loaded from their NetCDF files if present.
+
+        Args:
+            file_name (str): Base filename without extension. Expects to find
+                ``{file_name}.joblib`` and, optionally, ``{file_name}_trace.nc``
+                and ``{file_name}_prior_samples.nc``.
+            folder (str): Folder the model is saved in.
+
+        Returns:
+            MultivariateAgentModel: The loaded agent model.
         """
         file_path = Path(folder) / file_name
         agent = joblib.load(f'{file_path}.joblib')

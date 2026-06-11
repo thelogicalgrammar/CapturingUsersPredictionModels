@@ -9,6 +9,10 @@ CapturingUsersPredictionModels
    modules/scm
    modules/experiment
    modules/experiment_series
+   modules/multivariate_scm
+   modules/multivariate_agent_model
+   modules/single_prediction_collapsed_agent_model
+   modules/experiment_collapsed
    modules/utils
 
 .. toctree::
