@@ -73,7 +73,8 @@ class AgentModel(ABC):
         # Parameter names are dependent on the sampling method defined (right?).
         #   -where should they be defined?
         # First one includes hardcoded parameter names
-        self.prior_parameters = self._initialize_prior_parameters(prior_parameters)
+        self.prior_parameters = self._initialize_prior_parameters(
+            prior_parameters, self._default_prior_parameters())
 
         # Sampling method is dependent on SCM parameterization.
         self.predictive_scm = None  # Some MultivariateSCM()
@@ -100,9 +101,15 @@ class AgentModel(ABC):
 
     @abstractmethod
     def _default_prior_parameters():
-        # Exclude this from required methods?
-        # Then also make methods in base class independent of this.
-        # Or return null?
+        """
+        Return the full default prior-parameter dictionary for the subclass.
+
+        The keys define the model's prior-hyperparameter naming scheme (e.g.
+        ``mu_X``, ``mu_sigma_X``), which is distinct from the SCM's own
+        attribute names (e.g. ``alpha_mu_X``). ``_initialize_prior_parameters``
+        uses this dict both as the fallback when no ``prior_parameters`` are
+        passed, and as the reference key-set for validating a partial dict.
+        """
         pass
 
     @abstractmethod
@@ -177,22 +184,29 @@ class AgentModel(ABC):
         assert len(extra_items) < 1, err_msg
         return predictive_var_names
 
-    def _initialize_prior_parameters(self, prior_parameters):
+    def _initialize_prior_parameters(self, prior_parameters, default_prior_parameters):
         """
         Validate or create the prior-parameter dictionary.
 
-        If ``prior_parameters`` is None the defaults are used. Otherwise the
-        passed keys are validated against the model specification, merged on
-        top of the defaults, and the vector-valued entries are normalized to
-        length-k arrays.
+        ``default_prior_parameters`` serves two roles: if ``prior_parameters``
+        is None, it is used directly as the result. Otherwise it is the
+        reference key-set for validation: any key in ``prior_parameters`` not
+        found in ``default_prior_parameters`` raises an ``AssertionError``,
+        and the validated keys are merged on top of the defaults. In both
+        cases the vector-valued entries are then normalized to length-k
+        arrays. Note that these keys are prior-hyperparameter names (e.g.
+        ``mu_X``), not the SCM's own attribute names (e.g. ``alpha_mu_X``).
 
         Args:
             prior_parameters (dict or None): User-supplied prior parameters.
+            default_prior_parameters (dict): Default prior-parameter
+                dictionary, typically from the subclass's
+                ``_default_prior_parameters()``. Used both as the fallback
+                value and as the valid-key reference set.
 
         Returns:
             dict: Validated and normalized prior-parameter dictionary.
         """
-        default_prior_parameters = self._default_prior_parameters()  # This is not great in a top-level class method, unless we require definition of the method.
         if prior_parameters is None:
             prior_parameters = default_prior_parameters
         else:
@@ -658,7 +672,8 @@ class MultivariateAgentModel(AgentModel):
             raise ValueError("plate_size must be larger than n_covariates.")
         self.fit_intercept = fit_intercept
 
-        self.prior_parameters = self._initialize_prior_parameters(prior_parameters)
+        self.prior_parameters = self._initialize_prior_parameters(
+            prior_parameters, self._default_prior_parameters())
 
         # Sampling method is dependent on SCM parameterization.
         self.predictive_scm = MultivariateSCM(
@@ -694,6 +709,11 @@ class MultivariateAgentModel(AgentModel):
         Vector-valued entries are length-k arrays. The coefficient means
         ``N_b_mu`` and ``N_d_mu`` are scaled by ``1 / k`` so the aggregate
         signal stays close to the scalar case.
+
+        These keys are prior-hyperparameter names, not the SCM's own
+        attribute names. They are mapped onto the ``MultivariateSCM``
+        constructor's keyword arguments in ``MultivariateAgentModel.__init__``
+        (e.g. ``prior_parameters['mu_X']`` becomes ``alpha_mu_X``).
 
         Returns:
             dict: Default prior-parameter dictionary.
