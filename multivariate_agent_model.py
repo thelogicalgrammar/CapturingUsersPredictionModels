@@ -81,10 +81,8 @@ class AgentModel(ABC):
 
         self.model = self._build_model()
 
-        # Predictive var names are needed only for storing and displaying partial
-        # posterior predictive information.
         # Setting predictive_var_names saves PyMC computation AND is used to
-        # update the Agent's "internal" SCM parameters. The SCM update is
+        # update the Agent's "internal" SCM parameters, which is
         # needed for both prior and posterior predictive sampling.
         # The default is derived from the predictive SCM's own fields, so it
         # requires self.predictive_scm and self.model to already be set.
@@ -321,6 +319,27 @@ class AgentModel(ABC):
             draws.append(parameters)
         return draws
 
+    def _moment_dict(self, values, key_prefix):
+        """
+        Compute mean, standard deviation, skewness, and kurtosis for a
+        one-dimensional sample.
+
+        Args:
+            values (array-like): Sample values. Flattened to one dimension.
+            key_prefix (str): Prefix for the returned keys.
+
+        Returns:
+            dict: ``{key_prefix}_mean``, ``{key_prefix}_std``,
+            ``{key_prefix}_skew``, ``{key_prefix}_kurtosis``.
+        """
+        values = np.asarray(values).reshape(-1)
+        return {
+            '{}_mean'.format(key_prefix): np.mean(values),
+            '{}_std'.format(key_prefix): np.std(values),
+            '{}_skew'.format(key_prefix): skew(values),
+            '{}_kurtosis'.format(key_prefix): kurtosis(values),
+        }
+
     def _ensure_prior_samples(self, rng=None):
         """
         Draw prior samples if they have not been drawn yet.
@@ -553,12 +572,13 @@ class AgentModel(ABC):
                   "{}_prior_samples.nc does not exist).".format(file_path))
         return agent
 
-    # FIX: Needs to be in a more general form.
-    # Can use sam fields deduced from the SCM.
     def sample_prior_predictive_summaries(self, rng=None):
         """
         Method that estimates the mean, standard deviation, skewness, and
         kurtosis of the variables X, A, and Y in the prior predictive samples.
+
+        X is k-dimensional, so it is summarized per covariate dimension
+        (``pri_X_<dim>_<moment>``); A and Y are always scalar.
 
         Args:
             rng: Seed or initialized random number generator for
@@ -566,32 +586,29 @@ class AgentModel(ABC):
                 earlier.
 
         Returns:
-            dict: Summary statistics keyed by ``pri_<var>_<moment>``.
+            dict: Summary statistics keyed by ``pri_<var>_<moment>`` (A, Y)
+            or ``pri_<var>_<dim>_<moment>`` (X).
         """
         self._ensure_prior_samples(rng=rng)
-        tmp_X = [item[0] for item in self.prior_predictive_samples]
-        tmp_A = [item[1] for item in self.prior_predictive_samples]
-        tmp_Y = [item[2] for item in self.prior_predictive_samples]
+        X = np.asarray([item[0] for item in self.prior_predictive_samples]
+                       ).reshape(-1, self.n_covariates)
+        A = [item[1] for item in self.prior_predictive_samples]
+        Y = [item[2] for item in self.prior_predictive_samples]
         results = {}
-        results['pri_X_mean'] = np.mean(tmp_X)
-        results['pri_A_mean'] = np.mean(tmp_A)
-        results['pri_Y_mean'] = np.mean(tmp_Y)
-        results['pri_X_std'] = np.std(tmp_X)
-        results['pri_A_std'] = np.std(tmp_A)
-        results['pri_Y_std'] = np.std(tmp_Y)
-        results['pri_X_skew'] = skew(np.asarray(tmp_X).reshape(-1))
-        results['pri_A_skew'] = skew(tmp_A)[0]
-        results['pri_Y_skew'] = skew(tmp_Y)[0]
-        results['pri_X_kurtosis'] = kurtosis(np.asarray(tmp_X).reshape(-1))
-        results['pri_A_kurtosis'] = kurtosis(tmp_A)[0]
-        results['pri_Y_kurtosis'] = kurtosis(tmp_Y)[0]
+        for dim in range(self.n_covariates):
+            results.update(self._moment_dict(X[:, dim], 'pri_X_{}'.format(dim)))
+        results.update(self._moment_dict(A, 'pri_A'))
+        results.update(self._moment_dict(Y, 'pri_Y'))
         return results
 
-    def sample_posterior_predictive_summaries(self, rng=None):  # FIX: Needs to be in a more general form.
+    def sample_posterior_predictive_summaries(self, rng=None):
         """
         Method that estimates the mean, standard deviation, skewness, and
         kurtosis of the variables X, A, and Y in the posterior predictive
         samples.
+
+        X is k-dimensional, so it is summarized per covariate dimension
+        (``post_X_<dim>_<moment>``); A and Y are always scalar.
 
         Args:
             rng: Seed or initialized random number generator for
@@ -599,26 +616,20 @@ class AgentModel(ABC):
                 were not drawn earlier.
 
         Returns:
-            dict: Summary statistics keyed by ``post_<var>_<moment>``.
+            dict: Summary statistics keyed by ``post_<var>_<moment>`` (A, Y)
+            or ``post_<var>_<dim>_<moment>`` (X).
         """
         if self.posterior_predictive_samples is None:
             self.sample_posterior_predictive(rng=rng)
-        tmp_X = [item[0] for item in self.posterior_predictive_samples]
-        tmp_A = [item[1] for item in self.posterior_predictive_samples]
-        tmp_Y = [item[2] for item in self.posterior_predictive_samples]
+        X = np.asarray([item[0] for item in self.posterior_predictive_samples]
+                       ).reshape(-1, self.n_covariates)
+        A = [item[1] for item in self.posterior_predictive_samples]
+        Y = [item[2] for item in self.posterior_predictive_samples]
         results = {}
-        results['post_X_mean'] = np.mean(tmp_X)
-        results['post_A_mean'] = np.mean(tmp_A)
-        results['post_Y_mean'] = np.mean(tmp_Y)
-        results['post_X_std'] = np.std(tmp_X)
-        results['post_A_std'] = np.std(tmp_A)
-        results['post_Y_std'] = np.std(tmp_Y)
-        results['post_X_skew'] = skew(np.asarray(tmp_X).reshape(-1))
-        results['post_A_skew'] = skew(tmp_A)[0]
-        results['post_Y_skew'] = skew(tmp_Y)[0]
-        results['post_X_kurtosis'] = kurtosis(np.asarray(tmp_X).reshape(-1))
-        results['post_A_kurtosis'] = kurtosis(tmp_A)[0]
-        results['post_Y_kurtosis'] = kurtosis(tmp_Y)[0]
+        for dim in range(self.n_covariates):
+            results.update(self._moment_dict(X[:, dim], 'post_X_{}'.format(dim)))
+        results.update(self._moment_dict(A, 'post_A'))
+        results.update(self._moment_dict(Y, 'post_Y'))
         return results
 
 
