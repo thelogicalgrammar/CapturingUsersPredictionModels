@@ -47,7 +47,7 @@ import numpy as np
 from scipy.stats import norm
 from sklearn.linear_model import LinearRegression
 # Project specific:
-import multivariate_scm as mscm
+import scm
 
 
 # Two features by construction: the illustration is a surface over a plane.
@@ -94,7 +94,7 @@ def train_prediction_model(scm_noise_parameters, plate_size, rng):
     Returns:
         LinearRegression: The fitted prediction model.
     """
-    data_scm = mscm.MultivariateSCM(**scm_noise_parameters)
+    data_scm = scm.MultivariateSCM(**scm_noise_parameters)
     X, A, Y_historical, *_ = data_scm.sample(draws=plate_size, rng=rng)
     return LinearRegression(fit_intercept=True).fit(X, Y_historical)
 

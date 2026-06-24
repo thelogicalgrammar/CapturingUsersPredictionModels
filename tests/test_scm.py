@@ -4,7 +4,6 @@ import pandas as pd
 import pymc as pm
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
-import agent_model
 import scm
 
 
@@ -46,10 +45,10 @@ def test_binary_scm():
 
 
 
-hist_model = scm.SCM(
+hist_model = scm.SCM_WithConstants(
         alpha_mu_X   = 80,
         alpha_sigma_X= 10,
-        alpha_mu_A   = 10, 
+        alpha_mu_A   = 10,
         alpha_sigma_Y= 1,
 )
 

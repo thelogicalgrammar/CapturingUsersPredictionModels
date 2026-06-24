@@ -1,5 +1,12 @@
 """
-Tests to ensure that the agent model is working as intended.
+Manual Monte Carlo validation of ScalarAgentModel's low-dimensional
+auxiliary-variable reduction, by statistical comparison against a standalone
+full-plate reference model (no reduction, plate modeled explicitly).
+
+This script has no pytest-collected ``test_*`` functions; it is meant to be
+run directly (``python -m tests.validate_agent_model``), analogous to
+``tests/validate_single_prediction_collapsed.py`` for the multivariate
+collapsed reduction.
 
 Comparisons between full plate and low-dimensional auxiliary variable models
 -The model with the full plate can be compared to the model with
@@ -39,7 +46,7 @@ Ad hoc tests
 -Break dependencies in SCM e.g. by setting a=0 to simplify. Then X_o and pred_o should
  induce a change in the distribution of Y.
 
- 
+
 KL-divergene
 
 Likelihood
@@ -60,6 +67,82 @@ PRIOR_PREDICTIVE_VAR_NAMES = ['phi']
 POSTERIOR_PREDICTIVE_VAR_NAMES = ['phi_obs', 'X_o']
 POSTERIOR_VAR_NAMES = ['alpha_mu_X', 'N_E', 'alpha_sigma_X']
 SAMPLE_SIZE = 10000
+
+
+class FullPlateReferenceModel:
+    """
+    Standalone full-plate model (the historical plate of plate_size patients
+    is modeled explicitly, with no sufficient-statistic reduction).
+
+    This exists only as a Monte Carlo ground truth to validate
+    :class:`agent_model.ScalarAgentModel`'s low-dimensional
+    auxiliary-variable reduction by direct statistical comparison. It is not
+    part of the ``AgentModel`` hierarchy and is far slower than the reduced
+    model (cost scales with ``plate_size``), so it is not meant for
+    production inference.
+
+    Args:
+        plate_size (int): Size of the plate (number of i.i.d. samples).
+        prior_parameters (dict): Prior-parameter dictionary, same schema as
+            :meth:`ScalarAgentModel._default_prior_parameters`.
+        scm_constants (dict): Fixed structural coefficients ``a``, ``b``,
+            ``d``.
+        n_observations (int): Number of observed (X_o, pred_o) data points
+            the model is set up to take. Larger values make the posterior
+            shift more clearly for validation purposes.
+    """
+    def __init__(self, plate_size, prior_parameters, scm_constants,
+                 n_observations=100):
+        self.plate_size = plate_size
+        self.prior_parameters = prior_parameters
+        self.scm_constants = scm_constants
+        self.trace = None
+
+        self.model = pm.Model()
+        with self.model:
+            X_o_ = pm.Data('X_o_', np.zeros(n_observations))
+            pred_o_ = pm.Data('pred_o_', np.zeros(n_observations))
+
+            alpha_mu_X = pm.Normal('alpha_mu_X', prior_parameters['mu_X'],
+                                   prior_parameters['sigma_X'])
+            alpha_sigma_X = pm.TruncatedNormal(
+                'alpha_sigma_X', mu=prior_parameters['mu_sigma_X'],
+                sigma=prior_parameters['sigma_sigma_X'], lower=0)
+            alpha_mu_A = pm.Normal('alpha_mu_A', prior_parameters['mu_A'],
+                                   prior_parameters['sigma_A'])
+            alpha_sigma_A = pm.TruncatedNormal(
+                'alpha_sigma_A', mu=prior_parameters['mu_sigma_A'],
+                sigma=prior_parameters['sigma_sigma_A'], lower=0)
+            alpha_mu_Y = pm.Normal('alpha_mu_Y', prior_parameters['mu_Y'],
+                                   prior_parameters['sigma_Y'])
+            alpha_sigma_Y = pm.TruncatedNormal(
+                'alpha_sigma_Y', mu=prior_parameters['mu_sigma_Y'],
+                sigma=prior_parameters['sigma_sigma_Y'], lower=0)
+            N_E = pm.Normal('N_E', prior_parameters['N_E_mu'],
+                            prior_parameters['N_E_sigma'])
+
+            X = pm.Normal('X', alpha_mu_X, alpha_sigma_X, shape=plate_size)
+            A = pm.Normal('A', scm_constants['d'] * X + alpha_mu_A,
+                          alpha_sigma_A, shape=plate_size)
+            Y = pm.Normal('Y', scm_constants['a'] + scm_constants['b'] * X +
+                          N_E * A + alpha_mu_Y, alpha_sigma_Y, shape=plate_size)
+
+            phi = pm.Deterministic('phi', pm.math.sum(X * Y) / pm.math.sum(X**2))
+            pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
+            phi_hat = pred_o_ / X_o_
+            pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
+
+    def sample(self, X_o, pred_o, draws=1000, rng=None):
+        """
+        Sample from the posterior given observed data. Stores the latest
+        trace in self.trace.
+        """
+        pm.set_data({'X_o_': X_o, 'pred_o_': pred_o}, model=self.model)
+        with self.model:
+            trace = pm.sample(draws=draws, tune=1000, target_accept=.85,
+                              chains=4, random_seed=rng, max_treedepth=15,
+                              init="jitter+adapt_diag")
+        self.trace = trace
 
 
 def check_similarity(observations_A, observations_B, var_name):
@@ -90,7 +173,7 @@ def check_similarity(observations_A, observations_B, var_name):
             'wasserstein': tmp4}
 
 
-def prior_predictive_check_for_similarity(model_A, model_B, 
+def prior_predictive_check_for_similarity(model_A, model_B,
                                           var_names=PRIOR_PREDICTIVE_VAR_NAMES,
                                           sample_size=SAMPLE_SIZE):
     """
@@ -99,7 +182,7 @@ def prior_predictive_check_for_similarity(model_A, model_B,
     defined from both models and compares the observations.
 
     Args:
-    model_A: Can be e.g. a low_dim_model. 
+    model_A: Can be e.g. a low_dim_model.
     full_plate_model:
     var_names ([str, ]): List with names of variables to run similarity
      check on.
@@ -124,7 +207,7 @@ def prior_predictive_check_for_similarity(model_A, model_B,
     return success
 
 
-def posterior_check_for_similarity(trace_A, trace_B, 
+def posterior_check_for_similarity(trace_A, trace_B,
                                    var_names=POSTERIOR_VAR_NAMES):
     """
     Args:
@@ -202,40 +285,43 @@ if __name__ == '__main__':
     # Test similarity between full plate and low-dim models
     PLATE_SIZE = 5
     sample_size = 10000  # What should this number be?
-    test=False
-    prior_parameters = {'mu_X': 80, 'sigma_X': 1,
-                    'lambda_X': 10,
-                    'mu_A': 10, 'sigma_A': 1,
-                    'lambda_A': 10,
-                    'mu_Y': 0, 'sigma_Y': 1,
-                    'lambda_Y': 1,
+    N_OBSERVATIONS = 100
+    prior_parameters = {'mu_X': 80, 'sigma_X': 1, 'mu_sigma_X': 10, 'sigma_sigma_X': 1,
+                    'mu_A': 10, 'sigma_A': 1, 'mu_sigma_A': 10, 'sigma_sigma_A': 1,
+                    'mu_Y': 0, 'sigma_Y': 1, 'mu_sigma_Y': 1, 'sigma_sigma_Y': 1,
                     'N_E_mu': 20, 'N_E_sigma': 1}
+    scm_constants = {'a': 12, 'b': -0.1, 'd': 0.125}
 
-    agent_model_low_dim = am.AgentModel(plate_size=PLATE_SIZE, test=True, prior_parameters=prior_parameters)
-    agent_model_full_plate = am.AgentModel(plate_size=PLATE_SIZE, low_dim_aux_plate=False, test=True, prior_parameters=prior_parameters)
+    agent_model_low_dim = am.ScalarAgentModel(
+        plate_size=PLATE_SIZE, prior_parameters=prior_parameters,
+        scm_constants=scm_constants)
+    agent_model_full_plate = FullPlateReferenceModel(
+        plate_size=PLATE_SIZE, prior_parameters=prior_parameters,
+        scm_constants=scm_constants, n_observations=N_OBSERVATIONS)
 
     # Prior predictive check
-    import tests.test_agent_model as tam
-    tmp1 = tam.prior_predictive_check_for_similarity(agent_model_low_dim,
+    import tests.validate_agent_model as vam
+    tmp1 = vam.prior_predictive_check_for_similarity(agent_model_low_dim,
                                                 agent_model_full_plate)
     # Posterior checks
-    # Use 100 observed variables centered around alpha_X_mu with prediction that corresponds 
+    # Use 100 observed variables centered around alpha_X_mu with prediction that corresponds
     # to model parameters generated from SCM plus some noise
-    X_o = np.asarray(100 * [80.0])  # A person that would weight 80 kg.
+    X_o = np.asarray(N_OBSERVATIONS * [80.0])  # A person that would weight 80 kg.
     X_o += np.random.normal(0, 10, size=X_o.shape)
     phi = 5.0059035
-    pred_o = np.asarray(100 * [80.0 * phi])  # Observed prediction
+    pred_o = np.asarray(N_OBSERVATIONS * [80.0 * phi])  # Observed prediction
     pred_o += np.random.normal(0, 10, size=pred_o.shape)
 
     print("Sampling low-dimensional auxiliary variable model... This can take a while.")
-    trace_low_dim = agent_model_low_dim.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o), draws=1000)
+    agent_model_low_dim.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o), draws=1000)
     print("Sampling full plate model... This might take 30 minutes.")
-    trace_full_plate = agent_model_full_plate.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o), draws=1000)
+    agent_model_full_plate.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o), draws=1000)
 
-    tmp2 = posterior_check_for_similarity(trace_low_dim, trace_full_plate)
+    tmp2 = posterior_check_for_similarity(agent_model_low_dim.trace,
+                                          agent_model_full_plate.trace)
 
     # Posterior predictive check
     tmp3 = posterior_predictive_check_for_similarity(agent_model_low_dim,
                                                          agent_model_full_plate,
-                                                         trace_low_dim,
-                                                         trace_full_plate)
+                                                         agent_model_low_dim.trace,
+                                                         agent_model_full_plate.trace)

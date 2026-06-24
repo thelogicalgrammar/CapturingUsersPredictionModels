@@ -23,7 +23,7 @@ Could perhaps implement support for changing plate size and SCM parameters
 import sys
 import time
 import arviz as az
-# import matplotlib.pyplot as plt  # Not used in array job.
+import matplotlib.pyplot as plt  # Not used in array job.
 import numpy as np
 from sklearn.linear_model import LinearRegression
 # Project specific:
@@ -95,7 +95,7 @@ def main(X_o, agent_priors, modified_prior,
     #    X is sampled from the population distribution, A
     #    is the treatment given under the historical treatment
     #    policy given X, and Y is the outcome given X and A.
-    data_scm = scm.SCM(**scm_noise_parameters)
+    data_scm = scm.SCM_WithConstants(**scm_noise_parameters, **scm_constants)
 
     # 2. Generate data. This is identical to the true
     #    underlying generating process and the outcomes
@@ -114,10 +114,10 @@ def main(X_o, agent_priors, modified_prior,
 
     # 5. Define the agent model.
     #    Using same _constants_ for agent's internal SCM as for data generating SCM.
-    agent_model = am.AgentModel(prior_parameters=agent_priors,
-                                scm_constants=scm_constants,
-                                predictive_var_names=predictive_var_names,
-                                plate_size=plate_size)
+    agent_model = am.ScalarAgentModel(prior_parameters=agent_priors,
+                                       scm_constants=scm_constants,
+                                       predictive_var_names=predictive_var_names,
+                                       plate_size=plate_size)
 
     # 6. Predictive estimates and treatment decision under prior beliefs
     prior_CATE_mu = agent_model.get_prior_CATE_mu(A1_treatment, A0_treatment)
@@ -215,24 +215,24 @@ def main(X_o, agent_priors, modified_prior,
         else potential_outcome_A0_mean
     # Also save prediction pred_o
     outputs = {'pred_o': pred_o[0],
-               'threshold': threshold,
-               'prior_treatment': prior_treatment,
-               'posterior_treatment': posterior_treatment,
-               'true_best_treatment': true_best_treatment,
-               'prior_decision_correct': prior_decision_correct,
-               'posterior_decision_correct': posterior_decision_correct,
-               'decision_changed': decision_changed,
-               'frac_correct_prior_decision': frac_correct_prior_decision,
-               'frac_correct_posterior_decision': frac_correct_posterior_decision,
-               'frac_correct_true_best_treatment': frac_correct_true_best_treatment,
-               'Y_mean_prior_treatment': Y_mean_prior_treatment,
-               'Y_mean_posterior_treatment': Y_mean_posterior_treatment,
-               'Y_mean_true_best_treatment': Y_mean_true_best_treatment,
-               'potential_outcome_A1_mean': potential_outcome_A1_mean,
-               'potential_outcome_A1_std': potential_outcome_A1_std,
-               'potential_outcome_A0_mean': potential_outcome_A0_mean, 
-               'potential_outcome_A0_std': potential_outcome_A0_std,
-               }
+            'threshold': threshold,
+            'prior_treatment': prior_treatment,
+            'posterior_treatment': posterior_treatment,
+            'true_best_treatment': true_best_treatment,
+            'prior_decision_correct': prior_decision_correct,
+            'posterior_decision_correct': posterior_decision_correct,
+            'decision_changed': decision_changed,
+            'frac_correct_prior_decision': frac_correct_prior_decision,
+            'frac_correct_posterior_decision': frac_correct_posterior_decision,
+            'frac_correct_true_best_treatment': frac_correct_true_best_treatment,
+            'Y_mean_prior_treatment': Y_mean_prior_treatment,
+            'Y_mean_posterior_treatment': Y_mean_posterior_treatment,
+            'Y_mean_true_best_treatment': Y_mean_true_best_treatment,
+            'potential_outcome_A1_mean': potential_outcome_A1_mean,
+            'potential_outcome_A1_std': potential_outcome_A1_std,
+            'potential_outcome_A0_mean': potential_outcome_A0_mean, 
+            'potential_outcome_A0_std': potential_outcome_A0_std,
+            }
 
     # Collect results
     # Create unique id from timestamp and random number
@@ -280,18 +280,21 @@ def main(X_o, agent_priors, modified_prior,
     # agent_model.save_agent_model(experiment_id)
 
     # Testing that loading works.
-    # tmp = am.AgentModel.load_agent_model()
+    # tmp = am.ScalarAgentModel.load_agent_model()
     # What is the posterior distribution of the agent's belief about N_E?
-    # az.plot_posterior(agent_model.trace, var_names=['N_E'])
-    # plt.title("Posterior distribution of agent's belief about N_E")
-    # plt.savefig('./fig/basic_example_posterior_NE.png')
+    # az.plot_posterior(agent_model.trace, var_names=['N_E', 'alpha_mu_A'])
+    # plt.title(r"Posterior distribution of correlation between $mu_A$ and $N_E$")
+    # plt.savefig('./fig/basic_example_posterior_NE.pdf')
     # added plot to save the posterior distribution of pairwise correlations
 
     # Don't create plot for every single run.
-    # az.plot_pair(agent_model.trace, #var_names=['N_E', 'alpha_mu_A', 'alpha_mu_Y'],
-    #              kind='scatter')
-    # plt.title("Posterior distribution of correlation between mu_A and N_E")
-    # plt.savefig('./fig/basic_example_posterior_corr_all_vars.png')
+    az.plot_pair(agent_model.trace, var_names = ['N_E', 'alpha_mu_A'], #var_names=['N_E', 'alpha_mu_A', 'alpha_mu_Y'],
+                 kind='scatter')
+    plt.title(r"Joint posterior samples of $\alpha_{A_\mu}$ and $N_E$")
+    plt.xlabel(r'$N_E$')
+    plt.ylabel(r'$\alpha_{A_\mu}$')
+    plt.tight_layout()
+    plt.savefig('./fig/basic_example_posterior_corr.pdf')
     # plt.clf()
 
 

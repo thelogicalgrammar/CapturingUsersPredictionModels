@@ -9,8 +9,8 @@ import numpy as np
 import pymc as pm
 from sklearn.linear_model import LinearRegression
 
-import multivariate_agent_model as mam
-import multivariate_scm as mscm
+import agent_model as am
+import scm
 
 
 def synthetic_posterior():
@@ -28,7 +28,7 @@ def synthetic_posterior():
 
 
 def test_multivariate_scm_shapes():
-    model = mscm.MultivariateSCM(
+    model = scm.MultivariateSCM(
         n_covariates=2,
         alpha_mu_X=np.array([80.0, 120.0]),
         alpha_sigma_X=np.array([10.0, 15.0]),
@@ -57,7 +57,7 @@ def test_multivariate_scm_shapes():
 
 
 def test_multivariate_agent_prior_predictive_with_intercept():
-    model = mam.MultivariateAgentModel(
+    model = am.MultivariateAgentModel(
         n_covariates=2,
         plate_size=8,
         fit_intercept=True)
@@ -68,7 +68,7 @@ def test_multivariate_agent_prior_predictive_with_intercept():
 
 
 def test_multivariate_agent_prior_predictive_without_intercept():
-    model = mam.MultivariateAgentModel(
+    model = am.MultivariateAgentModel(
         n_covariates=2,
         plate_size=8,
         fit_intercept=False)
@@ -79,13 +79,13 @@ def test_multivariate_agent_prior_predictive_without_intercept():
 
 
 def test_single_prediction_likelihood_keeps_prediction_scalar():
-    data_scm = mscm.MultivariateSCM(n_covariates=2)
+    data_scm = scm.MultivariateSCM(n_covariates=2)
     X, A, Y, *_ = data_scm.sample(draws=12, rng=4)
     pred_model = LinearRegression(fit_intercept=True).fit(X, Y)
     X_o = np.array([80.0, 120.0])
     pred_o = float(pred_model.predict(X_o.reshape(1, -1))[0])
 
-    model = mam.MultivariateAgentModel(
+    model = am.MultivariateAgentModel(
         n_covariates=2,
         plate_size=12,
         fit_intercept=True)
@@ -99,7 +99,7 @@ def test_single_prediction_likelihood_keeps_prediction_scalar():
 
 
 def test_posterior_predictive_do_A_extracts_scalar_outcome():
-    model = mam.MultivariateAgentModel(
+    model = am.MultivariateAgentModel(
         n_covariates=2,
         plate_size=8,
         fit_intercept=True)
@@ -117,7 +117,7 @@ def test_posterior_predictive_do_A_extracts_scalar_outcome():
 
 
 def test_multivariate_agent_model_save_and_load(tmp_path):
-    model = mam.MultivariateAgentModel(
+    model = am.MultivariateAgentModel(
         n_covariates=2,
         plate_size=8,
         fit_intercept=True)
@@ -127,7 +127,7 @@ def test_multivariate_agent_model_save_and_load(tmp_path):
     model.sample_prior_predictive(draws=1, rng=4)
 
     model.save_agent_model(file_name='saved_model', folder=tmp_path)
-    loaded_model = mam.MultivariateAgentModel.load_agent_model(
+    loaded_model = am.MultivariateAgentModel.load_agent_model(
         file_name='saved_model',
         folder=tmp_path)
 

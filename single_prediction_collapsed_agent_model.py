@@ -1,7 +1,7 @@
 """
 Single-prediction collapsed Bayesian agent model.
 
-This is a further reduction of :class:`multivariate_agent_model.MultivariateAgentModel`
+This is a further reduction of :class:`agent_model.MultivariateAgentModel`
 for the case where the agent observes a single scalar prediction ``pred_o`` for
 a single observed feature vector ``X_o``. Under independent Gaussian priors on
 the coordinates of the coefficient vectors N_b and N_d, those vectors are
@@ -48,7 +48,7 @@ import pymc as pm
 import pytensor.tensor as at
 from scipy.stats import kurtosis, skew
 
-from multivariate_scm import MultivariateSCM
+import scm
 
 
 DEBUGGING = False
@@ -104,7 +104,7 @@ class SinglePredictionCollapsedAgentModel:
         self.prior_parameters = self._initialize_prior_parameters(prior_parameters)
         self.predictive_var_names = self._default_predictive_var_names()
 
-        self.predictive_scm = MultivariateSCM(
+        self.predictive_scm = scm.MultivariateSCM(
             n_covariates=self.n_covariates,
             alpha_mu_X=self.prior_parameters['mu_X'],
             alpha_sigma_X=self.prior_parameters['mu_sigma_X'],

@@ -38,7 +38,7 @@ import time
 import numpy as np
 from sklearn.linear_model import LinearRegression
 # Project specific:
-import multivariate_scm as mscm
+import scm
 import utils
 import single_prediction_collapsed_agent_model as spcam
 
@@ -112,7 +112,7 @@ def main(X_o, agent_priors, modified_prior,
     #    X is sampled from the population distribution, A
     #    is the treatment given under the historical treatment
     #    policy given X, and Y is the outcome given X and A.
-    data_scm = mscm.MultivariateSCM(**scm_noise_parameters)
+    data_scm = scm.MultivariateSCM(**scm_noise_parameters)
 
     # 2. Generate data. This is identical to the true
     #    underlying generating process and the outcomes
