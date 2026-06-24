@@ -1,11 +1,16 @@
 """
-Structural causal model (SCM) for 
+Structural causal model (SCM) for
 -data generation, and
 -for agent's internal representation.
 Agent uses this model to prescribe treatment
 based on his prior beliefs before seeing new
 information, and based on his posterior beliefs
 after seeing new information.
+
+Defines the abstract :class:`SCM` base class, the scalar :class:`SCM_WithConstants`
+(fixed scalar or k-dimensional-with-fixed-coefficients structural model), and
+:class:`MultivariateSCM` (k-dimensional X with its own coefficient vectors
+``N_b``/``N_d`` and intercept folded into ``alpha_mu_Y``).
 
 Notes:
 Might be more efficient to reimplement the SCM
@@ -31,18 +36,26 @@ class SCM(ABC):
     def __post_init__(self):
         self._flatten_covariate_parameters()
 
-    @property
-    def n_covariates(self):
-        return int(self.alpha_mu_X.size)
+    def _covariate_parameter_names(self):
+        """
+        Names of the covariate-related parameters that need to be
+        flattened to length-k arrays by :meth:`_flatten_covariate_parameters`.
+        Overridable so subclasses can use different coefficient names.
+        """
+        return ('alpha_mu_X', 'alpha_sigma_X', 'b', 'd')
 
     def _flatten_covariate_parameters(self):
         """
-        Flatten covariate-related parameters to one-dimensional numpy arrays.
-        Scalars are broadcast if another covariate parameter determines k > 1.
+        Flatten covariate-related parameters to one-dimensional numpy arrays
+        and set ``self.n_covariates`` accordingly.
+
+        Scalars are broadcast if another covariate parameter, or an
+        already-set ``self.n_covariates`` (e.g. requested explicitly by a
+        subclass's constructor before this runs), determines k > 1.
         """
-        covariate_parameter_names = ('alpha_mu_X', 'alpha_sigma_X', 'b', 'd')
+        covariate_parameter_names = self._covariate_parameter_names()
         raw_parameters = {}
-        n_covariates = 1
+        n_covariates = getattr(self, 'n_covariates', 1)
         for parameter_name in covariate_parameter_names:
             parameter = np.atleast_1d(np.asarray(getattr(self, parameter_name), dtype=float))
             if parameter.ndim != 1:
@@ -57,6 +70,7 @@ class SCM(ABC):
                 text = f"{parameter_name} must have length {n_covariates}, not {parameter.size}."
                 raise ValueError(text)
             setattr(self, parameter_name, parameter)
+        self.n_covariates = n_covariates
 
     def _coerce_X(self, X):
         """
@@ -142,6 +156,24 @@ class SCM(ABC):
             CATE_mean = None
             CATE_std = None
         return CATE_samples, CATE_mean, CATE_std
+
+    def get_CATE_mu(self, A1_treatment, A0_treatment):
+        """
+        This method returns the mean of the CATE-distribution given
+        A1_treatment and A0_treatment. Due to how the SCM is defined, this
+        value is equivalent to (A1_treatment - A0_treatment) * self.N_E.
+
+        The SCM in this class is defined so that Y given A and X is normally
+        distributed and its parameters are deterministically determined by the
+        values of A and X. This results in the CATE-distribution also being
+        normal and allows for deterministic calculation of the mean as: \n
+        CATE_mu(X) = E(Y| X, do(A=A1)) - E(Y| X, do(A=A0))
+
+        Args:
+            A1_treatment (float): Dosage value of higher dose treatment.
+            A0_treatment (float): Dosage value of lower dose treatment.
+        """
+        return (A1_treatment - A0_treatment) * self.N_E
 
 
 @dataclass
@@ -264,4 +296,137 @@ class SCM_WithConstants(SCM):
         std_Y_cond = np.full_like(mu_Y_cond, self.alpha_sigma_Y, dtype=float)
         # Model defines the treatement effect as independent of X.
         Y = mu_Y_cond + N_Y_0_centered
+        return X_output, A_output, Y, mu_Y_cond, std_Y_cond
+
+
+@dataclass
+class MultivariateSCM(SCM):
+    """
+    Class for an SCM with continuous k-dimensional X, continuous A, and
+    continuous Y. This SCM encodes information so that \n
+    N_Xi ~ N_k(alpha_mu_X, diag(alpha_sigma_X^2)) \n
+    N_Yi ~ N(0, alpha_sigma_Y) \n
+    N_Ai ~ N(alpha_mu_A, alpha_sigma_A) \n
+    X_i = N_Xi \n
+    A_i = N_d.T X_i + N_Ai \n
+    Y_i = N_b.T X_i + N_E * A_i + N_Yi
+
+    Relative to :class:`SCM_WithConstants`, the fixed scalar coefficients
+    ``b`` and ``d`` become the fixed coefficient vectors ``N_b`` and ``N_d``
+    of length k, and the structural intercept ``a`` is absorbed into
+    ``alpha_mu_Y`` (which is 0 in the scalar paper model and defaults to 12
+    here). For k = 1 the model reduces to the scalar SCM, except that X is
+    not squeezed to a 1-D array here (see :meth:`SCM_WithConstants.sample`
+    for the squeezing behavior).
+
+    Args:
+        n_covariates (int): Number of covariates k (dimension of X). Can be
+            passed explicitly to force broadcasting of scalar parameters to
+            length k, even when no other parameter implies k > 1.
+        alpha_mu_X (float or array-like): Mean of X. Scalar (broadcast to
+            length k) or one-dimensional array of length k.
+        alpha_sigma_X (float or array-like): Standard deviation of X. Scalar
+            (broadcast to length k) or one-dimensional array of length k.
+        alpha_mu_A (float): Mean of A.
+        alpha_sigma_A (float): Standard deviation of A.
+        alpha_mu_Y (float): Mean of Y. Also carries the structural intercept.
+        alpha_sigma_Y (float): Standard deviation of Y.
+        N_E (float): Effect size. The effect size is a fixed number. All
+            variability is explained by variance in other RVs.
+        N_b (float or array-like): Coefficient vector mapping X to Y. Scalar
+            (broadcast to length k) or one-dimensional array of length k.
+        N_d (float or array-like): Coefficient vector mapping X to A. Scalar
+            (broadcast to length k) or one-dimensional array of length k.
+    """
+    n_covariates: int = 2
+    alpha_mu_X: object = 80.0
+    alpha_sigma_X: object = 10.0
+    alpha_mu_A: float = 2.0
+    alpha_sigma_A: float = 1.0
+    alpha_mu_Y: float = 12.0
+    alpha_sigma_Y: float = 0.1
+    N_E: float = 1.0
+    N_b: object = -0.05
+    N_d: object = 0.0625
+
+    def _covariate_parameter_names(self):
+        return ('alpha_mu_X', 'alpha_sigma_X', 'N_b', 'N_d')
+
+    def sample(self, X=None, A=None, draws=1, rng=None):
+        """
+        This method encodes the structure of the SCM and generates samples
+        of X, A, and Y: \n
+        :math:`X, A, Y \\sim p(X, Y, A)` \n
+        If X is passed, then the output A and Y are conditional on the value
+        of X: \n
+        :math:`A, Y \\sim p(A, Y| X)` \n
+        If A is passed, the output Y is conditional on the intervention
+        do(A): \n
+        :math:`X, Y \\sim p(X, Y| do(A))` \n
+        If both X and A are passed, the output is conditional on X and on the
+        intervention do(A): \n
+        :math:`Y \\sim p(Y| X, do(A))` \n
+        All of X, A, and Y are always returned. In addition, the conditional
+        distribution parameters for Y (mu_Y_cond, and std_Y_cond) are
+        returned. If X and/or A are provided, these parameters are conditional
+        on the given values. Otherwise they are "conditional" only on the
+        sampled values (in contrast to how the word "conditional" is normally
+        used).
+
+        Shapes follow the dimension of the input. When X is a single ``(k,)``
+        observation, A and Y have shape ``(draws,)``. When X is a batch with
+        shape ``(n, k)``, A and Y have shape ``(n,)``. When X is not provided,
+        X has shape ``(draws, k)`` and A and Y have shape ``(draws,)``.
+
+        Args:
+            X: Optional input, shape ``(k,)`` or ``(n, k)``. If provided,
+                output will be conditional on X.
+            A: Optional input. If provided, output will be conditional on
+                do(A). Scalar (broadcast) or array matching the number of
+                observations.
+            draws (int): Size of sample to generate when X is not provided.
+            rng: Seed or initialized random number generator for
+                reproducibility.
+
+        Returns:
+            tuple: ``(X, A, Y, mu_Y_cond, std_Y_cond)``.
+        """
+        rng = np.random.default_rng(rng)
+        if X is None:
+            X_matrix = rng.normal(self.alpha_mu_X, self.alpha_sigma_X,
+                                  size=(draws, self.n_covariates))
+            X_output = X_matrix
+            single_observation = False
+        else:
+            X_output, X_matrix, single_observation = self._coerce_X(X)
+
+        if A is None:
+            if single_observation:
+                A_mu = np.full(draws, X_matrix[0] @ self.N_d, dtype=float)
+            else:
+                A_mu = X_matrix @ self.N_d
+            N_A = rng.normal(self.alpha_mu_A, self.alpha_sigma_A,
+                             size=A_mu.shape[0])
+            A_output = A_mu + N_A
+        else:
+            A_array = np.asarray(A, dtype=float)
+            if A_array.shape == ():
+                size = draws if single_observation else X_matrix.shape[0]
+                A_output = np.full(size, A_array.item(), dtype=float)
+            else:
+                A_output = A_array.reshape(-1)
+                expected_size = draws if single_observation else X_matrix.shape[0]
+                if A_output.size != expected_size:
+                    text = "A must be scalar or have length {}.".format(expected_size)
+                    raise ValueError(text)
+
+        if single_observation:
+            X_effect = np.full(A_output.shape[0], X_matrix[0] @ self.N_b,
+                               dtype=float)
+        else:
+            X_effect = X_matrix @ self.N_b
+        N_Y_centered = rng.normal(0, self.alpha_sigma_Y, size=A_output.shape[0])
+        mu_Y_cond = self.alpha_mu_Y + X_effect + self.N_E * A_output
+        std_Y_cond = np.full_like(mu_Y_cond, self.alpha_sigma_Y, dtype=float)
+        Y = mu_Y_cond + N_Y_centered
         return X_output, A_output, Y, mu_Y_cond, std_Y_cond
