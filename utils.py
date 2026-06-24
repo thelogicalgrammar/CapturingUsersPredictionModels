@@ -9,6 +9,87 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
+# Single source of truth for the results schema: (dict key, display header)
+# pairs, in column order. Both the CSV header row and the row-writing key
+# order are derived from this list, so they can't drift apart.
+RESULT_COLUMNS = [
+    ('experiment_id', 'Experiment ID'),
+    ('time_stamp', 'Time Stamp'),
+    ('X_o', 'X_o'),
+    ('pred_o', 'pred_o'),
+    ('modified_prior', 'Modified prior'),
+    ('modified_prior_value', 'New value of modified prior'),
+    ('threshold', 'Threshold'),
+    ('true_CATE_mean', 'True CATE (sample mean)'),
+    ('prior_CATE_mean', 'Prior CATE (sample mean)'),
+    ('posterior_CATE_mean', 'Posterior CATE (sample mean)'),
+    ('true_CATE_std', 'True CATE Standard Deviation (sample estimate)'),
+    ('prior_CATE_std', 'Prior CATE Standard Deviation (sample estimate)'),
+    ('posterior_CATE_std', 'Posterior CATE Standard Deviation (sample estimate)'),
+    ('true_CATE_mu', 'True CATE (mu)'),
+    ('prior_CATE_mu', 'Prior CATE (mu)'),
+    ('prior_treatment', 'prior_treatment'),
+    ('posterior_treatment', 'posterior_treatment'),
+    ('true_best_treatment', 'true_best_treatment'),
+    ('prior_decision_correct', 'prior_decision_correct'),
+    ('posterior_decision_correct', 'posterior_decision_correct'),
+    ('decision_changed', 'decision_changed'),
+    ('frac_correct_prior_decision', 'frac_correct_prior_decision'),
+    ('frac_correct_posterior_decision', 'frac_correct_posterior_decision'),
+    ('frac_correct_true_best_treatment', 'frac_correct_true_best_treatment'),
+    ('Y_mean_prior_treatment', 'Y_mean_prior_treatment'),
+    ('Y_mean_posterior_treatment', 'Y_mean_posterior_treatment'),
+    ('Y_mean_true_best_treatment', 'Y_mean_true_best_treatment'),
+    ('potential_outcome_A1_mean', 'potential_outcome_A1_mean'),
+    ('potential_outcome_A1_std', 'potential_outcome_A1_std'),
+    ('potential_outcome_A0_mean', 'potential_outcome_A0_mean'),
+    ('potential_outcome_A0_std', 'potential_outcome_A0_std'),
+    ('plate_size', 'Plate Size'),
+    ('A1_treatment', 'A1_treatment'),
+    ('A0_treatment', 'A0_treatment'),
+    ('agent_priors', 'Agent Priors'),
+    ('scm_noise_parameters', 'SCM Noise Parameters'),
+    ('scm_constants', 'SCM Constants'),
+    ('running_time', 'Running Time'),
+    ('max_rhat', 'max(R-hat)'),
+    ('min_ess_bulk', 'min(ESS), bulk'),
+    ('min_ess_tail', 'min(ESS), tail'),
+    ('n_divergences', 'Divergences'),
+    ('pri_X_mean', 'pri_X_mean'),
+    ('pri_A_mean', 'pri_A_mean'),
+    ('pri_Y_mean', 'pri_Y_mean'),
+    ('pri_X_std', 'pri_X_std'),
+    ('pri_A_std', 'pri_A_std'),
+    ('pri_Y_std', 'pri_Y_std'),
+    ('pri_X_skew', 'pri_X_skew'),
+    ('pri_A_skew', 'pri_A_skew'),
+    ('pri_Y_skew', 'pri_Y_skew'),
+    ('pri_X_kurtosis', 'pri_X_kurtosis'),
+    ('pri_A_kurtosis', 'pri_A_kurtosis'),
+    ('pri_Y_kurtosis', 'pri_Y_kurtosis'),
+    ('post_X_mean', 'post_X_mean'),
+    ('post_A_mean', 'post_A_mean'),
+    ('post_Y_mean', 'post_Y_mean'),
+    ('post_X_std', 'post_X_std'),
+    ('post_A_std', 'post_A_std'),
+    ('post_Y_std', 'post_Y_std'),
+    ('post_X_skew', 'post_X_skew'),
+    ('post_A_skew', 'post_A_skew'),
+    ('post_Y_skew', 'post_Y_skew'),
+    ('post_X_kurtosis', 'post_X_kurtosis'),
+    ('post_A_kurtosis', 'post_A_kurtosis'),
+    ('post_Y_kurtosis', 'post_Y_kurtosis'),
+    ('expected_prior_outcome_A1_mean', 'expected_prior_outcome_A1_mean'),
+    ('expected_prior_outcome_A1_std', 'expected_prior_outcome_A1_std'),
+    ('expected_prior_outcome_A0_mean', 'expected_prior_outcome_A0_mean'),
+    ('expected_prior_outcome_A0_std', 'expected_prior_outcome_A0_std'),
+    ('expected_posterior_outcome_A1_mean', 'expected_posterior_outcome_A1_mean'),
+    ('expected_posterior_outcome_A1_std', 'expected_posterior_outcome_A1_std'),
+    ('expected_posterior_outcome_A0_mean', 'expected_posterior_outcome_A0_mean'),
+    ('expected_posterior_outcome_A0_std', 'expected_posterior_outcome_A0_std'),
+]
+
+
 def write_results_to_file(result_dict, file_name='results.csv', path='./results/'):
     """
     Function for writing results to file.
@@ -20,76 +101,30 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
     """
     # Check for existence of folder. Create if it does not exist.
     Path(path).mkdir(parents=True, exist_ok=True)
-    # Check for existence of result file.
     full_path = path + file_name
-    if not Path(path + file_name).exists():
-        # Create file and write header to file
-        headers = ('"Experiment ID","Time Stamp",'
-                   '"X_o","pred_o","Modified prior","New value of modified prior",'
-                   '"Threshold",'
-                   '"True CATE (sample mean)","Prior CATE (sample mean)","Posterior CATE (sample mean)",'
-                   '"True CATE Standard Deviation (sample estimate)",'
-                   '"Prior CATE Standard Deviation (sample estimate)",'
-                   '"Posterior CATE Standard Deviation (sample estimate)",'
-                   '"True CATE (mu)","Prior CATE (mu)",'
-                   '"prior_treatment","posterior_treatment","true_best_treatment",'
-                   '"prior_decision_correct","posterior_decision_correct","decision_changed",'
-                   '"frac_correct_prior_decision","frac_correct_posterior_decision","frac_correct_true_best_treatment",'
-                   '"Y_mean_prior_treatment","Y_mean_posterior_treatment","Y_mean_true_best_treatment",'
-                   '"potential_outcome_A1_mean","potential_outcome_A1_std","potential_outcome_A0_mean","potential_outcome_A0_std",'
-                   '"Plate Size","A1_treatment","A0_treatment",'
-                   '"Agent Priors","SCM Noise Parameters",'
-                   '"SCM Constants",'
-                   '"Running Time",'
-                   '"max(R-hat)","min(ESS), bulk","min(ESS), tail","Divergences",'
-                   '"pri_X_mean","pri_A_mean","pri_Y_mean","pri_X_std",'
-                   '"pri_A_std","pri_Y_std","pri_X_skew","pri_A_skew",'
-                   '"pri_Y_skew","pri_X_kurtosis","pri_A_kurtosis","pri_Y_kurtosis",'
-                   '"post_X_mean","post_A_mean","post_Y_mean","post_X_std",'
-                   '"post_A_std","post_Y_std","post_X_skew","post_A_skew",'
-                   '"post_Y_skew","post_X_kurtosis","post_A_kurtosis","post_Y_kurtosis",'
-                   '"expected_prior_outcome_A1_mean","expected_prior_outcome_A1_std",'
-                   '"expected_prior_outcome_A0_mean","expected_prior_outcome_A0_std",'
-                   '"expected_posterior_outcome_A1_mean","expected_posterior_outcome_A1_std",'
-                   '"expected_posterior_outcome_A0_mean","expected_posterior_outcome_A0_std"\n')
-        with open(full_path, 'w') as f:
-            f.write(headers)
 
-    # Write contents to file:
-    key_ordering = ['experiment_id', 'time_stamp']
-    key_ordering += ['X_o', 'pred_o', 'modified_prior', 'modified_prior_value']
-    key_ordering += ['threshold']
-    key_ordering += ['true_CATE_mean', 'prior_CATE_mean', 'posterior_CATE_mean']
-    key_ordering += ['true_CATE_std', 'prior_CATE_std', 'posterior_CATE_std']
-    key_ordering += ['true_CATE_mu', 'prior_CATE_mu', ]
-    key_ordering += ["prior_treatment", "posterior_treatment", "true_best_treatment"]
-    key_ordering += ["prior_decision_correct", "posterior_decision_correct", "decision_changed"]
-    key_ordering += ["frac_correct_prior_decision", "frac_correct_posterior_decision", "frac_correct_true_best_treatment"]
-    key_ordering += ["Y_mean_prior_treatment", "Y_mean_posterior_treatment", "Y_mean_true_best_treatment"]
-    key_ordering += ["potential_outcome_A1_mean", "potential_outcome_A1_std", "potential_outcome_A0_mean", "potential_outcome_A0_std"]
+    # Callers with multivariate (k > 1) predictive summaries (e.g.
+    # pri_X_0_mean, pri_X_1_mean, ...) pass extra keys not covered by
+    # RESULT_COLUMNS. Append them as dynamic columns, using the key itself
+    # as the header text since there's no pretty name for them. Assumes a
+    # given results file is only ever appended to with a consistent key
+    # set (e.g. constant n_covariates).
+    fixed_keys = {key for key, _ in RESULT_COLUMNS}
+    extra_keys = sorted(key for key in result_dict if key not in fixed_keys)
+    columns = RESULT_COLUMNS + [(key, key) for key in extra_keys]
+    fieldnames = [key for key, _ in columns]
 
-    key_ordering += ['plate_size', 'A1_treatment', 'A0_treatment']
-    key_ordering += ['agent_priors', 'scm_noise_parameters']
-    key_ordering += ['scm_constants']
-    key_ordering += ['running_time']
-    key_ordering += ['max_rhat', 'min_ess_bulk', 'min_ess_tail', 'n_divergences']
-    key_ordering += ['pri_X_mean', 'pri_A_mean', 'pri_Y_mean', 'pri_X_std']
-    key_ordering += ['pri_A_std', 'pri_Y_std', 'pri_X_skew', 'pri_A_skew']
-    key_ordering += ['pri_Y_skew', 'pri_X_kurtosis', 'pri_A_kurtosis', 'pri_Y_kurtosis']
-    key_ordering += ['post_X_mean', 'post_A_mean', 'post_Y_mean', 'post_X_std']
-    key_ordering += ['post_A_std', 'post_Y_std', 'post_X_skew', 'post_A_skew']
-    key_ordering += ['post_Y_skew', 'post_X_kurtosis', 'post_A_kurtosis', 'post_Y_kurtosis']
-    key_ordering += ['expected_prior_outcome_A1_mean', 'expected_prior_outcome_A1_std',
-                     'expected_prior_outcome_A0_mean', 'expected_prior_outcome_A0_std',
-                     'expected_posterior_outcome_A1_mean', 'expected_posterior_outcome_A1_std',
-                     'expected_posterior_outcome_A0_mean', 'expected_posterior_outcome_A0_std']
-    text = ''
-    for key in key_ordering:
-        text += '"' + str(result_dict[key]) + '",'
-    text = text[:-1]  # Remove trailing comma
-    text += '\n'  # Add newline
-    with open(full_path, 'a') as f:
-        f.write(text)
+    missing_keys = [key for key in fieldnames if key not in result_dict]
+    if missing_keys:
+        raise KeyError("Missing required result keys: {}".format(missing_keys))
+
+    file_is_new = not Path(full_path).exists()
+    with open(full_path, 'a', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL,
+                                lineterminator='\n')
+        if file_is_new:
+            writer.writerow(dict(columns))  # Header row, using display names.
+        writer.writerow(result_dict)
     print("Results saved to {}".format(full_path))
 
 
