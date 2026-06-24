@@ -22,6 +22,7 @@ These reproduce the OLS coefficients (and intercept) of the external predictive
 model without sampling the n historical observations one by one.
 """
 
+import dataclasses
 from pathlib import Path
 
 import arviz as az
@@ -30,6 +31,8 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as at
 from scipy.stats import kurtosis, skew
+from abc import ABC, abstractmethod
+import warnings
 
 from multivariate_scm import MultivariateSCM
 
@@ -44,8 +47,568 @@ def printing_callback(trace, draw):
     if DEBUGGING:
         print(f"Completed draw {draw.draw_idx} from chain {draw.chain}.")
 
+class AgentModel(ABC):
+    """
+    This abstract class serves as blueprint for all agent models. The
+    hardcoded assumptions are: \n
+    1) you have two treatment options A1_treatment and A0_treatment, \n
+    2) you are interested in one outcome Y, \n
+    3) all features are encoded in X. \n
+    The class requires you to define your model and sampling method.
+    That is, you have to define your beliefs about the data generating
+    process (both prior distributions and SCM), and you have to define
+    how you believe the model and prediction were generated from unseen
+    data. The last step is necessary to generate posterior samples and
+    should preferably be computationally efficient (plate reduction!).
+    """
+    @abstractmethod
+    def __init__(self, plate_size, prior_parameters=None,
+                 predictive_var_names=None):
+        """
+        Override method in subclass, but include at least the attributes
+        listed here.
+        """
+        self.plate_size = int(plate_size)
 
-class MultivariateAgentModel:
+        # Parameter names are dependent on the sampling method defined (right?).
+        #   -where should they be defined?
+        # First one includes hardcoded parameter names
+        self.prior_parameters = self._initialize_prior_parameters(prior_parameters)
+
+        # Sampling method is dependent on SCM parameterization.
+        self.predictive_scm = None  # Some MultivariateSCM()
+
+        self.model = self._build_model()
+
+        # Predictive var names are needed only for storing and displaying partial
+        # posterior predictive information.
+        # Setting predictive_var_names saves PyMC computation AND is used to
+        # update the Agent's "internal" SCM parameters. The SCM update is
+        # needed for both prior and posterior predictive sampling.
+        # The default is derived from the predictive SCM's own fields, so it
+        # requires self.predictive_scm and self.model to already be set.
+        self.predictive_var_names = self._initialize_predictive_var_names(
+            predictive_var_names)
+
+        self.trace = None
+        self.prior_samples = None
+        self.prior_predictive_samples = None
+        self.posterior_predictive_samples = None
+        self.posterior_draws = None
+        self.prior_draws = None
+        self.X_o = None
+
+    @abstractmethod
+    def _default_prior_parameters():
+        # Exclude this from required methods?
+        # Then also make methods in base class independent of this.
+        # Or return null?
+        pass
+
+    @abstractmethod
+    def _build_model() -> pm.Model:
+        # Method not necessaary if AgentModel initializes model some other way?
+        pass
+
+    @abstractmethod
+    def _build_population_parameters():
+        # Exclude this from required methods?
+        pass
+
+    @abstractmethod
+    def sample(self, X: np.ndarray, pred_o: np.ndarray) -> None:
+        """
+        Sample from the posterior given observed data.
+        Store the latest trace in self.trace. 
+        """
+        pass
+
+    def _flatten_vector_parameter(self, parameter, parameter_name):
+        """
+        Convert scalar or one-dimensional input to a vector of length k.
+
+        A scalar is broadcast to a constant vector of length k. A
+        one-dimensional array must already have length k.
+
+        Args:
+            parameter (float or array-like): Value to normalize.
+            parameter_name (str): Name used in error messages.
+
+        Returns:
+            np.ndarray: One-dimensional array of length k.
+        """
+        parameter = np.atleast_1d(np.asarray(parameter, dtype=float))
+        if parameter.ndim != 1:
+            raise ValueError("{} must be scalar or one-dimensional.".format(parameter_name))
+        if parameter.size == 1:
+            parameter = np.full(self.n_covariates, parameter.item(), dtype=float)
+        elif parameter.size != self.n_covariates:
+            text = "{} must have length {}, not {}.".format(
+                parameter_name, self.n_covariates, parameter.size)
+            raise ValueError(text)
+        return parameter
+
+    def _initialize_predictive_var_names(self, predictive_var_names):
+        """
+        Validate or derive the predictive variable-name list.
+
+        The default is the population-level SCM parameter names that are both
+        fields of the internal predictive SCM and named random variables in
+        the PyMC model. Requires ``self.predictive_scm`` and ``self.model`` to
+        already be set.
+
+        Args:
+            predictive_var_names (list or None): User-supplied variable names.
+                If None, the defaults are used. Otherwise the names are
+                validated against the model specification.
+
+        Returns:
+            list: Validated predictive variable names.
+        """
+        scm_field_names = [f.name for f in dataclasses.fields(self.predictive_scm)]
+        default_predictive_var_names = [
+            name for name in scm_field_names if name in self.model.named_vars]
+        if predictive_var_names is None:
+            return default_predictive_var_names
+        extra_items = [item for item in predictive_var_names
+                       if item not in default_predictive_var_names]
+        err_msg = "{} passed with predictive_var_names, " \
+            "but not part of model specification.".format(extra_items)
+        assert len(extra_items) < 1, err_msg
+        return predictive_var_names
+
+    def _initialize_prior_parameters(self, prior_parameters):
+        """
+        Validate or create the prior-parameter dictionary.
+
+        If ``prior_parameters`` is None the defaults are used. Otherwise the
+        passed keys are validated against the model specification, merged on
+        top of the defaults, and the vector-valued entries are normalized to
+        length-k arrays.
+
+        Args:
+            prior_parameters (dict or None): User-supplied prior parameters.
+
+        Returns:
+            dict: Validated and normalized prior-parameter dictionary.
+        """
+        default_prior_parameters = self._default_prior_parameters()  # This is not great in a top-level class method, unless we require definition of the method.
+        if prior_parameters is None:
+            prior_parameters = default_prior_parameters
+        else:
+            extra_items = [item for item in prior_parameters.keys()
+                           if item not in default_prior_parameters.keys()]
+            err_msg = "{} passed with prior_parameters, " \
+                "but not part of model specification.".format(extra_items)
+            assert len(extra_items) < 1, err_msg
+            tmp = default_prior_parameters.copy()
+            tmp.update(prior_parameters)
+            prior_parameters = tmp
+
+        prior_parameters = prior_parameters.copy()
+        for parameter_name in ('mu_X', 'sigma_X', 'mu_sigma_X',
+                               'sigma_sigma_X', 'N_b_mu', 'N_b_sigma',
+                               'N_d_mu', 'N_d_sigma'):
+            prior_parameters[parameter_name] = self._flatten_vector_parameter(
+                prior_parameters[parameter_name], parameter_name)
+        return prior_parameters
+
+    def sample_prior_predictive_do_A(self, X, A_treatment, rng=None):
+        """
+        Method for estimating the outcome for a patient with features X based
+        on the agent's prior beliefs. Draws one potential outcome for every
+        prior draw.
+
+        Args:
+            X (np.array): Feature vector of length k to condition on.
+            A_treatment (float): Fixed treatment value.
+            rng: Seed or initialized random number generator for
+                reproducibility.
+
+        Returns:
+            tuple: ``(do_A_samples, do_A_mean, do_A_std)``.
+        """
+        self._ensure_prior_samples(rng=rng)
+        X = self._flatten_vector_parameter(X, 'X')
+        do_A_samples = np.zeros(shape=(self.prior_draws,))
+        for i, parameters in enumerate(self._parameter_draws(self.prior_samples.prior)):
+            self.predictive_scm.update_parameters(parameters)
+            tmp = self.predictive_scm.sample_do_A(A_treatment, X, rng=rng)
+            do_A_samples[i] = tmp[0][0]
+        do_A_mean = np.mean(do_A_samples)
+        do_A_std = np.std(do_A_samples)
+        return do_A_samples, do_A_mean, do_A_std
+
+    def sample_prior_predictive(self, draws=1000, rng=None):
+        """
+        Method for sampling from the distribution based on the agent's prior
+        beliefs. For every draw of the predictive parameters from the prior,
+        the internal predictive SCM is updated and one (X, A, Y) sample is
+        generated from it.
+
+        Args:
+            draws (int): Size of sample to draw.
+            rng: Seed or initialized random number generator for
+                reproducibility.
+
+        Returns:
+            list: One ``[X, A, Y]`` triple per draw.
+        """
+        with self.model:
+            tmp = pm.sample_prior_predictive(
+                draws=draws,
+                var_names=self.predictive_var_names,
+                random_seed=rng)
+        self.prior_samples = tmp
+        parameter_draws = self._parameter_draws(tmp.prior)
+        self.prior_draws = len(parameter_draws)
+        samples = []
+        for parameters in parameter_draws:
+            self.predictive_scm.update_parameters(parameters)
+            X, A, Y, *_ = self.predictive_scm.sample(rng=rng)
+            samples.append([X, A, Y])
+        self.prior_predictive_samples = samples
+        return samples
+
+    def _parameter_draws(self, sample_group):
+        """
+        Convert sampled PyMC variables into one dictionary per draw.
+
+        Chains and draws are flattened into a single draw axis. Each returned
+        dictionary maps a predictive variable name to its value for that draw,
+        with scalars cast to float and vector-valued parameters (e.g. N_b,
+        N_d, alpha_mu_X) kept as arrays. These dictionaries are then used to
+        update the internal predictive SCM.
+
+        Args:
+            sample_group: An ArviZ group (e.g. ``trace.posterior`` or
+                ``prior_samples.prior``) holding the sampled variables.
+
+        Returns:
+            list: One parameter dictionary per draw.
+        """
+        first_var = self.predictive_var_names[0]
+        first_values = sample_group[first_var].values
+        n_draws = int(np.prod(first_values.shape[:2]))
+        parameter_values = {}
+        for var_name in self.predictive_var_names:
+            values = sample_group[var_name].values
+            parameter_values[var_name] = values.reshape(
+                (n_draws,) + values.shape[2:])
+
+        draws = []
+        for draw_index in range(n_draws):
+            parameters = {}
+            for var_name, values in parameter_values.items():
+                value = values[draw_index]
+                if np.asarray(value).shape == ():
+                    value = float(value)
+                parameters[var_name] = value
+            draws.append(parameters)
+        return draws
+
+    def _ensure_prior_samples(self, rng=None):
+        """
+        Draw prior samples if they have not been drawn yet.
+
+        Args:
+            rng: Seed or initialized random number generator for
+                reproducibility, used only if prior samples are drawn here.
+        """
+        if self.prior_samples is None:
+            self.sample_prior_predictive(rng=rng)
+
+    def sample_prior_predictive_CATE(self, X, A1_treatment, A0_treatment, rng=None):
+        """
+        This method returns a sample from the prior CATE-distribution, and its
+        sample mean and standard deviation. The current SCM is such that N_E is
+        not dependent on X, so the treatment effect only depends on N_E and the
+        size of the treatments.
+
+        Args:
+            X (np.array): Feature vector of length k to condition on.
+            A1_treatment (float): Dosage value of higher dose treatment.
+            A0_treatment (float): Dosage value of lower dose treatment.
+            rng: Seed or initialized random number generator for
+                reproducibility.
+
+        Returns:
+            tuple: ``(CATE_samples, CATE_mean, CATE_std)``.
+        """
+        self._ensure_prior_samples(rng=rng)
+        X = self._flatten_vector_parameter(X, 'X')
+        CATE_samples = np.zeros(shape=(self.prior_draws,))
+        for i, parameters in enumerate(self._parameter_draws(self.prior_samples.prior)):
+            self.predictive_scm.update_parameters(parameters)
+            tmp = self.predictive_scm.sample_CATE(
+                X, A1_treatment, A0_treatment, rng=rng)
+            CATE_samples[i] = tmp[0][0]
+        CATE_mean = np.mean(CATE_samples)
+        CATE_std = np.std(CATE_samples)
+        return CATE_samples, CATE_mean, CATE_std
+
+    def sample_posterior_predictive(self, rng=None):  # BUG? This needs to take X as input if we want conditional values.
+        """
+        This method generates a sample from the agent's posterior beliefs.
+        Using the trace stored in self, it replaces the parameter values in
+        the internal predictive SCM with each posterior draw and draws a
+        posterior predictive sample from it.
+
+        Args:
+            rng: Seed or initialized random number generator for
+                reproducibility.
+
+        Returns:
+            list: One ``(X, A, Y, mu_Y_cond, std_Y_cond)`` sample per draw.
+        """
+        parameter_draws = self._parameter_draws(self.trace.posterior)  # BUG or inconsistency? Does not check for existence and replaces old samples?
+        self.posterior_draws = len(parameter_draws)
+        samples = []
+        for parameters in parameter_draws:
+            self.predictive_scm.update_parameters(parameters)
+            samples.append(self.predictive_scm.sample(rng=rng))
+        self.posterior_predictive_samples = samples
+        return samples
+
+    def sample_posterior_predictive_CATE(self, X, A1_treatment, A0_treatment,
+                                         rng=None):
+        """
+        This method returns a sample from the posterior predictive
+        CATE-distribution, and its sample mean and standard deviation.
+
+        Args:
+            X (np.array): Feature vector of length k to condition on.
+            A1_treatment (float): Higher dose treatment value.
+            A0_treatment (float): Lower dose treatment value.
+            rng: Seed or initialized random number generator for
+                reproducibility.
+
+        Returns:
+            tuple: ``(CATE_samples, CATE_mean, CATE_std)``.
+        """
+        X = self._flatten_vector_parameter(X, 'X')
+        parameter_draws = self._parameter_draws(self.trace.posterior)
+        CATE_samples = np.zeros(shape=(len(parameter_draws),))
+        for i, parameters in enumerate(parameter_draws):
+            self.predictive_scm.update_parameters(parameters)
+            tmp = self.predictive_scm.sample_CATE(
+                X, A1_treatment, A0_treatment, rng=rng)
+            CATE_samples[i] = tmp[0][0]
+        CATE_mean = np.mean(CATE_samples)
+        CATE_std = np.std(CATE_samples)
+        return CATE_samples, CATE_mean, CATE_std
+
+    def sample_posterior_predictive_do_A(self, X, A_treatment, rng=None):
+        """
+        Method for estimating the outcome for a patient with features X based
+        on the agent's posterior beliefs. Draws one potential outcome for every
+        draw in the trace.
+
+        Args:
+            X (np.array): Feature vector of length k to condition on.
+            A_treatment (float): Fixed treatment value.
+            rng: Seed or initialized random number generator for
+                reproducibility.
+
+        Returns:
+            tuple: ``(potential_outcomes, do_A_mean, do_A_std)``.
+        """
+        X = self._flatten_vector_parameter(X, 'X')
+        parameter_draws = self._parameter_draws(self.trace.posterior)
+        potential_outcomes = np.zeros(shape=(len(parameter_draws),))
+        for i, parameters in enumerate(parameter_draws):
+            self.predictive_scm.update_parameters(parameters)
+            tmp = self.predictive_scm.sample_do_A(A_treatment, X, rng=rng)
+            potential_outcomes[i] = tmp[0][0]
+        do_A_mean = np.mean(potential_outcomes)
+        do_A_std = np.std(potential_outcomes)
+        return potential_outcomes, do_A_mean, do_A_std
+
+    def trace_diagnostics(self):
+        """
+        Return basic sampler diagnostics for the current posterior trace.
+
+        Returns:
+            dict: ``max_rhat``, ``min_ess_bulk``, ``min_ess_tail`` (computed
+            with ArviZ), and ``n_divergences``.
+        """
+        rhat_values = az.rhat(self.trace)
+        ess_bulk_values = az.ess(self.trace, method='bulk')
+        ess_tail_values = az.ess(self.trace, method='tail')
+        return {
+            'max_rhat': float(rhat_values.to_array().max().values),
+            'min_ess_bulk': float(ess_bulk_values.to_array().min().values),
+            'min_ess_tail': float(ess_tail_values.to_array().min().values),
+            'n_divergences': int(self.trace.sample_stats['diverging'].sum()),
+        }
+
+    def save_agent_model(self, file_name='multivariate_agent_model',
+                         folder='./saved_models/'):
+        """
+        Save the agent model configuration and available samples.
+
+        The trace and prior samples are written separately with ArviZ
+        (NetCDF), and the rest of the configuration is pickled with joblib.
+        The PyMC model, trace, and prior samples are temporarily detached
+        before pickling and restored afterwards.
+
+        Args:
+            file_name (str): Base filename without extension. Creates
+                ``{file_name}.joblib`` and, when available,
+                ``{file_name}_trace.nc`` and ``{file_name}_prior_samples.nc``.
+            folder (str): Folder to save the model into.
+        """
+        folder = Path(folder)
+        folder.mkdir(parents=True, exist_ok=True)
+        file_path = folder / file_name
+
+        if self.trace is not None:
+            self.trace.to_netcdf(f'{file_path}_trace.nc')
+            print(f"Trace saved to {file_path}_trace.nc")
+        if self.prior_samples is not None:
+            self.prior_samples.to_netcdf(f'{file_path}_prior_samples.nc')
+            print(f"Prior samples saved to {file_path}_prior_samples.nc")
+
+        trace_backup = self.trace
+        prior_samples_backup = self.prior_samples
+        model_backup = self.model
+        self.trace = None
+        self.prior_samples = None
+        self.model = None
+
+        joblib.dump(self, f'{file_path}.joblib')
+
+        self.trace = trace_backup
+        self.prior_samples = prior_samples_backup
+        self.model = model_backup
+
+        print(f"Complete agent model saved to {file_path}.joblib")
+
+    @classmethod
+    def load_agent_model(cls, file_name='multivariate_agent_model',
+                         folder='./saved_models/'):
+        """
+        Load a saved multivariate agent model.
+
+        The configuration is loaded with joblib and the PyMC model is
+        reconstructed by re-running ``__init__``. The trace and prior samples
+        are loaded from their NetCDF files if present.
+
+        Args:
+            file_name (str): Base filename without extension. Expects to find
+                ``{file_name}.joblib`` and, optionally, ``{file_name}_trace.nc``
+                and ``{file_name}_prior_samples.nc``.
+            folder (str): Folder the model is saved in.
+
+        Returns:
+            MultivariateAgentModel: The loaded agent model.
+        """
+        file_path = Path(folder) / file_name
+        agent = joblib.load(f'{file_path}.joblib')
+        print("Agent model loaded from {}".format(file_path))
+
+        posterior_draws = agent.posterior_draws
+        prior_draws = agent.prior_draws
+        X_o = agent.X_o
+
+        agent.__init__(
+            n_covariates=agent.n_covariates,
+            plate_size=agent.plate_size,
+            prior_parameters=agent.prior_parameters,
+            predictive_var_names=agent.predictive_var_names,
+            fit_intercept=agent.fit_intercept,
+        )
+
+        agent.posterior_draws = posterior_draws
+        agent.prior_draws = prior_draws
+        agent.X_o = X_o
+
+        try:
+            agent.trace = az.from_netcdf(f'{file_path}_trace.nc')
+        except FileNotFoundError:
+            agent.trace = None
+            print("Trace not loaded (file {}_trace.nc does not exist).".format(
+                file_path))
+
+        try:
+            agent.prior_samples = az.from_netcdf(
+                f'{file_path}_prior_samples.nc')
+        except FileNotFoundError:
+            agent.prior_samples = None
+            print("Prior samples not loaded (file "
+                  "{}_prior_samples.nc does not exist).".format(file_path))
+        return agent
+
+    # FIX: Needs to be in a more general form.
+    # Can use sam fields deduced from the SCM.
+    def sample_prior_predictive_summaries(self, rng=None):
+        """
+        Method that estimates the mean, standard deviation, skewness, and
+        kurtosis of the variables X, A, and Y in the prior predictive samples.
+
+        Args:
+            rng: Seed or initialized random number generator for
+                reproducibility. Used only if prior samples were not drawn
+                earlier.
+
+        Returns:
+            dict: Summary statistics keyed by ``pri_<var>_<moment>``.
+        """
+        self._ensure_prior_samples(rng=rng)
+        tmp_X = [item[0] for item in self.prior_predictive_samples]
+        tmp_A = [item[1] for item in self.prior_predictive_samples]
+        tmp_Y = [item[2] for item in self.prior_predictive_samples]
+        results = {}
+        results['pri_X_mean'] = np.mean(tmp_X)
+        results['pri_A_mean'] = np.mean(tmp_A)
+        results['pri_Y_mean'] = np.mean(tmp_Y)
+        results['pri_X_std'] = np.std(tmp_X)
+        results['pri_A_std'] = np.std(tmp_A)
+        results['pri_Y_std'] = np.std(tmp_Y)
+        results['pri_X_skew'] = skew(np.asarray(tmp_X).reshape(-1))
+        results['pri_A_skew'] = skew(tmp_A)[0]
+        results['pri_Y_skew'] = skew(tmp_Y)[0]
+        results['pri_X_kurtosis'] = kurtosis(np.asarray(tmp_X).reshape(-1))
+        results['pri_A_kurtosis'] = kurtosis(tmp_A)[0]
+        results['pri_Y_kurtosis'] = kurtosis(tmp_Y)[0]
+        return results
+
+    def sample_posterior_predictive_summaries(self, rng=None):  # FIX: Needs to be in a more general form.
+        """
+        Method that estimates the mean, standard deviation, skewness, and
+        kurtosis of the variables X, A, and Y in the posterior predictive
+        samples.
+
+        Args:
+            rng: Seed or initialized random number generator for
+                reproducibility. Used only if posterior predictive samples
+                were not drawn earlier.
+
+        Returns:
+            dict: Summary statistics keyed by ``post_<var>_<moment>``.
+        """
+        if self.posterior_predictive_samples is None:
+            self.sample_posterior_predictive(rng=rng)
+        tmp_X = [item[0] for item in self.posterior_predictive_samples]
+        tmp_A = [item[1] for item in self.posterior_predictive_samples]
+        tmp_Y = [item[2] for item in self.posterior_predictive_samples]
+        results = {}
+        results['post_X_mean'] = np.mean(tmp_X)
+        results['post_A_mean'] = np.mean(tmp_A)
+        results['post_Y_mean'] = np.mean(tmp_Y)
+        results['post_X_std'] = np.std(tmp_X)
+        results['post_A_std'] = np.std(tmp_A)
+        results['post_Y_std'] = np.std(tmp_Y)
+        results['post_X_skew'] = skew(np.asarray(tmp_X).reshape(-1))
+        results['post_A_skew'] = skew(tmp_A)[0]
+        results['post_Y_skew'] = skew(tmp_Y)[0]
+        results['post_X_kurtosis'] = kurtosis(np.asarray(tmp_X).reshape(-1))
+        results['post_A_kurtosis'] = kurtosis(tmp_A)[0]
+        results['post_Y_kurtosis'] = kurtosis(tmp_Y)[0]
+        return results
+
+
+class MultivariateAgentModel(AgentModel):
     """
     Class for a multivariate agent model with structural equations:
 
@@ -96,9 +659,8 @@ class MultivariateAgentModel:
         self.fit_intercept = fit_intercept
 
         self.prior_parameters = self._initialize_prior_parameters(prior_parameters)
-        self.predictive_var_names = self._initialize_predictive_var_names(
-            predictive_var_names)
 
+        # Sampling method is dependent on SCM parameterization.
         self.predictive_scm = MultivariateSCM(
             n_covariates=self.n_covariates,
             alpha_mu_X=self.prior_parameters['mu_X'],
@@ -112,6 +674,11 @@ class MultivariateAgentModel:
             N_d=self.prior_parameters['N_d_mu'],
         )
 
+        self.model = self._build_model()
+
+        self.predictive_var_names = self._initialize_predictive_var_names(
+            predictive_var_names)
+
         self.trace = None
         self.prior_samples = None
         self.prior_predictive_samples = None
@@ -119,33 +686,6 @@ class MultivariateAgentModel:
         self.posterior_draws = None
         self.prior_draws = None
         self.X_o = None
-
-        self.model = self._build_model()
-
-    def _normalize_vector_parameter(self, parameter, parameter_name):
-        """
-        Convert scalar or one-dimensional input to a vector of length k.
-
-        A scalar is broadcast to a constant vector of length k. A
-        one-dimensional array must already have length k.
-
-        Args:
-            parameter (float or array-like): Value to normalize.
-            parameter_name (str): Name used in error messages.
-
-        Returns:
-            np.ndarray: One-dimensional array of length k.
-        """
-        parameter = np.atleast_1d(np.asarray(parameter, dtype=float))
-        if parameter.ndim != 1:
-            raise ValueError("{} must be scalar or one-dimensional.".format(parameter_name))
-        if parameter.size == 1:
-            parameter = np.full(self.n_covariates, parameter.item(), dtype=float)
-        elif parameter.size != self.n_covariates:
-            text = "{} must have length {}, not {}.".format(
-                parameter_name, self.n_covariates, parameter.size)
-            raise ValueError(text)
-        return parameter
 
     def _default_prior_parameters(self):
         """
@@ -178,78 +718,6 @@ class MultivariateAgentModel:
             'N_d_mu': np.full(self.n_covariates, 0.125 / self.n_covariates),
             'N_d_sigma': np.full(self.n_covariates, 0.1),
         }
-
-    def _initialize_prior_parameters(self, prior_parameters):
-        """
-        Validate or create the prior-parameter dictionary.
-
-        If ``prior_parameters`` is None the defaults are used. Otherwise the
-        passed keys are validated against the model specification, merged on
-        top of the defaults, and the vector-valued entries are normalized to
-        length-k arrays.
-
-        Args:
-            prior_parameters (dict or None): User-supplied prior parameters.
-
-        Returns:
-            dict: Validated and normalized prior-parameter dictionary.
-        """
-        default_prior_parameters = self._default_prior_parameters()
-        if prior_parameters is None:
-            prior_parameters = default_prior_parameters
-        else:
-            extra_items = [item for item in prior_parameters.keys()
-                           if item not in default_prior_parameters.keys()]
-            err_msg = "{} passed with prior_parameters, " \
-                "but not part of model specification.".format(extra_items)
-            assert len(extra_items) < 1, err_msg
-            tmp = default_prior_parameters.copy()
-            tmp.update(prior_parameters)
-            prior_parameters = tmp
-
-        prior_parameters = prior_parameters.copy()
-        for parameter_name in ('mu_X', 'sigma_X', 'mu_sigma_X',
-                               'sigma_sigma_X', 'N_b_mu', 'N_b_sigma',
-                               'N_d_mu', 'N_d_sigma'):
-            prior_parameters[parameter_name] = self._normalize_vector_parameter(
-                prior_parameters[parameter_name], parameter_name)
-        return prior_parameters
-
-    def _default_predictive_var_names(self):
-        """
-        Return the names of the variables sampled for predictive calculations.
-
-        These are the population-level SCM parameters whose sampled values
-        replace the parameters of the internal predictive SCM during prior and
-        posterior predictive sampling.
-
-        Returns:
-            list: Default predictive variable names.
-        """
-        return ['alpha_mu_X', 'alpha_sigma_X', 'alpha_mu_A', 'alpha_sigma_A',
-                'alpha_mu_Y', 'alpha_sigma_Y', 'N_E', 'N_b', 'N_d']
-
-    def _initialize_predictive_var_names(self, predictive_var_names):
-        """
-        Validate or create the predictive variable-name list.
-
-        Args:
-            predictive_var_names (list or None): User-supplied variable names.
-                If None, the defaults are used. Otherwise the names are
-                validated against the model specification.
-
-        Returns:
-            list: Validated predictive variable names.
-        """
-        default_predictive_var_names = self._default_predictive_var_names()
-        if predictive_var_names is None:
-            return default_predictive_var_names
-        extra_items = [item for item in predictive_var_names
-                       if item not in default_predictive_var_names]
-        err_msg = "{} passed with predictive_var_names, " \
-            "but not part of model specification.".format(extra_items)
-        assert len(extra_items) < 1, err_msg
-        return predictive_var_names
 
     def _build_population_parameters(self):
         """
@@ -417,7 +885,7 @@ class MultivariateAgentModel:
         Returns:
             None
         """
-        X_o = self._normalize_vector_parameter(X_o, 'X_o')
+        X_o = self._flatten_vector_parameter(X_o, 'X_o')
         self.posterior_draws = draws
         pm.set_data({'X_o_': X_o, 'pred_o_': np.asarray(pred_o)},
                     model=self.model)
@@ -434,141 +902,7 @@ class MultivariateAgentModel:
         self.X_o = X_o
         return
 
-    def _parameter_draws(self, sample_group):
-        """
-        Convert sampled PyMC variables into one dictionary per draw.
-
-        Chains and draws are flattened into a single draw axis. Each returned
-        dictionary maps a predictive variable name to its value for that draw,
-        with scalars cast to float and vector-valued parameters (e.g. N_b,
-        N_d, alpha_mu_X) kept as arrays. These dictionaries are then used to
-        update the internal predictive SCM.
-
-        Args:
-            sample_group: An ArviZ group (e.g. ``trace.posterior`` or
-                ``prior_samples.prior``) holding the sampled variables.
-
-        Returns:
-            list: One parameter dictionary per draw.
-        """
-        first_var = self.predictive_var_names[0]
-        first_values = sample_group[first_var].values
-        n_draws = int(np.prod(first_values.shape[:2]))
-        parameter_values = {}
-        for var_name in self.predictive_var_names:
-            values = sample_group[var_name].values
-            parameter_values[var_name] = values.reshape(
-                (n_draws,) + values.shape[2:])
-
-        draws = []
-        for draw_index in range(n_draws):
-            parameters = {}
-            for var_name, values in parameter_values.items():
-                value = values[draw_index]
-                if np.asarray(value).shape == ():
-                    value = float(value)
-                parameters[var_name] = value
-            draws.append(parameters)
-        return draws
-
-    def sample_prior_predictive(self, draws=1000, rng=None):
-        """
-        Method for sampling from the distribution based on the agent's prior
-        beliefs. For every draw of the predictive parameters from the prior,
-        the internal predictive SCM is updated and one (X, A, Y) sample is
-        generated from it.
-
-        Args:
-            draws (int): Size of sample to draw.
-            rng: Seed or initialized random number generator for
-                reproducibility.
-
-        Returns:
-            list: One ``[X, A, Y]`` triple per draw.
-        """
-        with self.model:
-            tmp = pm.sample_prior_predictive(
-                draws=draws,
-                var_names=self.predictive_var_names,
-                random_seed=rng)
-        self.prior_samples = tmp
-        parameter_draws = self._parameter_draws(tmp.prior)
-        self.prior_draws = len(parameter_draws)
-        samples = []
-        for parameters in parameter_draws:
-            self.predictive_scm.update_parameters(parameters)
-            X, A, Y, *_ = self.predictive_scm.sample(rng=rng)
-            samples.append([X, A, Y])
-        self.prior_predictive_samples = samples
-        return samples
-
-    def _ensure_prior_samples(self, rng=None):
-        """
-        Draw prior samples if they have not been drawn yet.
-
-        Args:
-            rng: Seed or initialized random number generator for
-                reproducibility, used only if prior samples are drawn here.
-        """
-        if self.prior_samples is None:
-            self.sample_prior_predictive(rng=rng)
-
-    def sample_prior_predictive_do_A(self, X, A_treatment, rng=None):
-        """
-        Method for estimating the outcome for a patient with features X based
-        on the agent's prior beliefs. Draws one potential outcome for every
-        prior draw.
-
-        Args:
-            X (np.array): Feature vector of length k to condition on.
-            A_treatment (float): Fixed treatment value.
-            rng: Seed or initialized random number generator for
-                reproducibility.
-
-        Returns:
-            tuple: ``(do_A_samples, do_A_mean, do_A_std)``.
-        """
-        self._ensure_prior_samples(rng=rng)
-        X = self._normalize_vector_parameter(X, 'X')
-        do_A_samples = np.zeros(shape=(self.prior_draws,))
-        for i, parameters in enumerate(self._parameter_draws(self.prior_samples.prior)):
-            self.predictive_scm.update_parameters(parameters)
-            tmp = self.predictive_scm.sample_do_A(A_treatment, X, rng=rng)
-            do_A_samples[i] = tmp[0][0]
-        do_A_mean = np.mean(do_A_samples)
-        do_A_std = np.std(do_A_samples)
-        return do_A_samples, do_A_mean, do_A_std
-
-    def sample_prior_predictive_CATE(self, X, A1_treatment, A0_treatment, rng=None):
-        """
-        This method returns a sample from the prior CATE-distribution, and its
-        sample mean and standard deviation. The current SCM is such that N_E is
-        not dependent on X, so the treatment effect only depends on N_E and the
-        size of the treatments.
-
-        Args:
-            X (np.array): Feature vector of length k to condition on.
-            A1_treatment (float): Dosage value of higher dose treatment.
-            A0_treatment (float): Dosage value of lower dose treatment.
-            rng: Seed or initialized random number generator for
-                reproducibility.
-
-        Returns:
-            tuple: ``(CATE_samples, CATE_mean, CATE_std)``.
-        """
-        self._ensure_prior_samples(rng=rng)
-        X = self._normalize_vector_parameter(X, 'X')
-        CATE_samples = np.zeros(shape=(self.prior_draws,))
-        for i, parameters in enumerate(self._parameter_draws(self.prior_samples.prior)):
-            self.predictive_scm.update_parameters(parameters)
-            tmp = self.predictive_scm.sample_CATE(
-                X, A1_treatment, A0_treatment, rng=rng)
-            CATE_samples[i] = tmp[0][0]
-        CATE_mean = np.mean(CATE_samples)
-        CATE_std = np.std(CATE_samples)
-        return CATE_samples, CATE_mean, CATE_std
-
-    def get_prior_CATE_mu(self, A1_treatment, A0_treatment):
+    def get_prior_CATE_mu(self, A1_treatment, A0_treatment):  # REMOVE? This has the potential to break something with a different model.
         """
         Return the prior mean of the CATE-distribution. The current SCM is such
         that N_E is not dependent on X and the treatment effect only depends on
@@ -578,262 +912,5 @@ class MultivariateAgentModel:
             A1_treatment (float): Dosage value of higher dose treatment.
             A0_treatment (float): Dosage value of lower dose treatment.
         """
+        warnings.warn("This method will be deprecated soon.")
         return (A1_treatment - A0_treatment) * self.prior_parameters['N_E_mu']
-
-    def sample_prior_predictive_summaries(self, rng=None):
-        """
-        Method that estimates the mean, standard deviation, skewness, and
-        kurtosis of the variables X, A, and Y in the prior predictive samples.
-
-        Args:
-            rng: Seed or initialized random number generator for
-                reproducibility. Used only if prior samples were not drawn
-                earlier.
-
-        Returns:
-            dict: Summary statistics keyed by ``pri_<var>_<moment>``.
-        """
-        self._ensure_prior_samples(rng=rng)
-        tmp_X = [item[0] for item in self.prior_predictive_samples]
-        tmp_A = [item[1] for item in self.prior_predictive_samples]
-        tmp_Y = [item[2] for item in self.prior_predictive_samples]
-        results = {}
-        results['pri_X_mean'] = np.mean(tmp_X)
-        results['pri_A_mean'] = np.mean(tmp_A)
-        results['pri_Y_mean'] = np.mean(tmp_Y)
-        results['pri_X_std'] = np.std(tmp_X)
-        results['pri_A_std'] = np.std(tmp_A)
-        results['pri_Y_std'] = np.std(tmp_Y)
-        results['pri_X_skew'] = skew(np.asarray(tmp_X).reshape(-1))
-        results['pri_A_skew'] = skew(tmp_A)[0]
-        results['pri_Y_skew'] = skew(tmp_Y)[0]
-        results['pri_X_kurtosis'] = kurtosis(np.asarray(tmp_X).reshape(-1))
-        results['pri_A_kurtosis'] = kurtosis(tmp_A)[0]
-        results['pri_Y_kurtosis'] = kurtosis(tmp_Y)[0]
-        return results
-
-    def sample_posterior_predictive(self, rng=None):
-        """
-        This method generates a sample from the agent's posterior beliefs.
-        Using the trace stored in self, it replaces the parameter values in
-        the internal predictive SCM with each posterior draw and draws a
-        posterior predictive sample from it.
-
-        Args:
-            rng: Seed or initialized random number generator for
-                reproducibility.
-
-        Returns:
-            list: One ``(X, A, Y, mu_Y_cond, std_Y_cond)`` sample per draw.
-        """
-        parameter_draws = self._parameter_draws(self.trace.posterior)
-        self.posterior_draws = len(parameter_draws)
-        samples = []
-        for parameters in parameter_draws:
-            self.predictive_scm.update_parameters(parameters)
-            samples.append(self.predictive_scm.sample(rng=rng))
-        self.posterior_predictive_samples = samples
-        return samples
-
-    def sample_posterior_predictive_CATE(self, X, A1_treatment, A0_treatment,
-                                         rng=None):
-        """
-        This method returns a sample from the posterior predictive
-        CATE-distribution, and its sample mean and standard deviation.
-
-        Args:
-            X (np.array): Feature vector of length k to condition on.
-            A1_treatment (float): Higher dose treatment value.
-            A0_treatment (float): Lower dose treatment value.
-            rng: Seed or initialized random number generator for
-                reproducibility.
-
-        Returns:
-            tuple: ``(CATE_samples, CATE_mean, CATE_std)``.
-        """
-        X = self._normalize_vector_parameter(X, 'X')
-        parameter_draws = self._parameter_draws(self.trace.posterior)
-        CATE_samples = np.zeros(shape=(len(parameter_draws),))
-        for i, parameters in enumerate(parameter_draws):
-            self.predictive_scm.update_parameters(parameters)
-            tmp = self.predictive_scm.sample_CATE(
-                X, A1_treatment, A0_treatment, rng=rng)
-            CATE_samples[i] = tmp[0][0]
-        CATE_mean = np.mean(CATE_samples)
-        CATE_std = np.std(CATE_samples)
-        return CATE_samples, CATE_mean, CATE_std
-
-    def sample_posterior_predictive_do_A(self, X, A_treatment, rng=None):
-        """
-        Method for estimating the outcome for a patient with features X based
-        on the agent's posterior beliefs. Draws one potential outcome for every
-        draw in the trace.
-
-        Args:
-            X (np.array): Feature vector of length k to condition on.
-            A_treatment (float): Fixed treatment value.
-            rng: Seed or initialized random number generator for
-                reproducibility.
-
-        Returns:
-            tuple: ``(potential_outcomes, do_A_mean, do_A_std)``.
-        """
-        X = self._normalize_vector_parameter(X, 'X')
-        parameter_draws = self._parameter_draws(self.trace.posterior)
-        potential_outcomes = np.zeros(shape=(len(parameter_draws),))
-        for i, parameters in enumerate(parameter_draws):
-            self.predictive_scm.update_parameters(parameters)
-            tmp = self.predictive_scm.sample_do_A(A_treatment, X, rng=rng)
-            potential_outcomes[i] = tmp[0][0]
-        do_A_mean = np.mean(potential_outcomes)
-        do_A_std = np.std(potential_outcomes)
-        return potential_outcomes, do_A_mean, do_A_std
-
-    def sample_posterior_predictive_summaries(self, rng=None):
-        """
-        Method that estimates the mean, standard deviation, skewness, and
-        kurtosis of the variables X, A, and Y in the posterior predictive
-        samples.
-
-        Args:
-            rng: Seed or initialized random number generator for
-                reproducibility. Used only if posterior predictive samples
-                were not drawn earlier.
-
-        Returns:
-            dict: Summary statistics keyed by ``post_<var>_<moment>``.
-        """
-        if self.posterior_predictive_samples is None:
-            self.sample_posterior_predictive(rng=rng)
-        tmp_X = [item[0] for item in self.posterior_predictive_samples]
-        tmp_A = [item[1] for item in self.posterior_predictive_samples]
-        tmp_Y = [item[2] for item in self.posterior_predictive_samples]
-        results = {}
-        results['post_X_mean'] = np.mean(tmp_X)
-        results['post_A_mean'] = np.mean(tmp_A)
-        results['post_Y_mean'] = np.mean(tmp_Y)
-        results['post_X_std'] = np.std(tmp_X)
-        results['post_A_std'] = np.std(tmp_A)
-        results['post_Y_std'] = np.std(tmp_Y)
-        results['post_X_skew'] = skew(np.asarray(tmp_X).reshape(-1))
-        results['post_A_skew'] = skew(tmp_A)[0]
-        results['post_Y_skew'] = skew(tmp_Y)[0]
-        results['post_X_kurtosis'] = kurtosis(np.asarray(tmp_X).reshape(-1))
-        results['post_A_kurtosis'] = kurtosis(tmp_A)[0]
-        results['post_Y_kurtosis'] = kurtosis(tmp_Y)[0]
-        return results
-
-    def trace_diagnostics(self):
-        """
-        Return basic sampler diagnostics for the current posterior trace.
-
-        Returns:
-            dict: ``max_rhat``, ``min_ess_bulk``, ``min_ess_tail`` (computed
-            with ArviZ), and ``n_divergences``.
-        """
-        rhat_values = az.rhat(self.trace)
-        ess_bulk_values = az.ess(self.trace, method='bulk')
-        ess_tail_values = az.ess(self.trace, method='tail')
-        return {
-            'max_rhat': float(rhat_values.to_array().max().values),
-            'min_ess_bulk': float(ess_bulk_values.to_array().min().values),
-            'min_ess_tail': float(ess_tail_values.to_array().min().values),
-            'n_divergences': int(self.trace.sample_stats['diverging'].sum()),
-        }
-
-    def save_agent_model(self, file_name='multivariate_agent_model',
-                         folder='./saved_models/'):
-        """
-        Save the agent model configuration and available samples.
-
-        The trace and prior samples are written separately with ArviZ
-        (NetCDF), and the rest of the configuration is pickled with joblib.
-        The PyMC model, trace, and prior samples are temporarily detached
-        before pickling and restored afterwards.
-
-        Args:
-            file_name (str): Base filename without extension. Creates
-                ``{file_name}.joblib`` and, when available,
-                ``{file_name}_trace.nc`` and ``{file_name}_prior_samples.nc``.
-            folder (str): Folder to save the model into.
-        """
-        folder = Path(folder)
-        folder.mkdir(parents=True, exist_ok=True)
-        file_path = folder / file_name
-
-        if self.trace is not None:
-            self.trace.to_netcdf(f'{file_path}_trace.nc')
-            print(f"Trace saved to {file_path}_trace.nc")
-        if self.prior_samples is not None:
-            self.prior_samples.to_netcdf(f'{file_path}_prior_samples.nc')
-            print(f"Prior samples saved to {file_path}_prior_samples.nc")
-
-        trace_backup = self.trace
-        prior_samples_backup = self.prior_samples
-        model_backup = self.model
-        self.trace = None
-        self.prior_samples = None
-        self.model = None
-
-        joblib.dump(self, f'{file_path}.joblib')
-
-        self.trace = trace_backup
-        self.prior_samples = prior_samples_backup
-        self.model = model_backup
-
-        print(f"Complete agent model saved to {file_path}.joblib")
-
-    @classmethod
-    def load_agent_model(cls, file_name='multivariate_agent_model',
-                         folder='./saved_models/'):
-        """
-        Load a saved multivariate agent model.
-
-        The configuration is loaded with joblib and the PyMC model is
-        reconstructed by re-running ``__init__``. The trace and prior samples
-        are loaded from their NetCDF files if present.
-
-        Args:
-            file_name (str): Base filename without extension. Expects to find
-                ``{file_name}.joblib`` and, optionally, ``{file_name}_trace.nc``
-                and ``{file_name}_prior_samples.nc``.
-            folder (str): Folder the model is saved in.
-
-        Returns:
-            MultivariateAgentModel: The loaded agent model.
-        """
-        file_path = Path(folder) / file_name
-        agent = joblib.load(f'{file_path}.joblib')
-        print("Agent model loaded from {}".format(file_path))
-
-        posterior_draws = agent.posterior_draws
-        prior_draws = agent.prior_draws
-        X_o = agent.X_o
-
-        agent.__init__(
-            n_covariates=agent.n_covariates,
-            plate_size=agent.plate_size,
-            prior_parameters=agent.prior_parameters,
-            predictive_var_names=agent.predictive_var_names,
-            fit_intercept=agent.fit_intercept,
-        )
-
-        agent.posterior_draws = posterior_draws
-        agent.prior_draws = prior_draws
-        agent.X_o = X_o
-
-        try:
-            agent.trace = az.from_netcdf(f'{file_path}_trace.nc')
-        except FileNotFoundError:
-            agent.trace = None
-            print("Trace not loaded (file {}_trace.nc does not exist).".format(
-                file_path))
-
-        try:
-            agent.prior_samples = az.from_netcdf(
-                f'{file_path}_prior_samples.nc')
-        except FileNotFoundError:
-            agent.prior_samples = None
-            print("Prior samples not loaded (file "
-                  "{}_prior_samples.nc does not exist).".format(file_path))
-        return agent
