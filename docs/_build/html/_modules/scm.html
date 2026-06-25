@@ -45,6 +45,8 @@
 <li class="toctree-l1"><a class="reference internal" href="../modules/scm.html">Structural Causal Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_collapsed.html">Collapsed Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/utils.html">Utilities</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">SLURM Scripts</span></p>
@@ -79,7 +81,7 @@
              
   <h1>Source code for scm</h1><div class="highlight"><pre>
 <span></span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">Structural causal model (SCM) for </span>
+<span class="sd">Structural causal model (SCM) for</span>
 <span class="sd">-data generation, and</span>
 <span class="sd">-for agent&#39;s internal representation.</span>
 <span class="sd">Agent uses this model to prescribe treatment</span>
@@ -87,61 +89,91 @@
 <span class="sd">information, and based on his posterior beliefs</span>
 <span class="sd">after seeing new information.</span>
 
+<span class="sd">Defines the abstract :class:`SCM` base class, the scalar :class:`SCM_WithConstants`</span>
+<span class="sd">(fixed scalar or k-dimensional-with-fixed-coefficients structural model), and</span>
+<span class="sd">:class:`MultivariateSCM` (k-dimensional X with its own coefficient vectors</span>
+<span class="sd">``N_b``/``N_d`` and intercept folded into ``alpha_mu_Y``).</span>
+
 <span class="sd">Notes:</span>
 <span class="sd">Might be more efficient to reimplement the SCM</span>
 <span class="sd">class using pymc, especially as the Bayesian agent</span>
 <span class="sd">(agent model) is implemented using pymc.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
-
-
-<span class="c1"># ---------- helpers ----------</span>
-<div class="viewcode-block" id="sigmoid">
-<a class="viewcode-back" href="../modules/scm.html#scm.sigmoid">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">sigmoid</span><span class="p">(</span><span class="n">z</span><span class="p">):</span>
-    <span class="k">return</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">z</span><span class="p">))</span></div>
-
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 
 
 <div class="viewcode-block" id="SCM">
 <a class="viewcode-back" href="../modules/scm.html#scm.SCM">[docs]</a>
-<span class="nd">@dataclass</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">SCM</span><span class="p">:</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SCM</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Class for SCM with continuous A, continuous X, and continuous Y.</span>
-<span class="sd">    This SCM encodes information so that \n</span>
-<span class="sd">    N_Xi ~ N(alpha_mu_X, alpha_sigma_X) \n</span>
-<span class="sd">    N_Yi ~ N(alpha_mu_Y, alpha_sigma_Y) \n</span>
-<span class="sd">    N_Ai ~ N(alpha_mu_A, alpha_sigma_A) \n</span>
-<span class="sd">    Y_i = a + b * X_i + N_E * A_i + N_Yi \n</span>
-<span class="sd">    A_i = d * X_i + N_Ai \n</span>
-<span class="sd">    X_i = N_Xi</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        alpha_mu_X (float): Mean of X</span>
-<span class="sd">        alpha_sigma_X (float): Standard deviation of X</span>
-<span class="sd">        alpha_mu_A (float): Mean of A</span>
-<span class="sd">        alpha_sigma_A (float): Standard deviation of A</span>
-<span class="sd">        alpha_mu_Y (float): Mean of Y</span>
-<span class="sd">        alpha_sigma_Y (float): Standard deviation of Y</span>
-<span class="sd">        N_E (float): Effect size. The effect size is a fixed number. All</span>
-<span class="sd">            variability is explained by variance in other RVs.</span>
-<span class="sd">        a (float): Constant for SCM</span>
-<span class="sd">        b (float): Constant for SCM</span>
-<span class="sd">        d (float): Constant for SCM</span>
+<span class="sd">    Abstract Base Class for SCMs.</span>
+<span class="sd">    You need to overwrite __init__() and sample() in your subclass.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">alpha_mu_X</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">80</span>
-    <span class="n">alpha_sigma_X</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span>
-    <span class="n">alpha_mu_A</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span>
-    <span class="n">alpha_sigma_A</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
-    <span class="n">alpha_mu_Y</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
-    <span class="n">alpha_sigma_Y</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>
-    <span class="n">N_E</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
-    <span class="n">a</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">12.0</span>
-    <span class="n">b</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.1</span>
-    <span class="n">d</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.125</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">():</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_flatten_covariate_parameters</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_covariate_parameter_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Names of the covariate-related parameters that need to be</span>
+<span class="sd">        flattened to length-k arrays by :meth:`_flatten_covariate_parameters`.</span>
+<span class="sd">        Overridable so subclasses can use different coefficient names.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">,</span> <span class="s1">&#39;b&#39;</span><span class="p">,</span> <span class="s1">&#39;d&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_flatten_covariate_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Flatten covariate-related parameters to one-dimensional numpy arrays</span>
+<span class="sd">        and set ``self.n_covariates`` accordingly.</span>
+
+<span class="sd">        Scalars are broadcast if another covariate parameter, or an</span>
+<span class="sd">        already-set ``self.n_covariates`` (e.g. requested explicitly by a</span>
+<span class="sd">        subclass&#39;s constructor before this runs), determines k &gt; 1.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">covariate_parameter_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_covariate_parameter_names</span><span class="p">()</span>
+        <span class="n">raw_parameters</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">n_covariates</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;n_covariates&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">parameter_name</span> <span class="ow">in</span> <span class="n">covariate_parameter_names</span><span class="p">:</span>
+            <span class="n">parameter</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parameter_name</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">parameter_name</span><span class="si">}</span><span class="s2"> must be scalar or one-dimensional.&quot;</span><span class="p">)</span>
+            <span class="n">raw_parameters</span><span class="p">[</span><span class="n">parameter_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">parameter</span>
+            <span class="n">n_covariates</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">n_covariates</span><span class="p">,</span> <span class="n">parameter</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">parameter_name</span><span class="p">,</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">raw_parameters</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">n_covariates</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">parameter</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">n_covariates</span><span class="p">,</span> <span class="n">parameter</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">parameter</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="n">n_covariates</span><span class="p">:</span>
+                <span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">parameter_name</span><span class="si">}</span><span class="s2"> must have length </span><span class="si">{</span><span class="n">n_covariates</span><span class="si">}</span><span class="s2">, not </span><span class="si">{</span><span class="n">parameter</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parameter_name</span><span class="p">,</span> <span class="n">parameter</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span> <span class="o">=</span> <span class="n">n_covariates</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_coerce_X</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Convert X to a matrix representation with shape (n, k) for internal use.</span>
+<span class="sd">        Returns the original numpy representation, the matrix representation, and</span>
+<span class="sd">        whether X encodes a single observation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">X_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">X_matrix</span> <span class="o">=</span> <span class="n">X_array</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">single_observation</span> <span class="o">=</span> <span class="n">X_array</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">()</span>
+            <span class="k">return</span> <span class="n">X_array</span><span class="p">,</span> <span class="n">X_matrix</span><span class="p">,</span> <span class="n">single_observation</span>
+
+        <span class="k">if</span> <span class="n">X_array</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">,):</span>
+            <span class="k">return</span> <span class="n">X_array</span><span class="p">,</span> <span class="n">X_array</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">X_array</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">X_array</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">X_array</span><span class="p">,</span> <span class="n">X_array</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">),</span> <span class="kc">False</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;X must have shape (</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="si">}</span><span class="s2">,) or (..., </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="si">}</span><span class="s2">).&quot;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
 
 <div class="viewcode-block" id="SCM.update_parameters">
 <a class="viewcode-back" href="../modules/scm.html#scm.SCM.update_parameters">[docs]</a>
@@ -157,63 +189,15 @@
             <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
                 <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unknown parameter: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">))</span></div>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unknown parameter: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_flatten_covariate_parameters</span><span class="p">()</span></div>
 
 
 <div class="viewcode-block" id="SCM.sample">
 <a class="viewcode-back" href="../modules/scm.html#scm.SCM.sample">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">A</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        This method encodes the structure of the SCM and generates </span>
-<span class="sd">        samples of X, Y, and A: \n</span>
-<span class="sd">        :math:`X, A, Y \sim p(X, Y, A)` \n</span>
-<span class="sd">        If X is passed, then the output A and Y are conditional on</span>
-<span class="sd">        the value of X: \n</span>
-<span class="sd">        :math:`A, Y \sim p(A, Y| X)` \n</span>
-<span class="sd">        If A is passed, the output Y is conditional on the</span>
-<span class="sd">        intervention do(A): \n</span>
-<span class="sd">        :math:`X, Y \sim p(X, Y| do(A))` \n</span>
-<span class="sd">        If both X and Y are passed, the output is conditional on X</span>
-<span class="sd">        and on the intervention do(A): \n</span>
-<span class="sd">        :math:`Y \sim p(Y| X, do(A))` \n</span>
-<span class="sd">        All of X, A, and Y are always returned. In addition, the distribution</span>
-<span class="sd">        parameters for Y (mu_Y_cond, and std_Y_cond) are returned. If X</span>
-<span class="sd">        and/or A are provided, the distribution parameters are conditional</span>
-<span class="sd">        on the given values. Otherwise they are &quot;conditional&quot; only on the</span>
-<span class="sd">        sampled values (in contrast how the word &quot;conditional&quot; is normally</span>
-<span class="sd">        used).</span>
-
-<span class="sd">        Args:</span>
-<span class="sd">            X: Optional input. If provided, output will be conditional on X.</span>
-<span class="sd">            A: Optional input. If provided, output will be conditional on do(A).</span>
-<span class="sd">            draws (int): Size of sample to generate.</span>
-<span class="sd">            rng: seed or initialized random number generator for reproducibility</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Sample noise when needed:</span>
-        <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">X</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="c1"># Sample N_X and calculate X</span>
-            <span class="n">N_X</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha_mu_X</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_X</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">draws</span><span class="p">)</span>
-            <span class="n">X</span> <span class="o">=</span> <span class="n">N_X</span>
-        <span class="k">if</span> <span class="n">A</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="c1"># Sample N_A and calculate A</span>
-            <span class="n">N_A</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha_mu_A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_A</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">draws</span><span class="p">)</span>
-            <span class="c1"># Calculate A</span>
-            <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">d</span> <span class="o">*</span> <span class="n">X</span> <span class="o">+</span> <span class="n">N_A</span>
-        <span class="c1"># Sample N_Y, center around zero and add self.alpha_mu_Y later</span>
-        <span class="c1"># to also be able to extract parameter mu_Y_cond.</span>
-        <span class="n">N_Y_0_centered</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_Y</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">draws</span><span class="p">)</span>
-        <span class="c1"># Estimate conditional parameters for Y|X,do(A) ~ N(mu_Y, sigma_Y)</span>
-        <span class="c1"># If neither X nor A was passed, the generated Y is &quot;conditional&quot; on</span>
-        <span class="c1"># the sampled values (this is not what &quot;conditional&quot; usually refers to).</span>
-        <span class="c1"># If X was passed, the output Y is conditional on the passed value. </span>
-        <span class="c1"># If A was passed, the output Y is conditional on do(A).</span>
-        <span class="n">mu_Y_cond</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">a</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">*</span> <span class="n">X</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">N_E</span> <span class="o">*</span> <span class="n">A</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_mu_Y</span>
-        <span class="n">std_Y_cond</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full_like</span><span class="p">(</span><span class="n">mu_Y_cond</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_Y</span><span class="p">)</span>
-        <span class="c1"># Model defines the treatement effect as independent of X.</span>
-        <span class="n">Y</span> <span class="o">=</span> <span class="n">mu_Y_cond</span> <span class="o">+</span> <span class="n">N_Y_0_centered</span>
-        <span class="c1"># {&#39;X&#39;: X, &#39;Y&#39;: Y, &#39;A&#39;: A, &#39;mu_Y_cond&#39;: mu_Y_cond, &#39;std_Y_cond&#39;: std_Y_cond}</span>
-        <span class="k">return</span> <span class="n">X</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">mu_Y_cond</span><span class="p">,</span> <span class="n">std_Y_cond</span></div>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample</span><span class="p">():</span>
+        <span class="k">pass</span></div>
 
 
 <div class="viewcode-block" id="SCM.sample_do_A">
@@ -232,14 +216,6 @@
 <span class="sd">            draws (int): Size of sample to draw for every observation in A.</span>
 <span class="sd">            rng: seed or initialized random number generator for reproducibility</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="c1"># Either include checks everywhere or nowhere.</span>
-        <span class="c1"># X = np.asarray(X)</span>
-        <span class="c1"># A_treatment = np.asarray(A_treatment)</span>
-        <span class="c1"># if A_treatment.shape == ():  # broadcast scalar</span>
-        <span class="c1">#     A_treatment = np.full_like(X, A_treatment)</span>
-        <span class="c1"># if A_treatment.shape != X.shape:</span>
-        <span class="c1">#     raise ValueError(&quot;`A_treatment` and `X` must have the same shape &quot;</span>
-        <span class="c1">#                      &quot;or `A_treatment` must be scalar.&quot;)</span>
         <span class="n">_X</span><span class="p">,</span> <span class="n">_A</span><span class="p">,</span> <span class="n">Y_do</span><span class="p">,</span> <span class="o">*</span><span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">A</span><span class="o">=</span><span class="n">A_treatment</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="n">draws</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
         <span class="n">Y_do_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">Y_do</span><span class="p">)</span>
         <span class="n">Y_do_std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">Y_do</span><span class="p">)</span>
@@ -282,87 +258,290 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">get_CATE_mu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        This method returns the mean of the CATE-distribution given</span>
-<span class="sd">        X, A1_treatment, and A0_treatment. Due to how the SCM is defined,</span>
-<span class="sd">        this value is equivalent to (A1_treatment - A0_treatment) * self.N_E.</span>
+<span class="sd">        A1_treatment and A0_treatment. Due to how the SCM is defined, this</span>
+<span class="sd">        value is equivalent to (A1_treatment - A0_treatment) * self.N_E.</span>
 
-<span class="sd">        The SCM in this class is defined so that Y given A and X is</span>
-<span class="sd">        normally distributed and its parameters are deterministically</span>
-<span class="sd">        determined by the values of A and X. This results in the CATE-</span>
-<span class="sd">        distibution also being normal and allows for deterministic</span>
-<span class="sd">        calculation of the mean as: \n</span>
+<span class="sd">        The SCM in this class is defined so that Y given A and X is normally</span>
+<span class="sd">        distributed and its parameters are deterministically determined by the</span>
+<span class="sd">        values of A and X. This results in the CATE-distribution also being</span>
+<span class="sd">        normal and allows for deterministic calculation of the mean as: \n</span>
 <span class="sd">        CATE_mu(X) = E(Y| X, do(A=A1)) - E(Y| X, do(A=A0))</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            A1_treatment (float): Dosage value of higher dose treatment</span>
-<span class="sd">            A0_treatment (float): Dosage value of lower dose treatment</span>
+<span class="sd">            A1_treatment (float): Dosage value of higher dose treatment.</span>
+<span class="sd">            A0_treatment (float): Dosage value of lower dose treatment.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">(</span><span class="n">A1_treatment</span> <span class="o">-</span> <span class="n">A0_treatment</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">N_E</span></div>
 </div>
 
 
 
-<div class="viewcode-block" id="BinaryA_SCM">
-<a class="viewcode-back" href="../modules/scm.html#scm.BinaryA_SCM">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">BinaryA_SCM</span><span class="p">(</span><span class="n">SCM</span><span class="p">):</span>
+<div class="viewcode-block" id="SCM_WithConstants">
+<a class="viewcode-back" href="../modules/scm.html#scm.SCM_WithConstants">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SCM_WithConstants</span><span class="p">(</span><span class="n">SCM</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    A specific SCM with binary treatment A, continuous X and Y.</span>
-<span class="sd">    This class inherits from SCM and sets the A_type to &quot;binary&quot;.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alpha_mu_X</span><span class="p">,</span> <span class="n">alpha_sigma_X</span><span class="p">,</span> <span class="n">alpha_mu_A</span><span class="p">,</span>
-                 <span class="n">alpha_sigma_Y</span><span class="p">,</span> <span class="n">N_E</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
-            <span class="n">alpha_mu_X</span><span class="o">=</span><span class="n">alpha_mu_X</span><span class="p">,</span>
-            <span class="n">alpha_sigma_X</span><span class="o">=</span><span class="n">alpha_sigma_X</span><span class="p">,</span>
-            <span class="n">alpha_mu_A</span><span class="o">=</span><span class="n">alpha_mu_A</span><span class="p">,</span>
-            <span class="n">alpha_sigma_Y</span><span class="o">=</span><span class="n">alpha_sigma_Y</span><span class="p">,</span>
-            <span class="n">N_E</span><span class="o">=</span><span class="n">N_E</span><span class="p">,</span>
-        <span class="p">)</span>
+<span class="sd">    Class for SCM with continuous A, continuous X, and continuous Y.</span>
+<span class="sd">    This SCM encodes information so that \n</span>
+<span class="sd">    N_Xi ~ N(alpha_mu_X, alpha_sigma_X) \n</span>
+<span class="sd">    N_Yi ~ N(alpha_mu_Y, alpha_sigma_Y) \n</span>
+<span class="sd">    N_Ai ~ N(alpha_mu_A, alpha_sigma_A) \n</span>
+<span class="sd">    Y_i = a + b * X_i + N_E * A_i + N_Yi \n</span>
+<span class="sd">    A_i = d * X_i + N_Ai \n</span>
+<span class="sd">    X_i = N_Xi</span>
 
-<div class="viewcode-block" id="BinaryA_SCM.sample">
-<a class="viewcode-back" href="../modules/scm.html#scm.BinaryA_SCM.sample">[docs]</a>
+<span class="sd">    Args:</span>
+<span class="sd">        alpha_mu_X (float): Mean of X</span>
+<span class="sd">        alpha_sigma_X (float): Standard deviation of X</span>
+<span class="sd">        alpha_mu_A (float): Mean of A</span>
+<span class="sd">        alpha_sigma_A (float): Standard deviation of A</span>
+<span class="sd">        alpha_mu_Y (float): Mean of Y</span>
+<span class="sd">        alpha_sigma_Y (float): Standard deviation of Y</span>
+<span class="sd">        N_E (float): Effect size. The effect size is a fixed number. All</span>
+<span class="sd">            variability is explained by variance in other RVs.</span>
+<span class="sd">        a (float): Constant for SCM</span>
+<span class="sd">        b (float): Constant for SCM</span>
+<span class="sd">        d (float): Constant for SCM</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">alpha_mu_X</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">80</span>
+    <span class="n">alpha_sigma_X</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">alpha_mu_A</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">alpha_sigma_A</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">alpha_mu_Y</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="n">alpha_sigma_Y</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>
+    <span class="n">N_E</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">a</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">12.0</span>
+    <span class="n">b</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.1</span>
+    <span class="n">d</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.125</span>
+
+
+<div class="viewcode-block" id="SCM_WithConstants.sample">
+<a class="viewcode-back" href="../modules/scm.html#scm.SCM_WithConstants.sample">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">A</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Definition of SCM structure (and variables)</span>
-<span class="sd">        If N_A is passed, A is calculated. If A is passed,</span>
-<span class="sd">        it is used as is.</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This method encodes the structure of the SCM and generates</span>
+<span class="sd">        samples of X, Y, and A: \n</span>
+<span class="sd">        :math:`X, A, Y \sim p(X, Y, A)` \n</span>
+<span class="sd">        If X is passed, then the output A and Y are conditional on</span>
+<span class="sd">        the value of X: \n</span>
+<span class="sd">        :math:`A, Y \sim p(A, Y| X)` \n</span>
+<span class="sd">        If A is passed, the output Y is conditional on the</span>
+<span class="sd">        intervention do(A): \n</span>
+<span class="sd">        :math:`X, Y \sim p(X, Y| do(A))` \n</span>
+<span class="sd">        If both X and Y are passed, the output is conditional on X</span>
+<span class="sd">        and on the intervention do(A): \n</span>
+<span class="sd">        :math:`Y \sim p(Y| X, do(A))` \n</span>
+<span class="sd">        All of X, A, and Y are always returned. In addition, the distribution</span>
+<span class="sd">        parameters for Y (mu_Y_cond, and std_Y_cond) are returned. If X</span>
+<span class="sd">        and/or A are provided, the distribution parameters are conditional</span>
+<span class="sd">        on the given values. Otherwise they are &quot;conditional&quot; only on the</span>
+<span class="sd">        sampled values (in contrast how the word &quot;conditional&quot; is normally</span>
+<span class="sd">        used).</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            X (float): Optional input. If provided, output will be conditional on X.</span>
-<span class="sd">            A (float): Optional input. If provided, output will be conditional on do(A).</span>
+<span class="sd">            X: Optional input. If provided, output will be conditional on X.</span>
+<span class="sd">            A: Optional input. If provided, output will be conditional on do(A).</span>
 <span class="sd">            draws (int): Size of sample to generate.</span>
-<span class="sd">            rng (int or rng): seed or initialized random number generator for reproducibility</span>
+<span class="sd">            rng: seed or initialized random number generator for reproducibility</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Sample noise when needed:</span>
         <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">X</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="c1"># Sample N_X and calculate X</span>
-            <span class="n">N_X</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha_mu_X</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_X</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">draws</span><span class="p">)</span>
-            <span class="n">X</span> <span class="o">=</span> <span class="n">N_X</span>
+            <span class="n">X_matrix</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha_mu_X</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_X</span><span class="p">,</span>
+                                  <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="n">draws</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">))</span>
+            <span class="n">X_output</span> <span class="o">=</span> <span class="n">X_matrix</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">X_matrix</span>
+            <span class="n">single_observation</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">X_output</span><span class="p">,</span> <span class="n">X_matrix</span><span class="p">,</span> <span class="n">single_observation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coerce_X</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">A</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="c1"># Sample N_A and calculate A</span>
-            <span class="n">N_A</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha_mu_A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_A</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">draws</span><span class="p">)</span>
-            <span class="c1"># Calculate A</span>
-            <span class="c1"># Binary treatment A</span>
-            <span class="c1"># p(A = 1 | X, N_A) = sigmoid(d * X**2 + N_A)</span>
-            <span class="c1"># &#39;d&#39; controls the strength of the relationship between X and A.</span>
-            <span class="n">p_A</span> <span class="o">=</span> <span class="n">sigmoid</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span> <span class="o">*</span> <span class="n">X</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">N_A</span><span class="p">)</span>  <span class="c1"># P(A = 1 | X, N_A)</span>
-            <span class="n">A</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">binomial</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">p_A</span><span class="p">)</span>  <span class="c1"># binary treatment</span>
-        <span class="c1"># Sample N_y</span>
-        <span class="n">N_Y</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha_mu_Y</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_Y</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">draws</span><span class="p">)</span>
-        <span class="c1"># Agent assumes the treatement effect is independent of X and constant.</span>
-        <span class="n">Y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">a</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span> <span class="o">*</span> <span class="n">X</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">N_E</span> <span class="o">*</span> <span class="n">A</span> <span class="o">+</span> <span class="n">N_Y</span>
-        <span class="k">return</span> <span class="n">X</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">Y</span></div>
+            <span class="k">if</span> <span class="n">X</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">A_mu</span> <span class="o">=</span> <span class="n">X_matrix</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">d</span>
+            <span class="k">elif</span> <span class="n">single_observation</span><span class="p">:</span>
+                <span class="n">A_mu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">draws</span><span class="p">,</span> <span class="n">X_matrix</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">A_mu</span> <span class="o">=</span> <span class="n">X_matrix</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">d</span>
+            <span class="n">N_A</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha_mu_A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_A</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">A_mu</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">A_array</span> <span class="o">=</span> <span class="n">A_mu</span> <span class="o">+</span> <span class="n">N_A</span>
+            <span class="n">A_output</span> <span class="o">=</span> <span class="n">A_array</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">A_output</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">X</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">single_observation</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">A_output</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">():</span>
+                    <span class="n">A_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">draws</span><span class="p">,</span> <span class="n">A_output</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">A_array</span> <span class="o">=</span> <span class="n">A_output</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">A_array</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="n">A_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">draws</span><span class="p">,</span> <span class="n">A_array</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+                    <span class="k">elif</span> <span class="n">A_array</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="n">draws</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;A must be scalar or have length equal to draws.&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">A_array</span> <span class="o">=</span> <span class="n">A_output</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">A_array</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">A_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">X_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">A_array</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">A_array</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="n">X_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;A must be scalar or match the number of X observations.&quot;</span><span class="p">)</span>
+        <span class="c1"># Sample N_Y, center around zero and add self.alpha_mu_Y later</span>
+        <span class="c1"># to also be able to extract parameter mu_Y_cond.</span>
+        <span class="n">N_Y_0_centered</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_Y</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">A_array</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="c1"># Estimate conditional parameters for Y|X,do(A) ~ N(mu_Y, sigma_Y)</span>
+        <span class="c1"># If neither X nor A was passed, the generated Y is &quot;conditional&quot; on</span>
+        <span class="c1"># the sampled values (this is not what &quot;conditional&quot; usually refers to).</span>
+        <span class="c1"># If X was passed, the output Y is conditional on the passed value. </span>
+        <span class="c1"># If A was passed, the output Y is conditional on do(A).</span>
+        <span class="k">if</span> <span class="n">X</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">X_effect</span> <span class="o">=</span> <span class="n">X_matrix</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span>
+        <span class="k">elif</span> <span class="n">single_observation</span><span class="p">:</span>
+            <span class="n">X_effect</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">A_array</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">X_matrix</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">X_effect</span> <span class="o">=</span> <span class="n">X_matrix</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">b</span>
+        <span class="n">mu_Y_cond</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">a</span> <span class="o">+</span> <span class="n">X_effect</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">N_E</span> <span class="o">*</span> <span class="n">A_array</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_mu_Y</span>
+        <span class="n">std_Y_cond</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full_like</span><span class="p">(</span><span class="n">mu_Y_cond</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_Y</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="c1"># Model defines the treatement effect as independent of X.</span>
+        <span class="n">Y</span> <span class="o">=</span> <span class="n">mu_Y_cond</span> <span class="o">+</span> <span class="n">N_Y_0_centered</span>
+        <span class="k">return</span> <span class="n">X_output</span><span class="p">,</span> <span class="n">A_output</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">mu_Y_cond</span><span class="p">,</span> <span class="n">std_Y_cond</span></div>
 </div>
 
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+<div class="viewcode-block" id="MultivariateSCM">
+<a class="viewcode-back" href="../modules/scm.html#scm.MultivariateSCM">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MultivariateSCM</span><span class="p">(</span><span class="n">SCM</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Run a simple test of the SCM class</span>
+<span class="sd">    Class for an SCM with continuous k-dimensional X, continuous A, and</span>
+<span class="sd">    continuous Y. This SCM encodes information so that \n</span>
+<span class="sd">    N_Xi ~ N_k(alpha_mu_X, diag(alpha_sigma_X^2)) \n</span>
+<span class="sd">    N_Yi ~ N(0, alpha_sigma_Y) \n</span>
+<span class="sd">    N_Ai ~ N(alpha_mu_A, alpha_sigma_A) \n</span>
+<span class="sd">    X_i = N_Xi \n</span>
+<span class="sd">    A_i = N_d.T X_i + N_Ai \n</span>
+<span class="sd">    Y_i = N_b.T X_i + N_E * A_i + N_Yi</span>
+
+<span class="sd">    Relative to :class:`SCM_WithConstants`, the fixed scalar coefficients</span>
+<span class="sd">    ``b`` and ``d`` become the fixed coefficient vectors ``N_b`` and ``N_d``</span>
+<span class="sd">    of length k, and the structural intercept ``a`` is absorbed into</span>
+<span class="sd">    ``alpha_mu_Y`` (which is 0 in the scalar paper model and defaults to 12</span>
+<span class="sd">    here). For k = 1 the model reduces to the scalar SCM, except that X is</span>
+<span class="sd">    not squeezed to a 1-D array here (see :meth:`SCM_WithConstants.sample`</span>
+<span class="sd">    for the squeezing behavior).</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        n_covariates (int): Number of covariates k (dimension of X). Can be</span>
+<span class="sd">            passed explicitly to force broadcasting of scalar parameters to</span>
+<span class="sd">            length k, even when no other parameter implies k &gt; 1.</span>
+<span class="sd">        alpha_mu_X (float or array-like): Mean of X. Scalar (broadcast to</span>
+<span class="sd">            length k) or one-dimensional array of length k.</span>
+<span class="sd">        alpha_sigma_X (float or array-like): Standard deviation of X. Scalar</span>
+<span class="sd">            (broadcast to length k) or one-dimensional array of length k.</span>
+<span class="sd">        alpha_mu_A (float): Mean of A.</span>
+<span class="sd">        alpha_sigma_A (float): Standard deviation of A.</span>
+<span class="sd">        alpha_mu_Y (float): Mean of Y. Also carries the structural intercept.</span>
+<span class="sd">        alpha_sigma_Y (float): Standard deviation of Y.</span>
+<span class="sd">        N_E (float): Effect size. The effect size is a fixed number. All</span>
+<span class="sd">            variability is explained by variance in other RVs.</span>
+<span class="sd">        N_b (float or array-like): Coefficient vector mapping X to Y. Scalar</span>
+<span class="sd">            (broadcast to length k) or one-dimensional array of length k.</span>
+<span class="sd">        N_d (float or array-like): Coefficient vector mapping X to A. Scalar</span>
+<span class="sd">            (broadcast to length k) or one-dimensional array of length k.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">import</span><span class="w"> </span><span class="nn">tests.test_scm</span>
-    <span class="c1"># If no crash, then the test passed.</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">SCM test passed.&quot;</span><span class="p">)</span>
+    <span class="n">n_covariates</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">alpha_mu_X</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="mf">80.0</span>
+    <span class="n">alpha_sigma_X</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="mf">10.0</span>
+    <span class="n">alpha_mu_A</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span>
+    <span class="n">alpha_sigma_A</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">alpha_mu_Y</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">12.0</span>
+    <span class="n">alpha_sigma_Y</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span>
+    <span class="n">N_E</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">N_b</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.05</span>
+    <span class="n">N_d</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="mf">0.0625</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_covariate_parameter_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">,</span> <span class="s1">&#39;N_b&#39;</span><span class="p">,</span> <span class="s1">&#39;N_d&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="MultivariateSCM.sample">
+<a class="viewcode-back" href="../modules/scm.html#scm.MultivariateSCM.sample">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">A</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This method encodes the structure of the SCM and generates samples</span>
+<span class="sd">        of X, A, and Y: \n</span>
+<span class="sd">        :math:`X, A, Y \\sim p(X, Y, A)` \n</span>
+<span class="sd">        If X is passed, then the output A and Y are conditional on the value</span>
+<span class="sd">        of X: \n</span>
+<span class="sd">        :math:`A, Y \\sim p(A, Y| X)` \n</span>
+<span class="sd">        If A is passed, the output Y is conditional on the intervention</span>
+<span class="sd">        do(A): \n</span>
+<span class="sd">        :math:`X, Y \\sim p(X, Y| do(A))` \n</span>
+<span class="sd">        If both X and A are passed, the output is conditional on X and on the</span>
+<span class="sd">        intervention do(A): \n</span>
+<span class="sd">        :math:`Y \\sim p(Y| X, do(A))` \n</span>
+<span class="sd">        All of X, A, and Y are always returned. In addition, the conditional</span>
+<span class="sd">        distribution parameters for Y (mu_Y_cond, and std_Y_cond) are</span>
+<span class="sd">        returned. If X and/or A are provided, these parameters are conditional</span>
+<span class="sd">        on the given values. Otherwise they are &quot;conditional&quot; only on the</span>
+<span class="sd">        sampled values (in contrast to how the word &quot;conditional&quot; is normally</span>
+<span class="sd">        used).</span>
+
+<span class="sd">        Shapes follow the dimension of the input. When X is a single ``(k,)``</span>
+<span class="sd">        observation, A and Y have shape ``(draws,)``. When X is a batch with</span>
+<span class="sd">        shape ``(n, k)``, A and Y have shape ``(n,)``. When X is not provided,</span>
+<span class="sd">        X has shape ``(draws, k)`` and A and Y have shape ``(draws,)``.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            X: Optional input, shape ``(k,)`` or ``(n, k)``. If provided,</span>
+<span class="sd">                output will be conditional on X.</span>
+<span class="sd">            A: Optional input. If provided, output will be conditional on</span>
+<span class="sd">                do(A). Scalar (broadcast) or array matching the number of</span>
+<span class="sd">                observations.</span>
+<span class="sd">            draws (int): Size of sample to generate when X is not provided.</span>
+<span class="sd">            rng: Seed or initialized random number generator for</span>
+<span class="sd">                reproducibility.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple: ``(X, A, Y, mu_Y_cond, std_Y_cond)``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">X</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">X_matrix</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha_mu_X</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_X</span><span class="p">,</span>
+                                  <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="n">draws</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">))</span>
+            <span class="n">X_output</span> <span class="o">=</span> <span class="n">X_matrix</span>
+            <span class="n">single_observation</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">X_output</span><span class="p">,</span> <span class="n">X_matrix</span><span class="p">,</span> <span class="n">single_observation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coerce_X</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">A</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">single_observation</span><span class="p">:</span>
+                <span class="n">A_mu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">draws</span><span class="p">,</span> <span class="n">X_matrix</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">N_d</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">A_mu</span> <span class="o">=</span> <span class="n">X_matrix</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">N_d</span>
+            <span class="n">N_A</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha_mu_A</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_A</span><span class="p">,</span>
+                             <span class="n">size</span><span class="o">=</span><span class="n">A_mu</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">A_output</span> <span class="o">=</span> <span class="n">A_mu</span> <span class="o">+</span> <span class="n">N_A</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">A_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">A_array</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">():</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="n">draws</span> <span class="k">if</span> <span class="n">single_observation</span> <span class="k">else</span> <span class="n">X_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">A_output</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="n">A_array</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">A_output</span> <span class="o">=</span> <span class="n">A_array</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">expected_size</span> <span class="o">=</span> <span class="n">draws</span> <span class="k">if</span> <span class="n">single_observation</span> <span class="k">else</span> <span class="n">X_matrix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">A_output</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="n">expected_size</span><span class="p">:</span>
+                    <span class="n">text</span> <span class="o">=</span> <span class="s2">&quot;A must be scalar or have length </span><span class="si">{}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">expected_size</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">single_observation</span><span class="p">:</span>
+            <span class="n">X_effect</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">A_output</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">X_matrix</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">N_b</span><span class="p">,</span>
+                               <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">X_effect</span> <span class="o">=</span> <span class="n">X_matrix</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">N_b</span>
+        <span class="n">N_Y_centered</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_Y</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">A_output</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">mu_Y_cond</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_mu_Y</span> <span class="o">+</span> <span class="n">X_effect</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">N_E</span> <span class="o">*</span> <span class="n">A_output</span>
+        <span class="n">std_Y_cond</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full_like</span><span class="p">(</span><span class="n">mu_Y_cond</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_sigma_Y</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">Y</span> <span class="o">=</span> <span class="n">mu_Y_cond</span> <span class="o">+</span> <span class="n">N_Y_centered</span>
+        <span class="k">return</span> <span class="n">X_output</span><span class="p">,</span> <span class="n">A_output</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="n">mu_Y_cond</span><span class="p">,</span> <span class="n">std_Y_cond</span></div>
+</div>
+
 </pre></div>
 
            </div>

@@ -45,6 +45,8 @@
 <li class="toctree-l1"><a class="reference internal" href="../modules/scm.html">Structural Causal Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_collapsed.html">Collapsed Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/utils.html">Utilities</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">SLURM Scripts</span></p>
@@ -89,6 +91,87 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">seaborn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sns</span>
 
 
+<span class="c1"># Single source of truth for the results schema: (dict key, display header)</span>
+<span class="c1"># pairs, in column order. Both the CSV header row and the row-writing key</span>
+<span class="c1"># order are derived from this list, so they can&#39;t drift apart.</span>
+<span class="n">RESULT_COLUMNS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">(</span><span class="s1">&#39;experiment_id&#39;</span><span class="p">,</span> <span class="s1">&#39;Experiment ID&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;time_stamp&#39;</span><span class="p">,</span> <span class="s1">&#39;Time Stamp&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;X_o&#39;</span><span class="p">,</span> <span class="s1">&#39;X_o&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;pred_o&#39;</span><span class="p">,</span> <span class="s1">&#39;pred_o&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;modified_prior&#39;</span><span class="p">,</span> <span class="s1">&#39;Modified prior&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;modified_prior_value&#39;</span><span class="p">,</span> <span class="s1">&#39;New value of modified prior&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;threshold&#39;</span><span class="p">,</span> <span class="s1">&#39;Threshold&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;true_CATE_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;True CATE (sample mean)&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;prior_CATE_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;Prior CATE (sample mean)&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;posterior_CATE_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;Posterior CATE (sample mean)&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;true_CATE_std&#39;</span><span class="p">,</span> <span class="s1">&#39;True CATE Standard Deviation (sample estimate)&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;prior_CATE_std&#39;</span><span class="p">,</span> <span class="s1">&#39;Prior CATE Standard Deviation (sample estimate)&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;posterior_CATE_std&#39;</span><span class="p">,</span> <span class="s1">&#39;Posterior CATE Standard Deviation (sample estimate)&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;true_CATE_mu&#39;</span><span class="p">,</span> <span class="s1">&#39;True CATE (mu)&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;prior_CATE_mu&#39;</span><span class="p">,</span> <span class="s1">&#39;Prior CATE (mu)&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;prior_treatment&#39;</span><span class="p">,</span> <span class="s1">&#39;prior_treatment&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;posterior_treatment&#39;</span><span class="p">,</span> <span class="s1">&#39;posterior_treatment&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;true_best_treatment&#39;</span><span class="p">,</span> <span class="s1">&#39;true_best_treatment&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;prior_decision_correct&#39;</span><span class="p">,</span> <span class="s1">&#39;prior_decision_correct&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;posterior_decision_correct&#39;</span><span class="p">,</span> <span class="s1">&#39;posterior_decision_correct&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;decision_changed&#39;</span><span class="p">,</span> <span class="s1">&#39;decision_changed&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;frac_correct_prior_decision&#39;</span><span class="p">,</span> <span class="s1">&#39;frac_correct_prior_decision&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;frac_correct_posterior_decision&#39;</span><span class="p">,</span> <span class="s1">&#39;frac_correct_posterior_decision&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;frac_correct_true_best_treatment&#39;</span><span class="p">,</span> <span class="s1">&#39;frac_correct_true_best_treatment&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;Y_mean_prior_treatment&#39;</span><span class="p">,</span> <span class="s1">&#39;Y_mean_prior_treatment&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;Y_mean_posterior_treatment&#39;</span><span class="p">,</span> <span class="s1">&#39;Y_mean_posterior_treatment&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;Y_mean_true_best_treatment&#39;</span><span class="p">,</span> <span class="s1">&#39;Y_mean_true_best_treatment&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;potential_outcome_A1_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;potential_outcome_A1_mean&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;potential_outcome_A1_std&#39;</span><span class="p">,</span> <span class="s1">&#39;potential_outcome_A1_std&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;potential_outcome_A0_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;potential_outcome_A0_mean&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;potential_outcome_A0_std&#39;</span><span class="p">,</span> <span class="s1">&#39;potential_outcome_A0_std&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;plate_size&#39;</span><span class="p">,</span> <span class="s1">&#39;Plate Size&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;A1_treatment&#39;</span><span class="p">,</span> <span class="s1">&#39;A1_treatment&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;A0_treatment&#39;</span><span class="p">,</span> <span class="s1">&#39;A0_treatment&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;agent_priors&#39;</span><span class="p">,</span> <span class="s1">&#39;Agent Priors&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;scm_noise_parameters&#39;</span><span class="p">,</span> <span class="s1">&#39;SCM Noise Parameters&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;scm_constants&#39;</span><span class="p">,</span> <span class="s1">&#39;SCM Constants&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;running_time&#39;</span><span class="p">,</span> <span class="s1">&#39;Running Time&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;max_rhat&#39;</span><span class="p">,</span> <span class="s1">&#39;max(R-hat)&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;min_ess_bulk&#39;</span><span class="p">,</span> <span class="s1">&#39;min(ESS), bulk&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;min_ess_tail&#39;</span><span class="p">,</span> <span class="s1">&#39;min(ESS), tail&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;n_divergences&#39;</span><span class="p">,</span> <span class="s1">&#39;Divergences&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;pri_X_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_X_mean&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;pri_A_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_A_mean&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;pri_Y_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_Y_mean&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;pri_X_std&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_X_std&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;pri_A_std&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_A_std&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;pri_Y_std&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_Y_std&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;pri_X_skew&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_X_skew&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;pri_A_skew&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_A_skew&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;pri_Y_skew&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_Y_skew&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;pri_X_kurtosis&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_X_kurtosis&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;pri_A_kurtosis&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_A_kurtosis&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;pri_Y_kurtosis&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_Y_kurtosis&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;post_X_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;post_X_mean&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;post_A_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;post_A_mean&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;post_Y_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;post_Y_mean&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;post_X_std&#39;</span><span class="p">,</span> <span class="s1">&#39;post_X_std&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;post_A_std&#39;</span><span class="p">,</span> <span class="s1">&#39;post_A_std&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;post_Y_std&#39;</span><span class="p">,</span> <span class="s1">&#39;post_Y_std&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;post_X_skew&#39;</span><span class="p">,</span> <span class="s1">&#39;post_X_skew&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;post_A_skew&#39;</span><span class="p">,</span> <span class="s1">&#39;post_A_skew&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;post_Y_skew&#39;</span><span class="p">,</span> <span class="s1">&#39;post_Y_skew&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;post_X_kurtosis&#39;</span><span class="p">,</span> <span class="s1">&#39;post_X_kurtosis&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;post_A_kurtosis&#39;</span><span class="p">,</span> <span class="s1">&#39;post_A_kurtosis&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;post_Y_kurtosis&#39;</span><span class="p">,</span> <span class="s1">&#39;post_Y_kurtosis&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;expected_prior_outcome_A1_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_prior_outcome_A1_mean&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;expected_prior_outcome_A1_std&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_prior_outcome_A1_std&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;expected_prior_outcome_A0_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_prior_outcome_A0_mean&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;expected_prior_outcome_A0_std&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_prior_outcome_A0_std&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;expected_posterior_outcome_A1_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_posterior_outcome_A1_mean&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;expected_posterior_outcome_A1_std&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_posterior_outcome_A1_std&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;expected_posterior_outcome_A0_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_posterior_outcome_A0_mean&#39;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s1">&#39;expected_posterior_outcome_A0_std&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_posterior_outcome_A0_std&#39;</span><span class="p">),</span>
+<span class="p">]</span>
+
+
 <div class="viewcode-block" id="write_results_to_file">
 <a class="viewcode-back" href="../modules/utils.html#utils.write_results_to_file">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">write_results_to_file</span><span class="p">(</span><span class="n">result_dict</span><span class="p">,</span> <span class="n">file_name</span><span class="o">=</span><span class="s1">&#39;results.csv&#39;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s1">&#39;./results/&#39;</span><span class="p">):</span>
@@ -102,76 +185,30 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Check for existence of folder. Create if it does not exist.</span>
     <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="c1"># Check for existence of result file.</span>
     <span class="n">full_path</span> <span class="o">=</span> <span class="n">path</span> <span class="o">+</span> <span class="n">file_name</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="n">file_name</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-        <span class="c1"># Create file and write header to file</span>
-        <span class="n">headers</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;&quot;Experiment ID&quot;,&quot;Time Stamp&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;X_o&quot;,&quot;pred_o&quot;,&quot;Modified prior&quot;,&quot;New value of modified prior&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;Threshold&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;True CATE (sample mean)&quot;,&quot;Prior CATE (sample mean)&quot;,&quot;Posterior CATE (sample mean)&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;True CATE Standard Deviation (sample estimate)&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;Prior CATE Standard Deviation (sample estimate)&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;Posterior CATE Standard Deviation (sample estimate)&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;True CATE (mu)&quot;,&quot;Prior CATE (mu)&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;prior_treatment&quot;,&quot;posterior_treatment&quot;,&quot;true_best_treatment&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;prior_decision_correct&quot;,&quot;posterior_decision_correct&quot;,&quot;decision_changed&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;frac_correct_prior_decision&quot;,&quot;frac_correct_posterior_decision&quot;,&quot;frac_correct_true_best_treatment&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;Y_mean_prior_treatment&quot;,&quot;Y_mean_posterior_treatment&quot;,&quot;Y_mean_true_best_treatment&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;potential_outcome_A1_mean&quot;,&quot;potential_outcome_A1_std&quot;,&quot;potential_outcome_A0_mean&quot;,&quot;potential_outcome_A0_std&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;Plate Size&quot;,&quot;A1_treatment&quot;,&quot;A0_treatment&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;Agent Priors&quot;,&quot;SCM Noise Parameters&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;SCM Constants&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;Running Time&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;max(R-hat)&quot;,&quot;min(ESS), bulk&quot;,&quot;min(ESS), tail&quot;,&quot;Divergences&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;pri_X_mean&quot;,&quot;pri_A_mean&quot;,&quot;pri_Y_mean&quot;,&quot;pri_X_std&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;pri_A_std&quot;,&quot;pri_Y_std&quot;,&quot;pri_X_skew&quot;,&quot;pri_A_skew&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;pri_Y_skew&quot;,&quot;pri_X_kurtosis&quot;,&quot;pri_A_kurtosis&quot;,&quot;pri_Y_kurtosis&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;post_X_mean&quot;,&quot;post_A_mean&quot;,&quot;post_Y_mean&quot;,&quot;post_X_std&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;post_A_std&quot;,&quot;post_Y_std&quot;,&quot;post_X_skew&quot;,&quot;post_A_skew&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;post_Y_skew&quot;,&quot;post_X_kurtosis&quot;,&quot;post_A_kurtosis&quot;,&quot;post_Y_kurtosis&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;expected_prior_outcome_A1_mean&quot;,&quot;expected_prior_outcome_A1_std&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;expected_prior_outcome_A0_mean&quot;,&quot;expected_prior_outcome_A0_std&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;expected_posterior_outcome_A1_mean&quot;,&quot;expected_posterior_outcome_A1_std&quot;,&#39;</span>
-                   <span class="s1">&#39;&quot;expected_posterior_outcome_A0_mean&quot;,&quot;expected_posterior_outcome_A0_std&quot;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
-        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">full_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">headers</span><span class="p">)</span>
 
-    <span class="c1"># Write contents to file:</span>
-    <span class="n">key_ordering</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;experiment_id&#39;</span><span class="p">,</span> <span class="s1">&#39;time_stamp&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;X_o&#39;</span><span class="p">,</span> <span class="s1">&#39;pred_o&#39;</span><span class="p">,</span> <span class="s1">&#39;modified_prior&#39;</span><span class="p">,</span> <span class="s1">&#39;modified_prior_value&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;threshold&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;true_CATE_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;prior_CATE_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;posterior_CATE_mean&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;true_CATE_std&#39;</span><span class="p">,</span> <span class="s1">&#39;prior_CATE_std&#39;</span><span class="p">,</span> <span class="s1">&#39;posterior_CATE_std&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;true_CATE_mu&#39;</span><span class="p">,</span> <span class="s1">&#39;prior_CATE_mu&#39;</span><span class="p">,</span> <span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;prior_treatment&quot;</span><span class="p">,</span> <span class="s2">&quot;posterior_treatment&quot;</span><span class="p">,</span> <span class="s2">&quot;true_best_treatment&quot;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;prior_decision_correct&quot;</span><span class="p">,</span> <span class="s2">&quot;posterior_decision_correct&quot;</span><span class="p">,</span> <span class="s2">&quot;decision_changed&quot;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;frac_correct_prior_decision&quot;</span><span class="p">,</span> <span class="s2">&quot;frac_correct_posterior_decision&quot;</span><span class="p">,</span> <span class="s2">&quot;frac_correct_true_best_treatment&quot;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;Y_mean_prior_treatment&quot;</span><span class="p">,</span> <span class="s2">&quot;Y_mean_posterior_treatment&quot;</span><span class="p">,</span> <span class="s2">&quot;Y_mean_true_best_treatment&quot;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;potential_outcome_A1_mean&quot;</span><span class="p">,</span> <span class="s2">&quot;potential_outcome_A1_std&quot;</span><span class="p">,</span> <span class="s2">&quot;potential_outcome_A0_mean&quot;</span><span class="p">,</span> <span class="s2">&quot;potential_outcome_A0_std&quot;</span><span class="p">]</span>
+    <span class="c1"># Callers with multivariate (k &gt; 1) predictive summaries (e.g.</span>
+    <span class="c1"># pri_X_0_mean, pri_X_1_mean, ...) pass extra keys not covered by</span>
+    <span class="c1"># RESULT_COLUMNS. Append them as dynamic columns, using the key itself</span>
+    <span class="c1"># as the header text since there&#39;s no pretty name for them. Assumes a</span>
+    <span class="c1"># given results file is only ever appended to with a consistent key</span>
+    <span class="c1"># set (e.g. constant n_covariates).</span>
+    <span class="n">fixed_keys</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">RESULT_COLUMNS</span><span class="p">}</span>
+    <span class="n">extra_keys</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">key</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">result_dict</span> <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">fixed_keys</span><span class="p">)</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="n">RESULT_COLUMNS</span> <span class="o">+</span> <span class="p">[(</span><span class="n">key</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">extra_keys</span><span class="p">]</span>
+    <span class="n">fieldnames</span> <span class="o">=</span> <span class="p">[</span><span class="n">key</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">]</span>
 
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;plate_size&#39;</span><span class="p">,</span> <span class="s1">&#39;A1_treatment&#39;</span><span class="p">,</span> <span class="s1">&#39;A0_treatment&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;agent_priors&#39;</span><span class="p">,</span> <span class="s1">&#39;scm_noise_parameters&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;scm_constants&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;running_time&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;max_rhat&#39;</span><span class="p">,</span> <span class="s1">&#39;min_ess_bulk&#39;</span><span class="p">,</span> <span class="s1">&#39;min_ess_tail&#39;</span><span class="p">,</span> <span class="s1">&#39;n_divergences&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;pri_X_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_A_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_Y_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_X_std&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;pri_A_std&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_Y_std&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_X_skew&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_A_skew&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;pri_Y_skew&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_X_kurtosis&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_A_kurtosis&#39;</span><span class="p">,</span> <span class="s1">&#39;pri_Y_kurtosis&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;post_X_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;post_A_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;post_Y_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;post_X_std&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;post_A_std&#39;</span><span class="p">,</span> <span class="s1">&#39;post_Y_std&#39;</span><span class="p">,</span> <span class="s1">&#39;post_X_skew&#39;</span><span class="p">,</span> <span class="s1">&#39;post_A_skew&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;post_Y_skew&#39;</span><span class="p">,</span> <span class="s1">&#39;post_X_kurtosis&#39;</span><span class="p">,</span> <span class="s1">&#39;post_A_kurtosis&#39;</span><span class="p">,</span> <span class="s1">&#39;post_Y_kurtosis&#39;</span><span class="p">]</span>
-    <span class="n">key_ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;expected_prior_outcome_A1_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_prior_outcome_A1_std&#39;</span><span class="p">,</span>
-                     <span class="s1">&#39;expected_prior_outcome_A0_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_prior_outcome_A0_std&#39;</span><span class="p">,</span>
-                     <span class="s1">&#39;expected_posterior_outcome_A1_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_posterior_outcome_A1_std&#39;</span><span class="p">,</span>
-                     <span class="s1">&#39;expected_posterior_outcome_A0_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;expected_posterior_outcome_A0_std&#39;</span><span class="p">]</span>
-    <span class="n">text</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
-    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">key_ordering</span><span class="p">:</span>
-        <span class="n">text</span> <span class="o">+=</span> <span class="s1">&#39;&quot;&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">result_dict</span><span class="p">[</span><span class="n">key</span><span class="p">])</span> <span class="o">+</span> <span class="s1">&#39;&quot;,&#39;</span>
-    <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># Remove trailing comma</span>
-    <span class="n">text</span> <span class="o">+=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span>  <span class="c1"># Add newline</span>
-    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">full_path</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+    <span class="n">missing_keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">key</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">fieldnames</span> <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">result_dict</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">missing_keys</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">&quot;Missing required result keys: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">missing_keys</span><span class="p">))</span>
+
+    <span class="n">file_is_new</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">Path</span><span class="p">(</span><span class="n">full_path</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">full_path</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">,</span> <span class="n">newline</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">writer</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">DictWriter</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fieldnames</span><span class="o">=</span><span class="n">fieldnames</span><span class="p">,</span> <span class="n">quoting</span><span class="o">=</span><span class="n">csv</span><span class="o">.</span><span class="n">QUOTE_ALL</span><span class="p">,</span>
+                                <span class="n">lineterminator</span><span class="o">=</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">file_is_new</span><span class="p">:</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">writerow</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">columns</span><span class="p">))</span>  <span class="c1"># Header row, using display names.</span>
+        <span class="n">writer</span><span class="o">.</span><span class="n">writerow</span><span class="p">(</span><span class="n">result_dict</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Results saved to </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">full_path</span><span class="p">))</span></div>
 
 

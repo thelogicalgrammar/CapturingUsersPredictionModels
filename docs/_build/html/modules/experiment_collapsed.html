@@ -1,0 +1,173 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Collapsed Experiment &mdash; CapturingUsersPredictionModels 1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=f2a433a1"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Utilities" href="utils.html" />
+    <link rel="prev" title="Single-Prediction Collapsed Agent Model" href="single_prediction_collapsed_agent_model.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            CapturingUsersPredictionModels
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="agent_model.html">Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment.html">Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Collapsed Experiment</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#experiment_collapsed.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="utils.html">Utilities</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">SLURM Scripts</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="completion_check.html">Completion Check</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generate_parameter_file.html">Generate Parameter File</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CapturingUsersPredictionModels</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Collapsed Experiment</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/modules/experiment_collapsed.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-experiment_collapsed">
+<span id="collapsed-experiment"></span><h1>Collapsed Experiment<a class="headerlink" href="#module-experiment_collapsed" title="Link to this heading"></a></h1>
+<p>This module provides functionality to run experiments that test agent decision-making
+with and without decision support systems, using the single-prediction collapsed
+agent model for k-dimensional covariates.</p>
+<p>This is the multivariate counterpart of experiment.py. The data-generating process
+and the prediction model are multivariate, the prediction model is fitted with an
+intercept, and the agent’s belief update uses the collapsed likelihood, which
+marginalizes the structural coefficient vectors N_b and N_d analytically.</p>
+<p>The script takes three command line parameters where the first one
+is the key in agent_priors to modify, the second one what value
+agent_priors[key] should take, and the third one what value every
+coordinate of X_o should take.</p>
+<p>Example:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>experiment_collapsed.py<span class="w"> </span>N_E_mu<span class="w"> </span>-20<span class="w"> </span><span class="m">72</span>
+</pre></div>
+</div>
+<p>This would set the value of the prior distribution of N_E to -20 and
+use 72 as the value of every feature of the observed patient.</p>
+<p>Notes:
+The collapsed agent model marginalizes N_b and N_d analytically. For the
+agent-side predictive summaries and expected do(A) outcomes, the marginalized
+coefficient vectors are reconstructed when needed: from their priors for prior
+predictive sampling, and from their conditional Gaussian given (N_E, R, T, the
+population-level parameters, and pred_o) for posterior predictive sampling.
+The output schema is therefore identical to experiment.py, with no padded
+fields.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="experiment_collapsed.main">
+<span class="sig-prename descclassname"><span class="pre">experiment_collapsed.</span></span><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">agent_priors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modified_prior</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_treatment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_treatment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_covariates</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plate_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scm_noise_parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'N_E':</span> <span class="pre">1.0,</span> <span class="pre">'N_b':</span> <span class="pre">-0.05,</span> <span class="pre">'N_d':</span> <span class="pre">0.0625,</span> <span class="pre">'alpha_mu_A':</span> <span class="pre">2.0,</span> <span class="pre">'alpha_mu_X':</span> <span class="pre">80.0,</span> <span class="pre">'alpha_mu_Y':</span> <span class="pre">12.0,</span> <span class="pre">'alpha_sigma_A':</span> <span class="pre">1.0,</span> <span class="pre">'alpha_sigma_X':</span> <span class="pre">10.0,</span> <span class="pre">'alpha_sigma_Y':</span> <span class="pre">0.1,</span> <span class="pre">'n_covariates':</span> <span class="pre">2}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameter_descriptions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'agent_priors':</span> <span class="pre">'Default',</span> <span class="pre">'scm_constants':</span> <span class="pre">'Default',</span> <span class="pre">'scm_noise_parameters':</span> <span class="pre">'Default'}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/experiment_collapsed.html#main"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#experiment_collapsed.main" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X_o</strong> (<em>np.array</em>) – Feature vector of the observed patient (length k).</p></li>
+<li><p><strong>agent_priors</strong> (<em>dict</em>) – Dictionary with all values that encodes the
+agent’s prior beliefs.</p></li>
+<li><p><strong>modified_prior</strong> (<em>dict</em>) – Information about which prior was changed
+and how much.</p></li>
+<li><p><strong>A1_treatment</strong> (<em>float</em>) – Value of treatment 1.</p></li>
+<li><p><strong>A0_treatment</strong> (<em>float</em>) – Value of treatment 0.</p></li>
+<li><p><strong>n_covariates</strong> (<em>int</em>) – Number of covariates k.</p></li>
+<li><p><strong>plate_size</strong> (<em>int</em>) – Size of plate / number or observations to generate
+for regression model. Measure of “evidence” for predictions from
+decision support model.</p></li>
+<li><p><strong>draws</strong> (<em>int</em>) – Size of sample to generate in sampling events.</p></li>
+<li><p><strong>scm_noise_parameters</strong> (<em>dict</em>) – Dict with keys needed in MultivariateSCM-class.</p></li>
+<li><p><strong>rng</strong> (<em>int</em><em> or </em><em>rng</em>) – Seed or rng for reproducibility.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="single_prediction_collapsed_agent_model.html" class="btn btn-neutral float-left" title="Single-Prediction Collapsed Agent Model" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="utils.html" class="btn btn-neutral float-right" title="Utilities" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

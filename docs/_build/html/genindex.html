@@ -45,6 +45,8 @@
 <li class="toctree-l1"><a class="reference internal" href="modules/scm.html">Structural Causal Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/experiment_collapsed.html">Collapsed Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/utils.html">Utilities</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">SLURM Scripts</span></p>
@@ -91,6 +93,7 @@
  | <a href="#P"><strong>P</strong></a>
  | <a href="#R"><strong>R</strong></a>
  | <a href="#S"><strong>S</strong></a>
+ | <a href="#T"><strong>T</strong></a>
  | <a href="#U"><strong>U</strong></a>
  | <a href="#W"><strong>W</strong></a>
  
@@ -98,7 +101,7 @@
 <h2 id="A">A</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="modules/scm.html#scm.SCM.a">a (scm.SCM attribute)</a>
+      <li><a href="modules/scm.html#scm.SCM_WithConstants.a">a (scm.SCM_WithConstants attribute)</a>
 </li>
       <li>
     agent_model
@@ -109,31 +112,51 @@
       </ul></li>
       <li><a href="modules/agent_model.html#agent_model.AgentModel">AgentModel (class in agent_model)</a>
 </li>
-      <li><a href="modules/scm.html#scm.SCM.alpha_mu_A">alpha_mu_A (scm.SCM attribute)</a>
+      <li><a href="modules/scm.html#scm.MultivariateSCM.alpha_mu_A">alpha_mu_A (scm.MultivariateSCM attribute)</a>
+
+      <ul>
+        <li><a href="modules/scm.html#scm.SCM_WithConstants.alpha_mu_A">(scm.SCM_WithConstants attribute)</a>
 </li>
+      </ul></li>
+      <li><a href="modules/scm.html#scm.MultivariateSCM.alpha_mu_X">alpha_mu_X (scm.MultivariateSCM attribute)</a>
+
+      <ul>
+        <li><a href="modules/scm.html#scm.SCM_WithConstants.alpha_mu_X">(scm.SCM_WithConstants attribute)</a>
+</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="modules/scm.html#scm.SCM.alpha_mu_X">alpha_mu_X (scm.SCM attribute)</a>
+      <li><a href="modules/scm.html#scm.MultivariateSCM.alpha_mu_Y">alpha_mu_Y (scm.MultivariateSCM attribute)</a>
+
+      <ul>
+        <li><a href="modules/scm.html#scm.SCM_WithConstants.alpha_mu_Y">(scm.SCM_WithConstants attribute)</a>
 </li>
-      <li><a href="modules/scm.html#scm.SCM.alpha_mu_Y">alpha_mu_Y (scm.SCM attribute)</a>
+      </ul></li>
+      <li><a href="modules/scm.html#scm.MultivariateSCM.alpha_sigma_A">alpha_sigma_A (scm.MultivariateSCM attribute)</a>
+
+      <ul>
+        <li><a href="modules/scm.html#scm.SCM_WithConstants.alpha_sigma_A">(scm.SCM_WithConstants attribute)</a>
 </li>
-      <li><a href="modules/scm.html#scm.SCM.alpha_sigma_A">alpha_sigma_A (scm.SCM attribute)</a>
+      </ul></li>
+      <li><a href="modules/scm.html#scm.MultivariateSCM.alpha_sigma_X">alpha_sigma_X (scm.MultivariateSCM attribute)</a>
+
+      <ul>
+        <li><a href="modules/scm.html#scm.SCM_WithConstants.alpha_sigma_X">(scm.SCM_WithConstants attribute)</a>
 </li>
-      <li><a href="modules/scm.html#scm.SCM.alpha_sigma_X">alpha_sigma_X (scm.SCM attribute)</a>
+      </ul></li>
+      <li><a href="modules/scm.html#scm.MultivariateSCM.alpha_sigma_Y">alpha_sigma_Y (scm.MultivariateSCM attribute)</a>
+
+      <ul>
+        <li><a href="modules/scm.html#scm.SCM_WithConstants.alpha_sigma_Y">(scm.SCM_WithConstants attribute)</a>
 </li>
-      <li><a href="modules/scm.html#scm.SCM.alpha_sigma_Y">alpha_sigma_Y (scm.SCM attribute)</a>
-</li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
 <h2 id="B">B</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="modules/scm.html#scm.SCM.b">b (scm.SCM attribute)</a>
-</li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="modules/scm.html#scm.BinaryA_SCM">BinaryA_SCM (class in scm)</a>
+      <li><a href="modules/scm.html#scm.SCM_WithConstants.b">b (scm.SCM_WithConstants attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -141,7 +164,7 @@
 <h2 id="D">D</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="modules/scm.html#scm.SCM.d">d (scm.SCM attribute)</a>
+      <li><a href="modules/scm.html#scm.SCM_WithConstants.d">d (scm.SCM_WithConstants attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -154,6 +177,13 @@
 
       <ul>
         <li><a href="modules/experiment.html#module-experiment">module</a>
+</li>
+      </ul></li>
+      <li>
+    experiment_collapsed
+
+      <ul>
+        <li><a href="modules/experiment_collapsed.html#module-experiment_collapsed">module</a>
 </li>
       </ul></li>
   </ul></td>
@@ -173,12 +203,16 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/generate_parameter_file.html#slurm.generate_parameter_file.generate_slurm_parameter_file">generate_slurm_parameter_file() (in module slurm.generate_parameter_file)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/scm.html#scm.SCM.get_CATE_mu">get_CATE_mu() (scm.SCM method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/agent_model.html#agent_model.AgentModel.get_prior_CATE_mu">get_prior_CATE_mu() (agent_model.AgentModel method)</a>
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.get_prior_CATE_mu">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -186,7 +220,11 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/agent_model.html#agent_model.AgentModel.load_agent_model">load_agent_model() (agent_model.AgentModel class method)</a>
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.load_agent_model">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel class method)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -196,6 +234,8 @@
       <li><a href="modules/experiment.html#experiment.main">main() (in module experiment)</a>
 
       <ul>
+        <li><a href="modules/experiment_collapsed.html#experiment_collapsed.main">(in module experiment_collapsed)</a>
+</li>
         <li><a href="modules/experiment_series.html#experiment_series.main">(in module experiment_series)</a>
 </li>
       </ul></li>
@@ -209,9 +249,13 @@
 </li>
         <li><a href="modules/experiment.html#module-experiment">experiment</a>
 </li>
+        <li><a href="modules/experiment_collapsed.html#module-experiment_collapsed">experiment_collapsed</a>
+</li>
         <li><a href="modules/experiment_series.html#module-experiment_series">experiment_series</a>
 </li>
         <li><a href="modules/scm.html#module-scm">scm</a>
+</li>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#module-single_prediction_collapsed_agent_model">single_prediction_collapsed_agent_model</a>
 </li>
         <li><a href="modules/completion_check.html#module-slurm.completion_check">slurm.completion_check</a>
 </li>
@@ -221,13 +265,31 @@
 </li>
       </ul></li>
   </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="modules/agent_model.html#agent_model.MultivariateAgentModel">MultivariateAgentModel (class in agent_model)</a>
+</li>
+      <li><a href="modules/scm.html#scm.MultivariateSCM">MultivariateSCM (class in scm)</a>
+</li>
+  </ul></td>
 </tr></table>
 
 <h2 id="N">N</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="modules/scm.html#scm.SCM.N_E">N_E (scm.SCM attribute)</a>
+      <li><a href="modules/scm.html#scm.MultivariateSCM.N_b">N_b (scm.MultivariateSCM attribute)</a>
 </li>
+      <li><a href="modules/scm.html#scm.MultivariateSCM.n_covariates">n_covariates (scm.MultivariateSCM attribute)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="modules/scm.html#scm.MultivariateSCM.N_d">N_d (scm.MultivariateSCM attribute)</a>
+</li>
+      <li><a href="modules/scm.html#scm.MultivariateSCM.N_E">N_E (scm.MultivariateSCM attribute)</a>
+
+      <ul>
+        <li><a href="modules/scm.html#scm.SCM_WithConstants.N_E">(scm.SCM_WithConstants attribute)</a>
+</li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -240,16 +302,20 @@
 </li>
       <li><a href="modules/utils.html#utils.plot_all_Y">plot_all_Y() (in module utils)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/utils.html#utils.plot_CATE_for_var">plot_CATE_for_var() (in module utils)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/utils.html#utils.plot_CATEs">plot_CATEs() (in module utils)</a>
 </li>
       <li><a href="modules/utils.html#utils.plot_prior_and_posterior_Y">plot_prior_and_posterior_Y() (in module utils)</a>
 </li>
       <li><a href="modules/agent_model.html#agent_model.printing_callback">printing_callback() (in module agent_model)</a>
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.printing_callback">(in module single_prediction_collapsed_agent_model)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -271,9 +337,17 @@
       <li><a href="modules/agent_model.html#agent_model.AgentModel.sample">sample() (agent_model.AgentModel method)</a>
 
       <ul>
-        <li><a href="modules/scm.html#scm.BinaryA_SCM.sample">(scm.BinaryA_SCM method)</a>
+        <li><a href="modules/agent_model.html#agent_model.MultivariateAgentModel.sample">(agent_model.MultivariateAgentModel method)</a>
+</li>
+        <li><a href="modules/agent_model.html#agent_model.ScalarAgentModel.sample">(agent_model.ScalarAgentModel method)</a>
+</li>
+        <li><a href="modules/scm.html#scm.MultivariateSCM.sample">(scm.MultivariateSCM method)</a>
 </li>
         <li><a href="modules/scm.html#scm.SCM.sample">(scm.SCM method)</a>
+</li>
+        <li><a href="modules/scm.html#scm.SCM_WithConstants.sample">(scm.SCM_WithConstants method)</a>
+</li>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
 </li>
       </ul></li>
       <li><a href="modules/scm.html#scm.SCM.sample_CATE">sample_CATE() (scm.SCM method)</a>
@@ -281,24 +355,62 @@
       <li><a href="modules/scm.html#scm.SCM.sample_do_A">sample_do_A() (scm.SCM method)</a>
 </li>
       <li><a href="modules/agent_model.html#agent_model.AgentModel.sample_posterior_predictive">sample_posterior_predictive() (agent_model.AgentModel method)</a>
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
 </li>
+      </ul></li>
       <li><a href="modules/agent_model.html#agent_model.AgentModel.sample_posterior_predictive_CATE">sample_posterior_predictive_CATE() (agent_model.AgentModel method)</a>
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive_CATE">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
 </li>
+      </ul></li>
       <li><a href="modules/agent_model.html#agent_model.AgentModel.sample_posterior_predictive_do_A">sample_posterior_predictive_do_A() (agent_model.AgentModel method)</a>
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive_do_A">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
 </li>
+      </ul></li>
       <li><a href="modules/agent_model.html#agent_model.AgentModel.sample_posterior_predictive_summaries">sample_posterior_predictive_summaries() (agent_model.AgentModel method)</a>
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive_summaries">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
 </li>
+      </ul></li>
       <li><a href="modules/agent_model.html#agent_model.AgentModel.sample_prior_predictive">sample_prior_predictive() (agent_model.AgentModel method)</a>
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
 </li>
+      </ul></li>
       <li><a href="modules/agent_model.html#agent_model.AgentModel.sample_prior_predictive_CATE">sample_prior_predictive_CATE() (agent_model.AgentModel method)</a>
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive_CATE">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
 </li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/agent_model.html#agent_model.AgentModel.sample_prior_predictive_do_A">sample_prior_predictive_do_A() (agent_model.AgentModel method)</a>
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive_do_A">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
 </li>
+      </ul></li>
       <li><a href="modules/agent_model.html#agent_model.AgentModel.sample_prior_predictive_summaries">sample_prior_predictive_summaries() (agent_model.AgentModel method)</a>
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive_summaries">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
 </li>
+      </ul></li>
       <li><a href="modules/agent_model.html#agent_model.AgentModel.save_agent_model">save_agent_model() (agent_model.AgentModel method)</a>
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.save_agent_model">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
+</li>
+      </ul></li>
+      <li><a href="modules/agent_model.html#agent_model.ScalarAgentModel">ScalarAgentModel (class in agent_model)</a>
 </li>
       <li>
     scm
@@ -309,7 +421,16 @@
       </ul></li>
       <li><a href="modules/scm.html#scm.SCM">SCM (class in scm)</a>
 </li>
-      <li><a href="modules/scm.html#scm.sigmoid">sigmoid() (in module scm)</a>
+      <li><a href="modules/scm.html#scm.SCM_WithConstants">SCM_WithConstants (class in scm)</a>
+</li>
+      <li>
+    single_prediction_collapsed_agent_model
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#module-single_prediction_collapsed_agent_model">module</a>
+</li>
+      </ul></li>
+      <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel">SinglePredictionCollapsedAgentModel (class in single_prediction_collapsed_agent_model)</a>
 </li>
       <li>
     slurm.completion_check
@@ -327,6 +448,18 @@
       </ul></li>
       <li><a href="modules/completion_check.html#slurm.completion_check.summarize_results">summarize_results() (in module slurm.completion_check)</a>
 </li>
+  </ul></td>
+</tr></table>
+
+<h2 id="T">T</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="modules/agent_model.html#agent_model.AgentModel.trace_diagnostics">trace_diagnostics() (agent_model.AgentModel method)</a>
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.trace_diagnostics">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
+</li>
+      </ul></li>
   </ul></td>
 </tr></table>
 

@@ -1,0 +1,509 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Single-Prediction Collapsed Agent Model &mdash; CapturingUsersPredictionModels 1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=f2a433a1"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Collapsed Experiment" href="experiment_collapsed.html" />
+    <link rel="prev" title="Experiment Series" href="experiment_series.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            CapturingUsersPredictionModels
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="agent_model.html">Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment.html">Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Single-Prediction Collapsed Agent Model</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.get_prior_CATE_mu"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.get_prior_CATE_mu()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.load_agent_model"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.load_agent_model()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.sample()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.sample_posterior_predictive()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive_CATE"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.sample_posterior_predictive_CATE()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive_do_A"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.sample_posterior_predictive_do_A()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive_summaries"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.sample_posterior_predictive_summaries()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.sample_prior_predictive()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive_CATE"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.sample_prior_predictive_CATE()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive_do_A"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.sample_prior_predictive_do_A()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive_summaries"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.sample_prior_predictive_summaries()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.save_agent_model"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.save_agent_model()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.trace_diagnostics"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.trace_diagnostics()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#single_prediction_collapsed_agent_model.printing_callback"><code class="docutils literal notranslate"><span class="pre">printing_callback()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_collapsed.html">Collapsed Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="utils.html">Utilities</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">SLURM Scripts</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="completion_check.html">Completion Check</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generate_parameter_file.html">Generate Parameter File</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CapturingUsersPredictionModels</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Single-Prediction Collapsed Agent Model</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/modules/single_prediction_collapsed_agent_model.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-single_prediction_collapsed_agent_model">
+<span id="single-prediction-collapsed-agent-model"></span><h1>Single-Prediction Collapsed Agent Model<a class="headerlink" href="#module-single_prediction_collapsed_agent_model" title="Link to this heading"></a></h1>
+<p>Single-prediction collapsed Bayesian agent model.</p>
+<p>This is a further reduction of <a class="reference internal" href="agent_model.html#agent_model.MultivariateAgentModel" title="agent_model.MultivariateAgentModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">agent_model.MultivariateAgentModel</span></code></a>
+for the case where the agent observes a single scalar prediction <code class="docutils literal notranslate"><span class="pre">pred_o</span></code> for
+a single observed feature vector <code class="docutils literal notranslate"><span class="pre">X_o</span></code>. Under independent Gaussian priors on
+the coordinates of the coefficient vectors N_b and N_d, those vectors are
+marginalized analytically, so the only non-auxiliary latent variables left are
+N_E and the population-level parameters.</p>
+<p>The reduced-plate auxiliary variables (s, W, g, h) of the multivariate model are
+replaced by two scalar auxiliaries (R, T), constant in both the plate size n and
+the number of covariates k. Conditional on (R, T, N_E, the population-level
+parameters, and X_o), the observed prediction is Gaussian:</p>
+<p><span class="math notranslate nohighlight">\(Pred^o \sim \mathcal{N}(\mu_{red}, V_{red})\)</span></p>
+<p>with</p>
+<p><span class="math notranslate nohighlight">\(\mu_{red} = c + (m_b + N_E m_d) S_o\)</span></p>
+<p><span class="math notranslate nohighlight">\(V_{red} = Q_o (v_b + 2 N_E v_{bd} + N_E^2 v_d) + \tau^2 (1/n + R/T)\)</span>,</p>
+<p>where the cross term vanishes (<span class="math notranslate nohighlight">\(v_{bd} = 0\)</span>) under the independent
+coefficient priors assumed by this class. Because PyMC does not provide a
+native non-central chi-squared distribution, R
+is built through the equivalent central-chi-squared (Cochran) construction</p>
+<p><span class="math notranslate nohighlight">\(G_R \sim \mathcal{N}(0, 1)\)</span>,
+<span class="math notranslate nohighlight">\(Z_R \sim \chi^2_{k-1}\)</span>,
+<span class="math notranslate nohighlight">\(R := (\Delta_X + G_R / \sqrt{n})^2 + Z_R / n\)</span>,</p>
+<p>with <span class="math notranslate nohighlight">\(\Delta_X^2 := (X^o - \vec{\alpha}_{X\mu})^\top D_X^{-2}
+(X^o - \vec{\alpha}_{X\mu})\)</span> and the convention <span class="math notranslate nohighlight">\(\chi^2_0 = 0\)</span> when
+k = 1. The orthogonal rotation behind Cochran’s theorem concentrates the
+non-centrality in a single coordinate, so the model samples three scalar
+primitive variables (G_R, Z_R, T) regardless of k and n.</p>
+<p>Since the CATE depends only on N_E, marginalizing N_b and N_d loses no
+information relevant to the decision rule. For the agent-side predictive
+quantities (predictive summaries of X, A, and Y, and expected do(A) outcomes)
+the marginalized coefficient vectors are recovered when needed: from their
+priors for prior predictive sampling, and from their conditional Gaussian
+given (N_E, R, T, the population-level parameters, and pred_o) for posterior
+predictive sampling. The derivation is in the “Single-prediction collapsed
+reduction” document of the paper derivations.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">single_prediction_collapsed_agent_model.</span></span><span class="sig-name descname"><span class="pre">SinglePredictionCollapsedAgentModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_covariates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plate_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prior_parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Bayesian agent model for the single-prediction collapsed likelihood.</p>
+<p>The class assumes independent Gaussian priors for the coordinates of N_b
+and N_d. These vectors are marginalized analytically and are not sampled by
+PyMC, so the latent variables of the model are the population-level
+parameters, N_E, and the two scalar auxiliaries (R, T) of the collapsed
+likelihood.</p>
+<p>The model always assumes an OLS predictive model with intercept, and is
+specific to a single observed prediction: it does not extend, in this form,
+to more than one prediction. Because the CATE depends only on N_E, the
+prior and posterior CATE are obtained directly from N_E. The agent-side
+predictive summaries and expected-outcome helpers of the multivariate model
+are still provided: the marginalized coefficient vectors are recovered from
+their priors for prior predictive sampling, and from their conditional
+Gaussian given (N_E, R, T, the population-level parameters, and pred_o)
+for posterior predictive sampling.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_covariates</strong> (<em>int</em>) – Number of covariates k (dimension of X).</p></li>
+<li><p><strong>plate_size</strong> (<em>int</em>) – Size of the plate (number of i.i.d. samples used to
+train the predictive model). Must be larger than n_covariates.</p></li>
+<li><p><strong>prior_parameters</strong> (<em>dict</em>) – Dictionary with parameters for the prior
+distributions. If None, defaults are used. Vector-valued entries
+accept a scalar (broadcast to length k) or an array of length k.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.get_prior_CATE_mu">
+<span class="sig-name descname"><span class="pre">get_prior_CATE_mu</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A1_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_treatment</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.get_prior_CATE_mu"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.get_prior_CATE_mu" title="Link to this definition"></a></dt>
+<dd><p>Return the prior mean of the CATE-distribution. Under the collapsed
+model the treatment effect only depends on N_E and the size of the
+treatments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>A1_treatment</strong> (<em>float</em>) – Dosage value of higher dose treatment.</p></li>
+<li><p><strong>A0_treatment</strong> (<em>float</em>) – Dosage value of lower dose treatment.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.load_agent_model">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load_agent_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'single_prediction_collapsed_agent_model'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">folder</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./saved_models/'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.load_agent_model"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.load_agent_model" title="Link to this definition"></a></dt>
+<dd><p>Load a saved single-prediction collapsed agent model.</p>
+<p>The configuration is loaded with joblib and the PyMC model is
+reconstructed by re-running <code class="docutils literal notranslate"><span class="pre">__init__</span></code>. The trace and prior samples
+are loaded from their NetCDF files if present.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_name</strong> (<em>str</em>) – Base filename without extension. Expects to find
+<code class="docutils literal notranslate"><span class="pre">{file_name}.joblib</span></code> and, optionally, <code class="docutils literal notranslate"><span class="pre">{file_name}_trace.nc</span></code>
+and <code class="docutils literal notranslate"><span class="pre">{file_name}_prior_samples.nc</span></code>.</p></li>
+<li><p><strong>folder</strong> (<em>str</em>) – Folder the model is saved in.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The loaded agent model.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel" title="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel">SinglePredictionCollapsedAgentModel</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample">
+<span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tune</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_accept</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.85</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chains</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_treedepth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'jitter+adapt_diag'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.sample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample" title="Link to this definition"></a></dt>
+<dd><p>Sample from the posterior given observed data.
+Stores the latest trace in self.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X_o</strong> (<em>np.ndarray</em>) – Observed feature vector of length k.</p></li>
+<li><p><strong>pred_o</strong> (<em>float</em>) – Observed scalar prediction for X_o.</p></li>
+<li><p><strong>draws</strong> (<em>int</em>) – Size of sample to draw from the posterior.</p></li>
+<li><p><strong>tune</strong> (<em>int</em>) – Number of tuning (warmup) iterations.</p></li>
+<li><p><strong>target_accept</strong> (<em>float</em>) – Target acceptance probability for NUTS.</p></li>
+<li><p><strong>chains</strong> (<em>int</em>) – Number of chains to sample.</p></li>
+<li><p><strong>max_treedepth</strong> (<em>int</em>) – Maximum tree depth for NUTS.</p></li>
+<li><p><strong>init</strong> (<em>str</em>) – Initialization method passed to pm.sample.</p></li>
+<li><p><strong>rng</strong> – Seed or initialized random number generator for
+reproducibility.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive">
+<span class="sig-name descname"><span class="pre">sample_posterior_predictive</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.sample_posterior_predictive"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive" title="Link to this definition"></a></dt>
+<dd><p>This method generates a sample from the agent’s posterior beliefs.
+Using the trace stored in self, it reconstructs the marginalized
+coefficient vectors from their conditional Gaussian for each posterior
+draw, replaces the parameter values in the internal predictive SCM,
+and draws a posterior predictive sample from it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>rng</strong> – Seed or initialized random number generator for
+reproducibility.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>One <code class="docutils literal notranslate"><span class="pre">(X,</span> <span class="pre">A,</span> <span class="pre">Y,</span> <span class="pre">mu_Y_cond,</span> <span class="pre">std_Y_cond)</span></code> sample per draw.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive_CATE">
+<span class="sig-name descname"><span class="pre">sample_posterior_predictive_CATE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A1_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_treatment</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.sample_posterior_predictive_CATE"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive_CATE" title="Link to this definition"></a></dt>
+<dd><p>This method returns a sample from the posterior CATE-distribution, and
+its sample mean and standard deviation. Under the collapsed model the
+CATE depends only on N_E, so it is the posterior draws of N_E multiplied
+by <code class="docutils literal notranslate"><span class="pre">A1_treatment</span> <span class="pre">-</span> <span class="pre">A0_treatment</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>A1_treatment</strong> (<em>float</em>) – Dosage value of higher dose treatment.</p></li>
+<li><p><strong>A0_treatment</strong> (<em>float</em>) – Dosage value of lower dose treatment.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(CATE_samples,</span> <span class="pre">CATE_mean,</span> <span class="pre">CATE_std)</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive_do_A">
+<span class="sig-name descname"><span class="pre">sample_posterior_predictive_do_A</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.sample_posterior_predictive_do_A"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive_do_A" title="Link to this definition"></a></dt>
+<dd><p>Method for estimating the outcome for a patient with features X based
+on the agent’s posterior beliefs. Draws one potential outcome for
+every draw in the trace, reusing the reconstructed coefficient vectors
+for the current trace.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>np.array</em>) – Feature vector of length k to condition on.</p></li>
+<li><p><strong>A_treatment</strong> (<em>float</em>) – Fixed treatment value.</p></li>
+<li><p><strong>rng</strong> – Seed or initialized random number generator for
+reproducibility.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(potential_outcomes,</span> <span class="pre">do_A_mean,</span> <span class="pre">do_A_std)</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive_summaries">
+<span class="sig-name descname"><span class="pre">sample_posterior_predictive_summaries</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.sample_posterior_predictive_summaries"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive_summaries" title="Link to this definition"></a></dt>
+<dd><p>Method that estimates the mean, standard deviation, skewness, and
+kurtosis of the variables X, A, and Y in the posterior predictive
+samples.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>rng</strong> – Seed or initialized random number generator for
+reproducibility. Used only if posterior predictive samples
+were not drawn earlier.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Summary statistics keyed by <code class="docutils literal notranslate"><span class="pre">post_&lt;var&gt;_&lt;moment&gt;</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive">
+<span class="sig-name descname"><span class="pre">sample_prior_predictive</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.sample_prior_predictive"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive" title="Link to this definition"></a></dt>
+<dd><p>Method for sampling from the distribution based on the agent’s prior
+beliefs. For every draw of the predictive parameters from the prior,
+the marginalized coefficient vectors are drawn from their priors, the
+internal predictive SCM is updated, and one (X, A, Y) sample is
+generated from it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>draws</strong> (<em>int</em>) – Size of sample to draw.</p></li>
+<li><p><strong>rng</strong> – Seed or initialized random number generator for
+reproducibility.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>One <code class="docutils literal notranslate"><span class="pre">[X,</span> <span class="pre">A,</span> <span class="pre">Y]</span></code> triple per draw.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive_CATE">
+<span class="sig-name descname"><span class="pre">sample_prior_predictive_CATE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">A1_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.sample_prior_predictive_CATE"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive_CATE" title="Link to this definition"></a></dt>
+<dd><p>This method returns a sample from the prior CATE-distribution, and its
+sample mean and standard deviation. Under the collapsed model the CATE
+depends only on N_E, so it is obtained from the prior draws of N_E
+multiplied by <code class="docutils literal notranslate"><span class="pre">A1_treatment</span> <span class="pre">-</span> <span class="pre">A0_treatment</span></code>. It does not require
+conditioning on X. The prior draws are shared with the other prior
+predictive methods.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>A1_treatment</strong> (<em>float</em>) – Dosage value of higher dose treatment.</p></li>
+<li><p><strong>A0_treatment</strong> (<em>float</em>) – Dosage value of lower dose treatment.</p></li>
+<li><p><strong>draws</strong> (<em>int</em>) – Size of sample to draw if prior samples are drawn
+here.</p></li>
+<li><p><strong>rng</strong> – Seed or initialized random number generator for
+reproducibility.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(CATE_samples,</span> <span class="pre">CATE_mean,</span> <span class="pre">CATE_std)</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive_do_A">
+<span class="sig-name descname"><span class="pre">sample_prior_predictive_do_A</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.sample_prior_predictive_do_A"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive_do_A" title="Link to this definition"></a></dt>
+<dd><p>Method for estimating the outcome for a patient with features X based
+on the agent’s prior beliefs. Draws one potential outcome for every
+prior draw, reusing the coefficient vectors drawn with the prior
+samples.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>np.array</em>) – Feature vector of length k to condition on.</p></li>
+<li><p><strong>A_treatment</strong> (<em>float</em>) – Fixed treatment value.</p></li>
+<li><p><strong>rng</strong> – Seed or initialized random number generator for
+reproducibility.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(do_A_samples,</span> <span class="pre">do_A_mean,</span> <span class="pre">do_A_std)</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive_summaries">
+<span class="sig-name descname"><span class="pre">sample_prior_predictive_summaries</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.sample_prior_predictive_summaries"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive_summaries" title="Link to this definition"></a></dt>
+<dd><p>Method that estimates the mean, standard deviation, skewness, and
+kurtosis of the variables X, A, and Y in the prior predictive samples.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>rng</strong> – Seed or initialized random number generator for
+reproducibility. Used only if prior samples were not drawn
+earlier.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Summary statistics keyed by <code class="docutils literal notranslate"><span class="pre">pri_&lt;var&gt;_&lt;moment&gt;</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.save_agent_model">
+<span class="sig-name descname"><span class="pre">save_agent_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'single_prediction_collapsed_agent_model'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">folder</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./saved_models/'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.save_agent_model"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.save_agent_model" title="Link to this definition"></a></dt>
+<dd><p>Save the agent model configuration and available samples.</p>
+<p>The trace and prior samples are written separately with ArviZ
+(NetCDF), and the rest of the configuration is pickled with joblib.
+The PyMC model, trace, and prior samples are temporarily detached
+before pickling and restored afterwards.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_name</strong> (<em>str</em>) – Base filename without extension. Creates
+<code class="docutils literal notranslate"><span class="pre">{file_name}.joblib</span></code> and, when available,
+<code class="docutils literal notranslate"><span class="pre">{file_name}_trace.nc</span></code> and <code class="docutils literal notranslate"><span class="pre">{file_name}_prior_samples.nc</span></code>.</p></li>
+<li><p><strong>folder</strong> (<em>str</em>) – Folder to save the model into.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.trace_diagnostics">
+<span class="sig-name descname"><span class="pre">trace_diagnostics</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.trace_diagnostics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.trace_diagnostics" title="Link to this definition"></a></dt>
+<dd><p>Return basic sampler diagnostics for the current posterior trace.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">max_rhat</span></code>, <code class="docutils literal notranslate"><span class="pre">min_ess_bulk</span></code>, <code class="docutils literal notranslate"><span class="pre">min_ess_tail</span></code> (computed
+with ArviZ), and <code class="docutils literal notranslate"><span class="pre">n_divergences</span></code>.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.printing_callback">
+<span class="sig-prename descclassname"><span class="pre">single_prediction_collapsed_agent_model.</span></span><span class="sig-name descname"><span class="pre">printing_callback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trace</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draw</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#printing_callback"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.printing_callback" title="Link to this definition"></a></dt>
+<dd><p>Function for debugging pymc-sampling.</p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="experiment_series.html" class="btn btn-neutral float-left" title="Experiment Series" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="experiment_collapsed.html" class="btn btn-neutral float-right" title="Collapsed Experiment" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
