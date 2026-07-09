@@ -33,7 +33,7 @@ import arviz as az
 import joblib
 import numpy as np
 import pymc as pm
-import pytensor.tensor as at
+import pytensor.tensor as pt
 from scipy.stats import kurtosis, skew
 from abc import ABC, abstractmethod
 import warnings
@@ -890,7 +890,7 @@ class MultivariateAgentModel(AgentModel):
             N_b = parameters['N_b']
             N_d = parameters['N_d']
 
-            s = pm.Normal('s', mu=0, sigma=at.sqrt(self.plate_size),
+            s = pm.Normal('s', mu=0, sigma=pt.sqrt(self.plate_size),
                           shape=self.n_covariates)
             W_chol = pm.WishartBartlett(
                 'W_chol',
@@ -903,37 +903,37 @@ class MultivariateAgentModel(AgentModel):
             c = pm.Deterministic('c', alpha_mu_Y + N_E * alpha_mu_A)
             tau = pm.Deterministic(
                 'tau',
-                at.sqrt(N_E**2 * alpha_sigma_A**2 + alpha_sigma_Y**2))
+                pt.sqrt(N_E**2 * alpha_sigma_A**2 + alpha_sigma_Y**2))
 
             if self.fit_intercept:
                 h = pm.Normal('h', mu=0, sigma=1)
-                W_minus_half_g = at.slinalg.solve_triangular(
+                W_minus_half_g = pt.slinalg.solve_triangular(
                     W_chol.T, g, lower=False)
                 phi = pm.Deterministic(
                     'phi',
                     beta + tau * W_minus_half_g / alpha_sigma_X)
                 alpha = pm.Deterministic(
                     'alpha',
-                    c + tau * h / at.sqrt(self.plate_size) -
-                    tau * at.dot(alpha_mu_X / alpha_sigma_X +
+                    c + tau * h / pt.sqrt(self.plate_size) -
+                    tau * pt.dot(alpha_mu_X / alpha_sigma_X +
                                  s / self.plate_size,
                                  W_minus_half_g))
-                pred_reconstructed = alpha + at.dot(X_o_, phi)
+                pred_reconstructed = alpha + pt.dot(X_o_, phi)
             else:
-                W = at.dot(W_chol, W_chol.T)
+                W = pt.dot(W_chol, W_chol.T)
                 S_x = pm.Deterministic(
                     'S_x',
                     self.plate_size * alpha_mu_X + alpha_sigma_X * s)
                 XTX = pm.Deterministic(
                     'XTX',
-                    at.outer(S_x, S_x) / self.plate_size +
+                    pt.outer(S_x, S_x) / self.plate_size +
                     alpha_sigma_X[:, None] * W * alpha_sigma_X[None, :])
-                XTX_chol = at.linalg.cholesky(XTX)
-                mean_term = c * at.linalg.solve(XTX, S_x)
-                noise_term = tau * at.slinalg.solve_triangular(
+                XTX_chol = pt.linalg.cholesky(XTX)
+                mean_term = c * pt.linalg.solve(XTX, S_x)
+                noise_term = tau * pt.slinalg.solve_triangular(
                     XTX_chol.T, g, lower=False)
                 phi = pm.Deterministic('phi', beta + mean_term + noise_term)
-                pred_reconstructed = at.dot(X_o_, phi)
+                pred_reconstructed = pt.dot(X_o_, phi)
 
             pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_,
                       shape=self.n_covariates)
@@ -1175,9 +1175,9 @@ class ScalarAgentModel(AgentModel):
             alpha_sigma_Y = parameters['alpha_sigma_Y']
             N_E = parameters['N_E']
 
-            S_X = pm.Normal('S_X', mu=0, sigma=at.sqrt(self.plate_size))
-            S_Y = pm.Normal('S_Y', mu=0, sigma=at.sqrt(self.plate_size))
-            S_A = pm.Normal('S_A', mu=0, sigma=at.sqrt(self.plate_size))
+            S_X = pm.Normal('S_X', mu=0, sigma=pt.sqrt(self.plate_size))
+            S_Y = pm.Normal('S_Y', mu=0, sigma=pt.sqrt(self.plate_size))
+            S_A = pm.Normal('S_A', mu=0, sigma=pt.sqrt(self.plate_size))
             Z_XX = pm.ChiSquared('Z_XX', self.plate_size - 1)
             U_XY = pm.ChiSquared('U_XY', self.plate_size - 1)
             V_XY = pm.ChiSquared('V_XY', self.plate_size - 1)
@@ -1238,3 +1238,213 @@ class ScalarAgentModel(AgentModel):
         self.trace = trace
         self.X_o = X_o
         return
+
+
+class AgentModelNormalPredictions(MultivariateAgentModel):
+    """
+    This class implements an Agent Model based on the finding that the
+    Prediction pred^o follows a normal distribution given X. This is
+    because all remaining transformations are then linear and as the
+    error term follows a normal distribution, also the predictions is
+    normally distributed.
+    """
+    def _build_model(self):
+        """
+        Build the PyMC model.
+
+        The observed feature vector ``X_o`` and the observed prediction
+        ``pred_o`` included as :class:`pm.Data` placeholders, updated at sampling
+        time. The plate of plate_size patients is replaced by reduced
+        auxiliary variables.
+
+        Returns:
+            pm.Model: The constructed PyMC model.
+        """
+        model = pm.Model()
+        with model:
+            X_o_ = pm.Data('X_o_', np.zeros(self.n_covariates))
+            pred_o_ = pm.Data('pred_o_', np.asarray(0.0))
+
+            parameters = self._build_population_parameters()
+            alpha_mu_X = parameters['alpha_mu_X']
+            alpha_sigma_X = parameters['alpha_sigma_X']
+            alpha_mu_A = parameters['alpha_mu_A']
+            alpha_sigma_A = parameters['alpha_sigma_A']
+            alpha_mu_Y = parameters['alpha_mu_Y']
+            alpha_sigma_Y = parameters['alpha_sigma_Y']
+            N_E = parameters['N_E']
+            N_b = parameters['N_b']
+            N_d = parameters['N_d']
+
+            # The SCM defines Y_i as
+            # Y_i = N_b^T X_i + N_E N_d^T X_i + N_E N_{A_i} + N_{Y_i}
+            # Given a sample from the priors, the regression estimate of the weights
+            # are then normally distributed around the true values, i.e.
+            # \hat{\beta} ~ N(\beta, (Z^T Z)^{-1} \tau), where
+            # Z = [\vec{1}, X],
+            # \beta = [[N_b + N_E * N_d], [N_E * \mu_A + \mu_Y]]) and
+            # \tau = N_E^2 * \sigma_A^2 + \sigma_Y^2
+            # Offset in \beta-vector (using augmented vectors)
+            beta_0 = pm.Deterministic('beta_0', N_E * alpha_mu_A + alpha_mu_Y)
+            # Feature weights in \beta-vector
+            beta_1 = pm.Deterministic('beta_1', N_b + N_E * N_d)
+            beta = pt.concatenate([pt.reshape(beta_0, (1,)), beta_1], axis=0)
+            # \tau-part of variance
+            tau = pm.Deterministic('tau', N_E**2 * alpha_sigma_A**2 + alpha_sigma_Y**2)
+
+            # The term (Z^T Z)^{-1} is still needed. Note that Z is the augmented
+            # version of X with a leading column of ones. Then
+            # Z_i ~ [1, N_p(\mu, \Sigma)], where p is the dimensionality of X.
+            # Using centered scatter \bar{x} ~ N_p(\mu, \Sigma/n),
+            # we express the Schur complement as
+            # S_c = (X - \vec{1} \bar{x}^T)^T (X - \vec{1} \bar{x}^T)
+            # Using the Schur-complement S_c ~ Wishart_p(n-1, \Sigma) and
+            # centered scatter \bar{x} 
+            # we calculate (Z^T Z)^{-1} using the blockformula for inverses.
+            # Because \Sigma is diagonal, we can calculate the inverse
+            # S_c^{-1} = D^{-1} W^{-1} D^{-1} where the diagonal elements
+            # of D contain the corresponding standard deviations. Thus, we sample
+            # W ~ Wishart(n-1, I_p),
+            V = pt.diag(alpha_sigma_X**2)  # Variance, not standard deviation.
+            W = pm.Wishart('W', nu=self.plate_size - 1, V=V)
+            # Invert it numerically
+            W_inv = pt.linalg.solve(W, pt.eye(self.n_covariates))
+            # Insert in equation to get S_c^{-1}.
+            D_inv = pt.diag(1/alpha_sigma_X)
+            # Inverse of Schur complement:
+            Sc_inv = D_inv @ W_inv @ D_inv
+            # We next sample \bar{x} ~ N_p(\mu, \Sigma/n)
+            D = pt.diag(alpha_sigma_X**2) / self.plate_size
+            x_bar = pm.MvNormal('x_bar', mu=alpha_mu_X, cov=D)
+            # and lastly we insert these values together with n into the block
+            # formula for the inverse.
+            top_left = 1/self.plate_size + x_bar.T @ Sc_inv @ x_bar
+            top_left = pt.reshape(top_left, (1, 1))
+            top_right = -x_bar.T @ Sc_inv
+            top_right = pt.reshape(top_right, (1, self.n_covariates))
+            bottom_left = -Sc_inv @ x_bar
+            bottom_left = pt.reshape(bottom_left, (self.n_covariates, 1))
+            bottom_right = Sc_inv
+            XtX_inv = pt.concatenate([
+                pt.concatenate([top_left, top_right], axis=1),
+                pt.concatenate([bottom_left, bottom_right], axis=1)
+            ], axis=0)
+            # Multiplying this by \tau gives the variance of the vector of
+            # parameters \beta.
+            beta_var = tau * XtX_inv 
+
+            # Augmet X_o_
+            X_o_aug = pt.concatenate([pt.ones(1), X_o_], axis=0)
+            # Center of prediction if our beliefs were correct:
+            mu_pred = pm.Deterministic('mu_pred', pt.dot(X_o_aug, beta))
+            # Variance of the same
+            sigma_2_pred = pm.Deterministic('sigma_2_pred', pt.dot(X_o_aug, pt.dot(beta_var, X_o_aug)))
+            sigma_pred = pm.Deterministic('sigma_pred', pt.sqrt(sigma_2_pred))
+            pm.Normal('pred_o', mu_pred, sigma_pred, observed=pred_o_)
+            pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
+
+        return model
+
+
+class AgentModelWithNormalParameters(AgentModel):
+    """
+    This class implements an agent model for a setting where the agent
+    receives one or multiple predictions.
+    Normally distributed parameters given ...
+    Keep matrix inveersion to get model parameters in or outside of class?
+
+    Still stuff to be done here. 
+    """
+
+    def _build_model(self):
+        """
+        Build the PyMC model.
+
+        The observed feature vector ``X_o`` and the observed prediction
+        ``pred_o`` included as :class:`pm.Data` placeholders, updated at sampling
+        time. The plate of plate_size patients is replaced by the reduced
+        auxiliary variables ``s`` (sum of covariate noises), ``W_chol``
+        (Cholesky factor of the Wishart dispersion), ``g`` (centered A/Y
+        noise), and, with intercept, ``h`` (mean A/Y noise).
+
+        With intercept, the OLS slope vector ``phi`` and intercept ``alpha``
+        are reconstructed from (s, W, g, h) and the observed prediction is
+        modeled as ``alpha + X_o . phi``. Without intercept, ``X^T X`` is
+        rebuilt from ``S_x`` and ``W``, the slope-only ``phi`` is reconstructed
+        from (s, W, g), and the prediction is modeled as ``X_o . phi``. In both
+        cases ``X_o`` is also given the covariate likelihood
+        ``N(alpha_mu_X, alpha_sigma_X)``.
+
+        Returns:
+            pm.Model: The constructed PyMC model.
+        """
+        model = pm.Model()
+        with model:
+            beta_hat_ = pm.Data('beta_hat_', np.zeros(self.n_covariates + 1))
+
+            parameters = self._build_population_parameters()
+            alpha_mu_X = parameters['alpha_mu_X']
+            alpha_sigma_X = parameters['alpha_sigma_X']
+            alpha_mu_A = parameters['alpha_mu_A']
+            alpha_sigma_A = parameters['alpha_sigma_A']
+            alpha_mu_Y = parameters['alpha_mu_Y']
+            alpha_sigma_Y = parameters['alpha_sigma_Y']
+            N_E = parameters['N_E']
+            N_b = parameters['N_b']
+            N_d = parameters['N_d']
+
+            # The SCM defines Y_i as
+            # Y_i = N_b^T X_i + N_E N_d^T X_i + N_E N_{A_i} + N_{Y_i}
+            # Given a sample from the priors, the regression estimate of the weights
+            # are then normally distributed around the true values, i.e.
+            # \hat{\beta} ~ N(\beta, (Z^T Z)^{-1} \tau), where
+            # Z = [\vec{1}, X],
+            # \beta = [[N_b + N_E * N_d], [N_E * \mu_A + \mu_Y]]) and
+            # \tau = N_E^2 * \sigma_A^2 + \sigma_Y^2
+            # Offset in \beta-vector (using augmented vectors)
+            beta_0 = pm.Deterministic('beta_0', N_E * alpha_mu_A + alpha_mu_Y)
+            # Feature weights in \beta-vector
+            beta_1 = pm.Deterministic('beta_1', N_b + N_E * N_d)
+            beta = pt.concatenate([beta_0, beta_1], axis=0)
+            # \tau-part of variance
+            tau = pm.Deterministic('tau', N_E**2 * alpha_sigma_A**2 + alpha_sigma_Y**2)
+
+            # The term (Z^T Z)^{-1} is still needed. Note that Z is the augmented
+            # version of X with a leading column of ones. Then
+            # Z_i ~ [1, N_p(\mu, \Sigma)], where p is the dimensionality of X.
+            # Using centered scatter \bar{x} ~ N_p(\mu, \Sigma/n),
+            # we express the Schur complement as
+            # S_c = (X - \vec{1} \bar{x}^T)^T (X - \vec{1} \bar{x}^T)
+            # Using the Schur-complement S_c ~ Wishart_p(n-1, \Sigma) and
+            # centered scatter \bar{x} 
+            # we calculate (Z^T Z)^{-1} using the blockformula for inverses.
+            # Because \Sigma is diagonal, we can calculate the inverse
+            # S_c^{-1} = D^{-1} W^{-1} D^{-1} where the diagonal elements
+            # of D contain the corresponding standard deviations. Thus, we sample
+            # W ~ Wishart(n-1, I_p),
+            V = pt.diag(alpha_sigma_X**2)  # Variance, not standard deviation.
+            W = pm.Wishart('W', nu=self.plate_size - 1, V=V)
+            # Invert it numerically
+            W_inv = pt.linalg.solve(W, pt.eye(self.n_covariates))
+            # Insert in equation to get S_c^{-1}.
+            D_inv = pt.diag(1/alpha_sigma_X)
+            # Inverse of Schur complement:
+            Sc_inv = D_inv @ W_inv @ D_inv
+            # We next sample \bar{x} ~ N_p(\mu, \Sigma/n)
+            D = pt.diag(alpha_sigma_X)
+            x_bar = pm.MvNormal('x_bar', mu=alpha_mu_X, sigma=D)
+            # and lastly we insert these values together with n into the block
+            # formula for the inverse.
+            top_left = 1/self.n_covariates + x_bar.T @ Sc_inv @ x_bar
+            top_right = -x_bar.T @ Sc_inv
+            bottom_left = -Sc_inv @ x_bar
+            bottom_right = Sc_inv
+            XtX_inv = pt.concatenate([
+                pt.concatenate([top_left, top_right], axis=1),
+                pt.concatenate([bottom_left, bottom_right], axis=1)
+            ], axis=0)
+            # Multiplying this by \tau gives the variance of the vector of
+            # parameters \beta.
+            beta_var = XtX_inv @ tau
+            # Likelihood of the observed model given the sampled priors:
+            pm.MvNormal('beta_hat', mu=beta, cov=beta_var, observed=beta_hat_)
