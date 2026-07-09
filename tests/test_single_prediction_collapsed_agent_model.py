@@ -5,9 +5,11 @@ Smoke tests for the single-prediction collapsed model.
 import arviz as az
 import numpy as np
 import pymc as pm
-from scipy.stats import ks_2samp
+import pytensor.tensor as at
+from scipy.stats import ks_2samp, ncx2
 
 import single_prediction_collapsed_agent_model as spcam
+from distributions import NoncentralChiSquared, ncx2_logp
 
 
 def synthetic_posterior(n_covariates=2, n_draws=3, plate_size=12):
@@ -54,36 +56,55 @@ def test_collapsed_model_marginalizes_structural_coefficients():
     assert 'N_E' in model.model.named_vars
     assert 'R' in model.model.named_vars
     assert 'T' in model.model.named_vars
-    assert 'G_R' in model.model.named_vars
-    assert 'Z_R' in model.model.named_vars
+    assert 'NCX' in model.model.named_vars
     assert 'N_b' not in model.model.named_vars
     assert 'N_d' not in model.model.named_vars
 
 
 def test_collapsed_model_samples_constant_number_of_plate_variables():
-    # The plate is represented by the three scalar primitives (G_R, Z_R, T)
-    # for every k, so the set of sampled variables must not depend on k.
+    # The plate is represented by the two scalar primitives (NCX, T) for
+    # every k, so the set of sampled variables must not depend on k. This
+    # includes k = 1, which needed a special case under the Cochran
+    # construction (convention ChiSquared(0) = 0) but not under the native
+    # non-central chi-squared.
     population_variables = {'alpha_mu_X', 'alpha_sigma_X', 'alpha_mu_A',
                             'alpha_sigma_A', 'alpha_mu_Y', 'alpha_sigma_Y',
                             'N_E'}
-    for n_covariates in (2, 5, 10):
+    for n_covariates in (1, 2, 5, 10):
         model = spcam.SinglePredictionCollapsedAgentModel(
             n_covariates=n_covariates,
             plate_size=12)
         free_variables = {variable.name
                           for variable in model.model.free_RVs}
-        assert free_variables == population_variables | {'G_R', 'Z_R', 'T'}
+        assert free_variables == population_variables | {'NCX', 'T'}
 
 
-def test_collapsed_model_k1_has_no_centered_chi_squared():
-    model = spcam.SinglePredictionCollapsedAgentModel(
-        n_covariates=1,
-        plate_size=12)
+def test_noncentral_chi_squared_logp_matches_scipy():
+    # The custom logp must reproduce scipy.stats.ncx2.logpdf, including the
+    # negative half-integer Bessel order at nu = 1 and small non-centralities.
+    value = at.dscalar('value')
+    nu_ = at.dscalar('nu')
+    lam_ = at.dscalar('lam')
+    logp = pm.pytensorf.compile([value, nu_, lam_],
+                                ncx2_logp(value, nu_, lam_))
+    for nu in (1.0, 2.0, 3.0, 8.0):
+        for lam in (1e-3, 0.5, 10.0, 50.0):
+            for x in (0.1, 1.0, 8.0, 60.0):
+                assert np.isclose(logp(x, nu, lam),
+                                  ncx2.logpdf(x, df=nu, nc=lam),
+                                  atol=1e-8)
 
-    # Convention ChiSquared(0) = 0: Z_R is not sampled when k = 1.
-    assert 'Z_R' not in model.model.named_vars
-    assert 'G_R' in model.model.named_vars
-    assert 'R' in model.model.named_vars
+
+def test_noncentral_chi_squared_forward_sampling_matches_scipy():
+    # The random callable used for predictive sampling must draw from the
+    # same law as scipy.stats.ncx2.
+    with pm.Model():
+        NoncentralChiSquared('NCX', nu=3.0, lam=7.5)
+        draws = pm.sample_prior_predictive(draws=20000, random_seed=4)
+    samples = draws.prior['NCX'].values.ravel()
+    reference = ncx2.rvs(df=3.0, nc=7.5, size=20000,
+                         random_state=np.random.default_rng(4))
+    assert ks_2samp(samples, reference).pvalue > 0.01
 
 
 def test_cochran_construction_matches_noncentral_chi_squared():

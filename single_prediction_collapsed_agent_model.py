@@ -17,17 +17,18 @@ with \n
 :math:`\\mu_{red} = c + (m_b + N_E m_d) S_o` \n
 :math:`V_{red} = Q_o (v_b + 2 N_E v_{bd} + N_E^2 v_d) + \\tau^2 (1/n + R/T)`, \n
 where the cross term vanishes (:math:`v_{bd} = 0`) under the independent
-coefficient priors assumed by this class. Because PyMC does not provide a
-native non-central chi-squared distribution, R
-is built through the equivalent central-chi-squared (Cochran) construction \n
-:math:`G_R \\sim \\mathcal{N}(0, 1)`,
-:math:`Z_R \\sim \\chi^2_{k-1}`,
-:math:`R := (\\Delta_X + G_R / \\sqrt{n})^2 + Z_R / n`, \n
+coefficient priors assumed by this class. The auxiliary R is drawn from a
+native non-central chi-squared (see :mod:`distributions`), \n
+:math:`n R \\sim \\chi'^2_k(\\lambda)`,
+:math:`\\lambda = n \\Delta_X^2`, \n
 with :math:`\\Delta_X^2 := (X^o - \\vec{\\alpha}_{X\\mu})^\\top D_X^{-2}
-(X^o - \\vec{\\alpha}_{X\\mu})` and the convention :math:`\\chi^2_0 = 0` when
-k = 1. The orthogonal rotation behind Cochran's theorem concentrates the
-non-centrality in a single coordinate, so the model samples three scalar
-primitive variables (G_R, Z_R, T) regardless of k and n.
+(X^o - \\vec{\\alpha}_{X\\mu})`. This replaces the equivalent central-chi-squared
+(Cochran) construction
+:math:`R = (\\Delta_X + G_R / \\sqrt{n})^2 + Z_R / n` with
+:math:`G_R \\sim \\mathcal{N}(0, 1)`, :math:`Z_R \\sim \\chi^2_{k-1}` and the
+convention :math:`\\chi^2_0 = 0` when k = 1, so the model now samples the two
+scalar primitives (the non-central chi-squared and T) regardless of k and n,
+with no k = 1 special case.
 
 Since the CATE depends only on N_E, marginalizing N_b and N_d loses no
 information relevant to the decision rule. For the agent-side predictive
@@ -49,6 +50,7 @@ import pytensor.tensor as at
 from scipy.stats import kurtosis, skew
 
 import scm
+from distributions import NoncentralChiSquared
 
 
 DEBUGGING = False
@@ -295,14 +297,17 @@ class SinglePredictionCollapsedAgentModel:
         The observed feature vector ``X_o`` and the observed prediction
         ``pred_o`` enter as :class:`pm.Data` placeholders, updated at sampling
         time. The plate is reduced to the two scalar auxiliaries ``R`` and
-        ``T``: since PyMC has no native non-central chi-squared, ``R`` is built
-        through the central-chi-squared (Cochran) construction \n
-        :math:`R = (\\Delta_X + G_R / \\sqrt{n})^2 + Z_R / n` \n
-        with ``G_R ~ N(0, 1)``, ``Z_R ~ ChiSquared(k - 1)`` (the convention
-        ``ChiSquared(0) = 0`` applies when k = 1), and ``T`` is a centered
-        chi-squared with ``plate_size - n_covariates`` degrees of freedom. The
-        model therefore samples three scalar primitive variables (G_R, Z_R, T)
-        regardless of k and n. The collapsed mean ``prediction_mu`` and
+        ``T``: ``R`` is drawn from a native non-central chi-squared
+        (:func:`distributions.NoncentralChiSquared`) with \n
+        :math:`n R \\sim \\chi'^2_k(n \\Delta_X^2)` \n
+        and ``T`` is a centered chi-squared with
+        ``plate_size - n_covariates`` degrees of freedom. This replaces the
+        central-chi-squared (Cochran) construction
+        :math:`R = (\\Delta_X + G_R / \\sqrt{n})^2 + Z_R / n` with
+        ``G_R ~ N(0, 1)``, ``Z_R ~ ChiSquared(k - 1)`` (and the convention
+        ``ChiSquared(0) = 0`` when k = 1), so the model samples two scalar
+        primitive variables (the non-central chi-squared and T) regardless of
+        k and n. The collapsed mean ``prediction_mu`` and
         variance ``prediction_variance`` are formed from the marginalized
         coefficient priors and the auxiliaries, and the observed prediction is
         given the likelihood ``N(prediction_mu, prediction_sigma)``. ``X_o`` is
@@ -328,17 +333,18 @@ class SinglePredictionCollapsedAgentModel:
             Delta_X = pm.Deterministic(
                 'Delta_X',
                 at.sqrt(at.sum(((X_o_ - alpha_mu_X) / alpha_sigma_X)**2)))
-            G_R = pm.Normal('G_R', mu=0, sigma=1)
-            if self.n_covariates > 1:
-                Z_R = pm.ChiSquared('Z_R', nu=self.n_covariates - 1)
-            else:
-                # Convention ChiSquared(0) = 0 for k = 1: all non-centrality
-                # lives in the single rotated coordinate.
-                Z_R = 0.0
-            R = pm.Deterministic(
-                'R',
-                (Delta_X + G_R / np.sqrt(self.plate_size))**2 +
-                Z_R / self.plate_size)
+            # R is the plate auxiliary whose target law is a non-central
+            # chi-squared: n R ~ chi'^2_k(lam) with non-centrality
+            # lam = n * Delta_X^2. Sampling it natively from
+            # NoncentralChiSquared replaces the equivalent central-chi-squared
+            # (Cochran) construction R = (Delta_X + G / sqrt(n))^2 + Z / n with
+            # G ~ N(0, 1), Z ~ chi^2_{k-1}, which needed the two auxiliary
+            # variables G and Z and a k = 1 special case. The native
+            # distribution covers k = 1 without any special case.
+            NCX = NoncentralChiSquared(
+                'NCX', nu=self.n_covariates,
+                lam=self.plate_size * Delta_X**2)
+            R = pm.Deterministic('R', NCX / self.plate_size)
             T = pm.ChiSquared('T', nu=self.plate_size - self.n_covariates)
 
             beta_mu = self.prior_parameters['N_b_mu'] + (
