@@ -155,9 +155,7 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
     columns = RESULT_COLUMNS + [(key, key) for key in extra_keys]
     fieldnames = [key for key, _ in columns]
 
-    missing_keys = [key for key in fieldnames if key not in result_dict]
-    if missing_keys:
-        raise KeyError("Missing required result keys: {}".format(missing_keys))
+    row = {key: result_dict.get(key, float('nan')) for key in fieldnames}
 
     file_is_new = not Path(full_path).exists()
     with open(full_path, 'a', newline='') as f:
@@ -165,7 +163,7 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
                                 lineterminator='\n')
         if file_is_new:
             writer.writerow(dict(columns))  # Header row, using display names.
-        writer.writerow(result_dict)
+        writer.writerow(row)
     print("Results saved to {}".format(full_path))
 
 
