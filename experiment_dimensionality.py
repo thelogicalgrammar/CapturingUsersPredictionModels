@@ -16,8 +16,14 @@ Example::
 
 X_o is always sampled internally from the correct covariate distribution.
 """
+import os
 import sys
 import time
+
+# ArviZ tries to write ~/.cache/arviz/ on import; the directory may not
+# exist on cluster nodes where the home directory is freshly mounted.
+os.makedirs(os.path.expanduser('~/.cache/arviz'), exist_ok=True)
+
 import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np

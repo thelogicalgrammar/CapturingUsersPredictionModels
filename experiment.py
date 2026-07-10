@@ -20,8 +20,12 @@ use 72kg as the feature of the observed patient.
 Notes:
 Could perhaps implement support for changing plate size and SCM parameters
 """
+import os
 import sys
 import time
+
+os.makedirs(os.path.expanduser('~/.cache/arviz'), exist_ok=True)
+
 import arviz as az
 import matplotlib.pyplot as plt  # Not used in array job.
 import numpy as np
