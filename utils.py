@@ -612,6 +612,99 @@ def plot_all_combined(file_name='./results/results_18_2.csv', scan='wide'):
         )
 
 
+def plot_cate_change_for_var(df, variable_name, mean_x, std_x, x_label,
+                             scan='', misalignment_sds=(-5, 0, 5)):
+    """
+    Plot ΔCATE (posterior − prior) vs X_o for three levels of prior misalignment.
+
+    Selects the rows whose "New value of modified prior" is closest to
+    mean_x + sd * std_x for each sd in misalignment_sds (~50 rows per level,
+    covering the range of X_o values).
+
+    Args:
+        df (pd.DataFrame): Results for one modified prior (from load_results).
+        variable_name (str): Name of the modified prior.
+        mean_x (float): True (aligned) value of the prior parameter.
+        std_x (float): 1 SD unit for this parameter.
+        x_label (str): X-axis label.
+        scan (str): Label used in the output file name.
+        misalignment_sds (tuple): SD offsets to plot (default −1, 0, +1).
+    """
+    param_col = 'New value of modified prior'
+    available_vals = sorted(df[param_col].unique())
+
+    sd_labels = {-5: r'$-5$ SD', 0: 'Aligned', 5: r'$+5$ SD'}
+    selected = {
+        sd: min(available_vals, key=lambda v: abs(v - (mean_x + sd * std_x)))
+        for sd in misalignment_sds
+    }
+
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+    fig, (ax_top, ax_bot) = plt.subplots(
+        2, 1, sharex=True, figsize=(10, 8),
+        gridspec_kw={'height_ratios': [1, 1]})
+    fig.subplots_adjust(hspace=0.05)
+
+    for i, sd in enumerate(misalignment_sds):
+        val = selected[sd]
+        subset = df[df[param_col] == val].sort_values('X_o')
+        x = subset['X_o'].values
+        prior_cate = subset['Prior CATE (sample mean)'].values
+        post_cate = subset['Posterior CATE (sample mean)'].values
+        color = colors[i]
+        label = sd_labels.get(sd, '{:+d} SD'.format(sd))
+
+        ax_top.plot(x, post_cate - prior_cate, color=color, label=label)
+        ax_bot.plot(x, post_cate,  color=color, linestyle='-',
+                    label='Posterior ({})'.format(label))
+        ax_bot.plot(x, prior_cate, color=color, linestyle='--',
+                    label='Prior ({})'.format(label))
+
+    ax_top.axhline(y=0, color='black', linestyle=':', linewidth=0.8)
+    ax_top.set_ylabel('Posterior CATE − Prior CATE')
+    ax_top.legend(loc='best')
+
+    ax_bot.set_ylabel('CATE')
+    ax_bot.set_xlabel(x_label)
+    ax_bot.legend(loc='best')
+
+    plt.savefig('./fig/{}_{}_cate_change.pdf'.format(scan, variable_name),
+                bbox_inches='tight')
+    plt.clf()
+
+
+def plot_all_cate_change(file_name='./results/results.csv', scan=''):
+    """
+    Create ΔCATE vs X_o plots for all modified prior variables.
+
+    Args:
+        file_name (str): Path to the results CSV file.
+        scan (str): Label used in output file names.
+    """
+    var_names    = ['mu_X', 'mu_Y', 'mu_A', 'N_E_mu']
+    mean_of_vars = [80.0,    0.0,    2.0,   1.0]
+    std_of_vars  = [10.0,    0.1,    1.0,   1.0]
+    x_labels = [
+        r'Observation $X^o$',
+        r'Observation $X^o$',
+        r'Observation $X^o$',
+        r'Observation $X^o$'
+    ]
+
+    results = load_results(file_name)
+    for var, mean_x, std_x, x_label in zip(
+            var_names, mean_of_vars, std_of_vars, x_labels):
+        plot_cate_change_for_var(
+            df=results[var],
+            variable_name=var,
+            mean_x=mean_x,
+            std_x=std_x,
+            x_label=x_label,
+            scan=scan,
+        )
+
+
 def plot_prior_and_posterior_Y(df, variable_name, mean_x, std_x=None,
                                xlim=(None, None), scan=None, keep_rate=None):
     """
@@ -679,5 +772,10 @@ def plot_all(file_name='./results/results_18_2.csv'):
     print("Creating plots. Existing files are overwritten.")
     # plot_CATEs(file_name)
     # plot_all_Y(file_name)
+    # Plot 3x1 graphs with E(Y|do(A)), CATE, and outcomes for every variable in the data:
     plot_all_combined(file_name)
+    # Plot 3x3 graph with all of the above for X, A, N_E to include in paper.
     plot_combined_grid(file_name, scan='wide')
+    # Plot effect of X_o on size and magnitude of posterior belief in CATE.
+    # Value of X_o seems to have no effect at all, probably due to strong priors.
+    plot_all_cate_change()
