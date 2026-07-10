@@ -39,6 +39,7 @@ from abc import ABC, abstractmethod
 import warnings
 
 import scm
+from distributions import NoncentralChiSquared
 
 
 DEBUGGING = False
@@ -1295,50 +1296,38 @@ class AgentModelNormalPredictions(MultivariateAgentModel):
             # The term (Z^T Z)^{-1} is still needed. Note that Z is the augmented
             # version of X with a leading column of ones. Then
             # Z_i ~ [1, N_p(\mu, \Sigma)], where p is the dimensionality of X.
-            # Using centered scatter \bar{x} ~ N_p(\mu, \Sigma/n),
-            # we express the Schur complement as
-            # S_c = (X - \vec{1} \bar{x}^T)^T (X - \vec{1} \bar{x}^T)
-            # Using the Schur-complement S_c ~ Wishart_p(n-1, \Sigma) and
-            # centered scatter \bar{x} 
-            # we calculate (Z^T Z)^{-1} using the blockformula for inverses.
-            # Because \Sigma is diagonal, we can calculate the inverse
-            # S_c^{-1} = D^{-1} W^{-1} D^{-1} where the diagonal elements
-            # of D contain the corresponding standard deviations. Thus, we sample
-            # W ~ Wishart(n-1, I_p),
-            V = pt.diag(alpha_sigma_X**2)  # Variance, not standard deviation.
-            W = pm.Wishart('W', nu=self.plate_size - 1, V=V)
-            # Invert it numerically
-            W_inv = pt.linalg.solve(W, pt.eye(self.n_covariates))
-            # Insert in equation to get S_c^{-1}.
-            D_inv = pt.diag(1/alpha_sigma_X)
-            # Inverse of Schur complement:
-            Sc_inv = D_inv @ W_inv @ D_inv
-            # We next sample \bar{x} ~ N_p(\mu, \Sigma/n)
-            D = pt.diag(alpha_sigma_X**2) / self.plate_size
-            x_bar = pm.MvNormal('x_bar', mu=alpha_mu_X, cov=D)
-            # and lastly we insert these values together with n into the block
-            # formula for the inverse.
-            top_left = 1/self.plate_size + x_bar.T @ Sc_inv @ x_bar
-            top_left = pt.reshape(top_left, (1, 1))
-            top_right = -x_bar.T @ Sc_inv
-            top_right = pt.reshape(top_right, (1, self.n_covariates))
-            bottom_left = -Sc_inv @ x_bar
-            bottom_left = pt.reshape(bottom_left, (self.n_covariates, 1))
-            bottom_right = Sc_inv
-            XtX_inv = pt.concatenate([
-                pt.concatenate([top_left, top_right], axis=1),
-                pt.concatenate([bottom_left, bottom_right], axis=1)
-            ], axis=0)
-            # Multiplying this by \tau gives the variance of the vector of
-            # parameters \beta.
-            beta_var = tau * XtX_inv 
+            # Using centered scatter \bar{x} ~ N_p(\mu, \Sigma/n) and the
+            # Schur complement S_c ~ Wishart_p(n-1, \Sigma), the block formula
+            # for inverses gives the only quantity the likelihood needs,
+            # X_o_aug^T (Z^T Z)^{-1} X_o_aug =
+            #     1/n + (X_o - \bar{x})^T S_c^{-1} (X_o - \bar{x}).
+            # Because a single prediction touches (\bar{x}, S_c) only through
+            # this scalar quadratic form, the pair collapses in distribution to
+            # two scalars (see the "Single-prediction collapsed reduction"
+            # derivation):
+            # X_o_aug^T (Z^T Z)^{-1} X_o_aug = 1/n + R/T, with
+            # n R ~ noncentral chi^2_p(n \Delta_X^2), T ~ chi^2_{n-p}, and
+            # \Delta_X^2 = (X_o - \mu)^T \Sigma^{-1} (X_o - \mu) the
+            # standardized distance of X_o from the covariate mean. This also
+            # avoids sampling the Wishart matrix directly, which PyMC's NUTS
+            # cannot do (proposals are not symmetric positive definite, so the
+            # model fails at the initial evaluation).
+            Delta_X = pm.Deterministic(
+                'Delta_X',
+                pt.sqrt(pt.sum(((X_o_ - alpha_mu_X) / alpha_sigma_X)**2)))
+            NCX = NoncentralChiSquared(
+                'NCX', nu=self.n_covariates,
+                lam=self.plate_size * Delta_X**2)
+            R = pm.Deterministic('R', NCX / self.plate_size)
+            T = pm.ChiSquared('T', nu=self.plate_size - self.n_covariates)
 
             # Augmet X_o_
             X_o_aug = pt.concatenate([pt.ones(1), X_o_], axis=0)
             # Center of prediction if our beliefs were correct:
             mu_pred = pm.Deterministic('mu_pred', pt.dot(X_o_aug, beta))
-            # Variance of the same
-            sigma_2_pred = pm.Deterministic('sigma_2_pred', pt.dot(X_o_aug, pt.dot(beta_var, X_o_aug)))
+            # Variance of the same: \tau times the collapsed quadratic form.
+            sigma_2_pred = pm.Deterministic(
+                'sigma_2_pred', tau * (1.0 / self.plate_size + R / T))
             sigma_pred = pm.Deterministic('sigma_pred', pt.sqrt(sigma_2_pred))
             pm.Normal('pred_o', mu_pred, sigma_pred, observed=pred_o_)
             pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
