@@ -32,7 +32,10 @@ def run_completion_check():
         name_idx  = headers.index('Modified prior')
         value_idx = headers.index('New value of modified prior')
         k_idx     = headers.index('n_covariates')
+        min_cols = max(name_idx, value_idx, k_idx) + 1
         for row in reader:
+            if len(row) < min_cols:
+                continue
             key = (row[name_idx], float(row[value_idx]), int(float(row[k_idx])))
             completed[key] += 1
 
