@@ -145,6 +145,7 @@ def main(X_o, agent_priors, modified_prior,
         agent_model.sample_posterior_predictive_CATE(X_o, A1_treatment, A0_treatment, rng=rng)
     posterior_treatment = A1_treatment if posterior_CATE_mean > threshold else A0_treatment
     posterior_predictive_summaries = agent_model.sample_posterior_predictive_summaries(rng=rng)
+    posterior_parameter_summaries = agent_model.posterior_parameter_summaries()
 
     # 8. Ground truth of CATE and potential outcomes
     #    based on the data generating SCM
@@ -268,6 +269,8 @@ def main(X_o, agent_priors, modified_prior,
     compiled_results.update(prior_predictive_summaries)
     # Add posterior predictive summaries
     compiled_results.update(posterior_predictive_summaries)
+    # Add posterior parameter summaries
+    compiled_results.update(posterior_parameter_summaries)
     # Add expected predictive outputs:
     compiled_results.update(expected_outcomes)
 

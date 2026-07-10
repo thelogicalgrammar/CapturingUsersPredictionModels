@@ -661,6 +661,64 @@ class AgentModel(ABC):
         return results
 
 
+    def posterior_parameter_summaries(self):
+        """
+        Compute mean, std, skewness, and kurtosis of the posterior samples
+        for each population parameter (the variables sampled in trace.posterior).
+
+        For scalar parameters (N_E, alpha_mu_A, ...) returns one set of moments
+        per parameter. For vector parameters (alpha_mu_X, N_b, ...) with k = 1
+        returns one set without a dimension index; with k > 1 returns one set
+        per dimension.
+
+        Returns:
+            dict: Summary statistics keyed by ``param_<name>_<moment>`` (scalar
+            or k = 1) or ``param_<name>_<dim>_<moment>`` (k > 1).
+        """
+        if self.trace is None:
+            raise ValueError("No posterior samples available. Call sample() first.")
+
+        posterior = self.trace.posterior
+        results = {}
+
+        nan_moments = {'_mean': np.nan, '_std': np.nan,
+                       '_skew': np.nan, '_kurtosis': np.nan}
+
+        scalar_params = ['alpha_mu_A', 'alpha_sigma_A',
+                         'alpha_mu_Y', 'alpha_sigma_Y', 'N_E']
+        for name in scalar_params:
+            key = 'param_{}'.format(name)
+            if name in posterior:
+                values = posterior[name].values.reshape(-1)
+                results.update(self._moment_dict(values, key))
+            else:
+                results.update({key + suffix: v for suffix, v in nan_moments.items()})
+
+        # N_b and N_d are also vector params; the else-branch below covers them
+        # when the current model does not have these parameters.
+        vector_params = ['alpha_mu_X', 'alpha_sigma_X', 'N_b', 'N_d']
+        for name in vector_params:
+            key = 'param_{}'.format(name)
+            if name in posterior:
+                values = posterior[name].values
+                # ArviZ squeezes trailing dim for shape=(1,) variables,
+                # giving (chains, draws) instead of (chains, draws, 1).
+                if values.ndim == 2:
+                    values = values[:, :, np.newaxis]
+                k = values.shape[-1]
+                if k == 1:
+                    results.update(self._moment_dict(values.reshape(-1), key))
+                else:
+                    for dim in range(k):
+                        results.update(self._moment_dict(
+                            values[..., dim].reshape(-1),
+                            'param_{}_{}'.format(name, dim)))
+            else:
+                results.update({key + suffix: v for suffix, v in nan_moments.items()})
+
+        return results
+
+
 class MultivariateAgentModel(AgentModel):
     """
     Class for a multivariate agent model with structural equations:
