@@ -2,6 +2,7 @@
 Functions for writing results to file, for reading
 results from said file, and for plotting results.
 """
+import ast
 import csv
 from pathlib import Path
 import numpy as np
@@ -816,3 +817,151 @@ def plot_all(file_name='./results/results_18_2.csv'):
     # Plot effect of X_o on size and magnitude of posterior belief in CATE.
     # Value of X_o seems to have no effect at all, probably due to strong priors.
     plot_all_cate_change()
+
+
+def _parse_dimensionality(x_o_value):
+    parsed = ast.literal_eval(str(x_o_value))
+    return len(parsed) if isinstance(parsed, list) else 1
+
+
+_PRIOR_REFERENCE = {
+    'mu_A':   (2.0,  1.0),
+    'mu_X':   (80.0, 10.0),
+    'mu_Y':   (0.0,  0.1),
+    'N_E_mu': (1.0,  0.05),
+}
+
+
+def _to_std_label(prior_name, value):
+    ref, sigma = _PRIOR_REFERENCE.get(prior_name, (0.0, 1.0))
+    n_std = round((value - ref) / sigma)
+    return '{:+d}σ'.format(n_std)
+
+
+_MARKERS_BY_ABS_RANK = ['o', 's', '^', 'D', 'X']
+
+
+def _line_emphasis(abs_n_std, sorted_unique_abs):
+    """Return (linewidth, alpha, zorder) based on rank of abs_n_std (smallest = most emphasis)."""
+    rank  = sorted_unique_abs.index(abs_n_std)
+    n     = max(len(sorted_unique_abs) - 1, 1)
+    t     = rank / n                        # 0 = most central, 1 = most extreme
+    lw    = 2.5 - 1.8 * t                  # 2.5 → 0.7
+    alpha = 1.0 - 0.7 * t                  # 1.0 → 0.3
+    return lw, alpha, n - rank
+
+
+def plot_dimensionality(file_name='./results/results_dimensionality.csv'):
+    prior_col   = 'Modified prior'
+    value_col   = 'New value of modified prior'
+    outcome_col = 'Posterior CATE (sample mean)'
+    dim_col     = 'dimensionality'
+
+    df = pd.read_csv(file_name)
+    df[dim_col] = df['X_o'].apply(_parse_dimensionality)
+
+    true_cate = df['True CATE (sample mean)'].mean()
+
+    for prior_name, prior_df in df.groupby(prior_col):
+        grouped  = prior_df.groupby([dim_col, value_col])
+        agg_mean = grouped[outcome_col].mean().unstack(level=value_col)
+
+        dim_values   = sorted(agg_mean.index.tolist())
+        prior_values = sorted(agg_mean.columns.tolist())
+
+        ref, sigma = _PRIOR_REFERENCE.get(prior_name, (0.0, 1.0))
+        abs_stds   = sorted({abs(round((v - ref) / sigma)) for v in prior_values})
+
+        fig, ax = plt.subplots()
+        for pval in prior_values:
+            if abs(round((pval - ref) / sigma)) == 30:
+                continue
+            n_std     = round((pval - ref) / sigma)
+            abs_n_std = abs(n_std)
+            abs_rank  = abs_stds.index(abs_n_std)
+
+            color  = 'black' if n_std == 0 else ('#D6604D' if n_std > 0 else '#2166AC')
+            marker = _MARKERS_BY_ABS_RANK[abs_rank % len(_MARKERS_BY_ABS_RANK)]
+            lw, alpha, zo = _line_emphasis(abs_n_std, abs_stds)
+
+            y    = agg_mean[pval].values
+            ax.plot(dim_values, y,
+                    color=color, marker=marker, linewidth=lw,
+                    alpha=alpha, zorder=zo, label=_to_std_label(prior_name, pval))
+
+        ax.axhline(true_cate, color='gray', linewidth=0.8,
+                   linestyle=(0, (6, 6)), label='True CATE')
+
+        ax.set_xticks(dim_values)
+        ax.set_xticklabels([str(d) for d in dim_values])
+        ax.set_xlabel('X dimensionality (k)')
+        ax.set_ylabel('Posterior CATE (sample mean)')
+        ax.set_title('Effect of dimensionality on posterior CATE — {}'.format(prior_name))
+        ax.legend(title='Misalignment of prior mean', loc='best')
+
+        plt.savefig('./fig/dim_{}.pdf'.format(prior_name), bbox_inches='tight')
+        plt.clf()
+
+
+def plot_dimensionality_improvement(file_name='./results/results_dimensionality.csv'):
+    prior_col = 'Modified prior'
+    value_col = 'New value of modified prior'
+    dim_col   = 'dimensionality'
+
+    df = pd.read_csv(file_name)
+    df[dim_col]  = df['X_o'].apply(_parse_dimensionality)
+    true_cate    = df['True CATE (sample mean)'].mean()
+
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+    for prior_name, prior_df in df.groupby(prior_col):
+        ref, sigma = _PRIOR_REFERENCE.get(prior_name, (0.0, 1.0))
+
+        grouped      = prior_df.groupby([dim_col, value_col])
+        agg_prior    = grouped['Prior CATE (sample mean)'].mean().unstack(level=value_col)
+        agg_posterior= grouped['Posterior CATE (sample mean)'].mean().unstack(level=value_col)
+
+        dim_values   = sorted(agg_prior.index.tolist())
+        prior_values = sorted(
+            [v for v in agg_prior.columns if abs(round((v - ref) / sigma)) != 30],
+            key=lambda v: round((v - ref) / sigma)
+        )
+
+        n_plots = len(prior_values)
+        ncols   = 2
+        nrows   = (n_plots + 1) // ncols
+        fig, axes = plt.subplots(nrows, ncols, figsize=(10, 3 * nrows),
+                                 sharex=True, sharey=True)
+
+        for idx, pval in enumerate(prior_values):
+            ax    = axes.flat[idx]
+            label = _to_std_label(prior_name, pval)
+
+            ax.plot(dim_values, agg_prior[pval].values,
+                    color=colors[0], linestyle='--', marker='o',
+                    label='Prior' if idx == 0 else '_nolegend_')
+            ax.plot(dim_values, agg_posterior[pval].values,
+                    color=colors[1], linestyle='-', marker='o',
+                    label='Posterior' if idx == 0 else '_nolegend_')
+            ax.axhline(true_cate, color='gray', linewidth=0.8,
+                       linestyle=(0, (6, 6)),
+                       label='True CATE' if idx == 0 else '_nolegend_')
+
+            ax.set_title(label)
+            ax.set_xticks(dim_values)
+            ax.set_xticklabels([str(d) for d in dim_values])
+
+        for idx in range(n_plots, nrows * ncols):
+            axes.flat[idx].set_visible(False)
+
+        for ax in axes[:, 0]:
+            ax.set_ylabel('CATE (sample mean)')
+        for ax in axes[-1, :]:
+            ax.set_xlabel('X dimensionality (k)')
+
+        fig.suptitle('CATE estimation error vs dimensionality — {}'.format(prior_name))
+        fig.legend(*axes.flat[0].get_legend_handles_labels(),
+                   loc='lower right', bbox_to_anchor=(0.98, 0.02))
+
+        plt.savefig('./fig/dim_improvement_{}.pdf'.format(prior_name), bbox_inches='tight')
+        plt.clf()
