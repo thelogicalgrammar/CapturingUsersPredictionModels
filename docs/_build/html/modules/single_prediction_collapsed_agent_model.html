@@ -21,7 +21,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Collapsed Experiment" href="experiment_collapsed.html" />
-    <link rel="prev" title="Experiment Series" href="experiment_series.html" /> 
+    <link rel="prev" title="Dimensionality Experiment" href="experiment_dimensionality.html" />
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -47,12 +47,17 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="agent_model.html">Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributions.html">Custom Distributions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dimensionality_config.html">Dimensionality Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Single-Prediction Collapsed Agent Model</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel</span></code></a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.get_prior_CATE_mu"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.get_prior_CATE_mu()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.load_agent_model"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.load_agent_model()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.posterior_negative_sign_probability"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.posterior_negative_sign_probability()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.posterior_parameter_summaries"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.posterior_parameter_summaries()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.sample()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.sample_posterior_predictive()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_posterior_predictive_CATE"><code class="docutils literal notranslate"><span class="pre">SinglePredictionCollapsedAgentModel.sample_posterior_predictive_CATE()</span></code></a></li>
@@ -76,6 +81,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="generate_parameter_file.html">Generate Parameter File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
         </div>
@@ -107,57 +114,59 @@
 <p>Single-prediction collapsed Bayesian agent model.</p>
 <p>This is a further reduction of <a class="reference internal" href="agent_model.html#agent_model.MultivariateAgentModel" title="agent_model.MultivariateAgentModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">agent_model.MultivariateAgentModel</span></code></a>
 for the case where the agent observes a single scalar prediction <code class="docutils literal notranslate"><span class="pre">pred_o</span></code> for
-a single observed feature vector <code class="docutils literal notranslate"><span class="pre">X_o</span></code>. Under independent Gaussian priors on
-the coordinates of the coefficient vectors N_b and N_d, those vectors are
-marginalized analytically, so the only non-auxiliary latent variables left are
-N_E and the population-level parameters.</p>
+a single observed feature vector <code class="docutils literal notranslate"><span class="pre">X_o</span></code>. Under independent Gaussian priors,
+the coefficient vectors N_b and N_d and the population means alpha_mu_A and
+alpha_mu_Y are marginalized analytically. The sign of N_E is also summed out:
+NUTS samples only U = abs(N_E), while both signed branches are evaluated in
+the likelihood.</p>
 <p>The reduced-plate auxiliary variables (s, W, g, h) of the multivariate model are
 replaced by two scalar auxiliaries (R, T), constant in both the plate size n and
-the number of covariates k. Conditional on (R, T, N_E, the population-level
-parameters, and X_o), the observed prediction is Gaussian:</p>
-<p><span class="math notranslate nohighlight">\(Pred^o \sim \mathcal{N}(\mu_{red}, V_{red})\)</span></p>
-<p>with</p>
-<p><span class="math notranslate nohighlight">\(\mu_{red} = c + (m_b + N_E m_d) S_o\)</span></p>
-<p><span class="math notranslate nohighlight">\(V_{red} = Q_o (v_b + 2 N_E v_{bd} + N_E^2 v_d) + \tau^2 (1/n + R/T)\)</span>,</p>
-<p>where the cross term vanishes (<span class="math notranslate nohighlight">\(v_{bd} = 0\)</span>) under the independent
-coefficient priors assumed by this class. Because PyMC does not provide a
-native non-central chi-squared distribution, R
-is built through the equivalent central-chi-squared (Cochran) construction</p>
-<p><span class="math notranslate nohighlight">\(G_R \sim \mathcal{N}(0, 1)\)</span>,
-<span class="math notranslate nohighlight">\(Z_R \sim \chi^2_{k-1}\)</span>,
-<span class="math notranslate nohighlight">\(R := (\Delta_X + G_R / \sqrt{n})^2 + Z_R / n\)</span>,</p>
+the number of covariates k. Conditional on
+<span class="math notranslate nohighlight">\(U=|N_E|\)</span>, R, T, the remaining scale parameters, and X_o, the observed
+prediction follows an exact two-component Gaussian mixture. For sign
+<span class="math notranslate nohighlight">\(s\in\{-1,+1\}\)</span>, the branch mean is</p>
+<p><span class="math notranslate nohighlight">\(M_s=m_Y+su\,m_A+x^\top(m_b+su\,m_d)\)</span>,</p>
+<p>and its variance is</p>
+<p><span class="math notranslate nohighlight">\(W_s=v_Y+u^2v_A+\sum_jx_j^2(v_{b,j}+u^2v_{d,j})
++(u^2\alpha_{A_\sigma}^2+\alpha_{Y_\sigma}^2)(1/n+R/T)\)</span>.</p>
+<p>The mixture weights retain both branches of the normal prior on N_E, so no
+independence between sign and magnitude is assumed. The coefficient-prior
+cross term is absent because this class assumes independent N_b and N_d.
+The auxiliary R has the exact law</p>
+<p><span class="math notranslate nohighlight">\(n R \sim \chi'^2_k(\lambda)\)</span>,
+<span class="math notranslate nohighlight">\(\lambda = n \Delta_X^2\)</span>,</p>
 <p>with <span class="math notranslate nohighlight">\(\Delta_X^2 := (X^o - \vec{\alpha}_{X\mu})^\top D_X^{-2}
-(X^o - \vec{\alpha}_{X\mu})\)</span> and the convention <span class="math notranslate nohighlight">\(\chi^2_0 = 0\)</span> when
-k = 1. The orthogonal rotation behind Cochran’s theorem concentrates the
-non-centrality in a single coordinate, so the model samples three scalar
-primitive variables (G_R, Z_R, T) regardless of k and n.</p>
-<p>Since the CATE depends only on N_E, marginalizing N_b and N_d loses no
-information relevant to the decision rule. For the agent-side predictive
-quantities (predictive summaries of X, A, and Y, and expected do(A) outcomes)
-the marginalized coefficient vectors are recovered when needed: from their
-priors for prior predictive sampling, and from their conditional Gaussian
-given (N_E, R, T, the population-level parameters, and pred_o) for posterior
-predictive sampling. The derivation is in the “Single-prediction collapsed
-reduction” document of the paper derivations.</p>
+(X^o - \vec{\alpha}_{X\mu})\)</span>. For <span class="math notranslate nohighlight">\(k &gt; 1\)</span>, R is drawn from the
+native non-central chi-squared in <a class="reference internal" href="distributions.html#module-distributions" title="distributions"><code class="xref py py-mod docutils literal notranslate"><span class="pre">distributions</span></code></a>. For <span class="math notranslate nohighlight">\(k = 1\)</span>, the
+equivalent signed Cochran construction is used instead:</p>
+<p><span class="math notranslate nohighlight">\(R = (\delta_X + G_R / \sqrt{n})^2\)</span>,</p>
+<p>where
+<span class="math notranslate nohighlight">\(\delta_X = (X^o - \alpha_{X\mu}) / \alpha_{X\sigma}\)</span> and
+<span class="math notranslate nohighlight">\(G_R \sim \mathcal{N}(0, 1)\)</span>. Thus
+<span class="math notranslate nohighlight">\(nR = (\sqrt{n}\delta_X + G_R)^2\)</span> has exactly the required
+<span class="math notranslate nohighlight">\(\chi'^2_1(n\delta_X^2)\)</span> law while avoiding direct sampling at the
+singular boundary of a one-degree-of-freedom chi-squared distribution. The
+number of sampled plate primitives remains two (G_R and T for k = 1; the
+non-central chi-squared and T for k &gt; 1), independent of k and n.</p>
+<p>The signed N_E, alpha_mu_A, alpha_mu_Y, N_b, and N_d are reconstructed jointly
+after sampling. Once the sign is drawn, their conditional distribution is
+Gaussian, so Matheron’s rule gives exact draws for predictive summaries and
+do(A) outcomes. CATE moments are Rao–Blackwellized over both signs.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel">
 <em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">single_prediction_collapsed_agent_model.</span></span><span class="sig-name descname"><span class="pre">SinglePredictionCollapsedAgentModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_covariates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plate_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prior_parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Bayesian agent model for the single-prediction collapsed likelihood.</p>
-<p>The class assumes independent Gaussian priors for the coordinates of N_b
-and N_d. These vectors are marginalized analytically and are not sampled by
-PyMC, so the latent variables of the model are the population-level
-parameters, N_E, and the two scalar auxiliaries (R, T) of the collapsed
-likelihood.</p>
+<p>The class assumes independent Gaussian priors for N_b, N_d, alpha_mu_A,
+and alpha_mu_Y. These quantities and the sign of N_E are marginalized
+analytically. PyMC samples the magnitude of N_E, the remaining population
+parameters, and the two scalar auxiliaries (R, T).</p>
 <p>The model always assumes an OLS predictive model with intercept, and is
 specific to a single observed prediction: it does not extend, in this form,
 to more than one prediction. Because the CATE depends only on N_E, the
-prior and posterior CATE are obtained directly from N_E. The agent-side
-predictive summaries and expected-outcome helpers of the multivariate model
-are still provided: the marginalized coefficient vectors are recovered from
-their priors for prior predictive sampling, and from their conditional
-Gaussian given (N_E, R, T, the population-level parameters, and pred_o)
-for posterior predictive sampling.</p>
+prior and posterior CATE are obtained from signed N_E. The marginalized
+variables are recovered jointly from their exact conditional posterior for
+predictive summaries and expected-outcome helpers.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -210,6 +219,39 @@ and <code class="docutils literal notranslate"><span class="pre">{file_name}_pri
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference internal" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel" title="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel">SinglePredictionCollapsedAgentModel</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.posterior_negative_sign_probability">
+<span class="sig-name descname"><span class="pre">posterior_negative_sign_probability</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.posterior_negative_sign_probability"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.posterior_negative_sign_probability" title="Link to this definition"></a></dt>
+<dd><p>Return the posterior probability that N_E is negative.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.posterior_parameter_summaries">
+<span class="sig-name descname"><span class="pre">posterior_parameter_summaries</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.posterior_parameter_summaries"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.posterior_parameter_summaries" title="Link to this definition"></a></dt>
+<dd><p>Compute mean, std, skewness, and kurtosis of the posterior samples
+for each population parameter, in the same key format as
+<a class="reference internal" href="agent_model.html#agent_model.AgentModel.posterior_parameter_summaries" title="agent_model.AgentModel.posterior_parameter_summaries"><code class="xref py py-meth docutils literal notranslate"><span class="pre">agent_model.AgentModel.posterior_parameter_summaries()</span></code></a>, so that
+experiment drivers can use the two model classes interchangeably.</p>
+<p>Sampled population parameters are summarized directly. N_E moments are
+Rao–Blackwellized over the exact conditional sign probabilities.
+alpha_mu_A, alpha_mu_Y, N_b, and N_d are summarized from their coherent
+conditional reconstruction, so the returned moments describe the same
+posterior as an explicit model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>rng</strong> – Seed or initialized generator for the coefficient
+reconstruction (reused if draws are already cached).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">param_&lt;name&gt;_&lt;moment&gt;</span></code> (scalar or k = 1) or
+<code class="docutils literal notranslate"><span class="pre">param_&lt;name&gt;_&lt;dim&gt;_&lt;moment&gt;</span></code> (k &gt; 1) entries.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
 </dd>
 </dl>
 </dd></dl>
@@ -454,6 +496,10 @@ before pickling and restored afterwards.</p>
 <dt class="sig sig-object py" id="single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.trace_diagnostics">
 <span class="sig-name descname"><span class="pre">trace_diagnostics</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/single_prediction_collapsed_agent_model.html#SinglePredictionCollapsedAgentModel.trace_diagnostics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.trace_diagnostics" title="Link to this definition"></a></dt>
 <dd><p>Return basic sampler diagnostics for the current posterior trace.</p>
+<p>Diagnostics cover the variables explored directly by NUTS and the
+deterministic quantities that drive the CATE and reduced likelihood.
+A deterministic component that is exactly constant is omitted because
+its R-hat and ESS are undefined but it has no Monte Carlo error.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">max_rhat</span></code>, <code class="docutils literal notranslate"><span class="pre">min_ess_bulk</span></code>, <code class="docutils literal notranslate"><span class="pre">min_ess_tail</span></code> (computed
@@ -479,7 +525,7 @@ with ArviZ), and <code class="docutils literal notranslate"><span class="pre">n_
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="experiment_series.html" class="btn btn-neutral float-left" title="Experiment Series" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="experiment_dimensionality.html" class="btn btn-neutral float-left" title="Dimensionality Experiment" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="experiment_collapsed.html" class="btn btn-neutral float-right" title="Collapsed Experiment" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

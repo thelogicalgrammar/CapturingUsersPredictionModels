@@ -46,19 +46,28 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="agent_model.html">Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributions.html">Custom Distributions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dimensionality_config.html">Dimensionality Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment_collapsed.html">Collapsed Experiment</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#utils.load_results"><code class="docutils literal notranslate"><span class="pre">load_results()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#utils.match_to_grid"><code class="docutils literal notranslate"><span class="pre">match_to_grid()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#utils.parse_results"><code class="docutils literal notranslate"><span class="pre">parse_results()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#utils.plot_CATE_for_var"><code class="docutils literal notranslate"><span class="pre">plot_CATE_for_var()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#utils.plot_CATEs"><code class="docutils literal notranslate"><span class="pre">plot_CATEs()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#utils.plot_all"><code class="docutils literal notranslate"><span class="pre">plot_all()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#utils.plot_all_Y"><code class="docutils literal notranslate"><span class="pre">plot_all_Y()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.plot_all_cate_change"><code class="docutils literal notranslate"><span class="pre">plot_all_cate_change()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.plot_all_combined"><code class="docutils literal notranslate"><span class="pre">plot_all_combined()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.plot_cate_change_for_var"><code class="docutils literal notranslate"><span class="pre">plot_cate_change_for_var()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.plot_combined_for_var"><code class="docutils literal notranslate"><span class="pre">plot_combined_for_var()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.plot_combined_grid"><code class="docutils literal notranslate"><span class="pre">plot_combined_grid()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.plot_dimensionality"><code class="docutils literal notranslate"><span class="pre">plot_dimensionality()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#utils.plot_dimensionality_improvement"><code class="docutils literal notranslate"><span class="pre">plot_dimensionality_improvement()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#utils.plot_prior_and_posterior_Y"><code class="docutils literal notranslate"><span class="pre">plot_prior_and_posterior_Y()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#utils.read_outcomes_from_file"><code class="docutils literal notranslate"><span class="pre">read_outcomes_from_file()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#utils.write_results_to_file"><code class="docutils literal notranslate"><span class="pre">write_results_to_file()</span></code></a></li>
 </ul>
 </li>
@@ -67,6 +76,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="generate_parameter_file.html">Generate Parameter File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
         </div>
@@ -98,30 +109,45 @@
 <p>Functions for writing results to file, for reading
 results from said file, and for plotting results.</p>
 <dl class="py function">
-<dt class="sig sig-object py" id="utils.match_to_grid">
-<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">match_to_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">summary</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mod_var_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#match_to_grid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.match_to_grid" title="Link to this definition"></a></dt>
-<dd><p>Function to subset result data to contain only items that
-match some grid. This is needed for the boxplot that does
-not treat the x-axis as continuous.</p>
+<dt class="sig sig-object py" id="utils.load_results">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">load_results</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/results.csv'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#load_results"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.load_results" title="Link to this definition"></a></dt>
+<dd><p>Load the results CSV and group rows by modified prior name.</p>
+<p>Each row in the CSV represents one experiment run. The returned dict
+maps each unique value of the ‘Modified prior’ column to a DataFrame
+containing all runs for that prior, sorted by ‘New value of modified
+prior’.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>file_name</strong> (<em>str</em>) – Path and file name of the results CSV.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>One DataFrame per modified prior name.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict[str, pd.DataFrame]</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="utils.parse_results">
-<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">parse_results</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mod_var_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mu_X'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/results.csv'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">field_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">['pri_Y_mean',</span> <span class="pre">'post_Y_mean',</span> <span class="pre">'potential_outcome_A1_mean',</span> <span class="pre">'potential_outcome_A0_mean']</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#parse_results"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.parse_results" title="Link to this definition"></a></dt>
-<dd><p>Reads result-file and extracts the requested fields to
-a numpy-array for e.g. easy plotting. By default, these
-are the expected Y-values given the agent’s prior and
-posterior beliefs, the true Y values with and without
-treatment, and the standard deviations for all of these.</p>
+<dt class="sig sig-object py" id="utils.match_to_grid">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">match_to_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mod_var_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#match_to_grid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.match_to_grid" title="Link to this definition"></a></dt>
+<dd><p>Subset a results DataFrame to rows whose modified-prior value falls
+on the predefined grid for the given scan type. Needed for the
+boxplot, which treats the x-axis as categorical.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>mod_var_name</strong> (<em>str</em>) – Name of variable of interest (variable that was modified from
-defaults). Selects only corresponding rows from from the result-file.</p></li>
-<li><p><strong>file_name</strong> (<em>str</em>) – Path and file name of result-file.</p></li>
-<li><p><strong>field_names</strong> (<em>[</em><em>str</em><em>]</em>) – List of strings containing the column names of interest to extract
-from the result-file.</p></li>
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Results for one modified prior (from load_results).</p></li>
+<li><p><strong>mod_var_name</strong> (<em>str</em>) – Name of the modified prior (e.g. ‘mu_X’).</p></li>
+<li><p><strong>scan_type</strong> (<em>str</em>) – ‘wide’ or ‘focused’.</p></li>
 </ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Filtered copy of df.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pd.DataFrame</p>
 </dd>
 </dl>
 </dd></dl>
@@ -132,19 +158,17 @@ from the result-file.</p></li>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>var</strong> (<em>str</em>) – Name of variable of interest</p></li>
+<li><p><strong>var</strong> (<em>str</em>) – Name of modified prior variable.</p></li>
 <li><p><strong>mean_of_x</strong> (<em>float</em>) – Mean of horizontal scale (x) to center on.</p></li>
 <li><p><strong>std_of_x</strong> (<em>float</em>) – Standard deviation of the horizontal scale (x).
 Used for normalizing plot.</p></li>
-<li><p><strong>x_label</strong> (<em>str</em>) – Label that will be visible under the x-axis</p></li>
-<li><p><strong>file_name</strong> (<em>str</em>) – File name and path of the result file to parse.</p></li>
-<li><p><strong>x_lim</strong> (<em>(</em><em>float</em><em>, </em><em>float</em><em>)</em>) – +-Limits of horizontal axis</p></li>
-<li><p><strong>y_lim</strong> (<em>(</em><em>float</em><em>, </em><em>float</em><em>)</em>) – +-Limits of vertical axis</p></li>
+<li><p><strong>x_label</strong> (<em>str</em>) – Label that will be visible under the x-axis.</p></li>
+<li><p><strong>file_name</strong> (<em>str</em>) – File name and path of the result file.</p></li>
+<li><p><strong>x_lim</strong> (<em>(</em><em>float</em><em>, </em><em>float</em><em>)</em>) – +-Limits of horizontal axis.</p></li>
+<li><p><strong>y_lim</strong> (<em>(</em><em>float</em><em>, </em><em>float</em><em>)</em>) – +-Limits of vertical axis.</p></li>
 </ul>
 </dd>
 </dl>
-<p>Notes:
-Uncertainty of true model (with default values) is tiny.</p>
 </dd></dl>
 
 <dl class="py function">
@@ -161,10 +185,13 @@ Uncertainty of true model (with default values) is tiny.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="utils.plot_all">
 <span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/results_18_2.csv'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#plot_all"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_all" title="Link to this definition"></a></dt>
-<dd><p>Function that reads in all results from ./results/results.csv and
-creates boxplots for all variables found in column “Modified variables”.
-Note that the plotting methods are custom made for specific plots
-and might need tweaking with new data (e.g. plot ranges).</p>
+<dd><p>Create all plots from the results file: separate CATE line plots,
+separate Y boxplots, and combined figures.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>file_name</strong> (<em>str</em>) – Path and name of result file.</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">
@@ -180,39 +207,155 @@ under treatment selected based on beliefs.</p>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="utils.plot_prior_and_posterior_Y">
-<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_prior_and_posterior_Y</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">summary</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mean_x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">std_x</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xlim</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(None,</span> <span class="pre">None)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">keep_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#plot_prior_and_posterior_Y"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_prior_and_posterior_Y" title="Link to this definition"></a></dt>
-<dd><p>Function for creating boxplots</p>
+<dt class="sig sig-object py" id="utils.plot_all_cate_change">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_all_cate_change</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/results.csv'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#plot_all_cate_change"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_all_cate_change" title="Link to this definition"></a></dt>
+<dd><p>Create ΔCATE vs X_o plots for all modified prior variables.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>summary</strong> – Description</p></li>
-<li><p><strong>variable_name</strong> – Description</p></li>
+<li><p><strong>file_name</strong> (<em>str</em>) – Path to the results CSV file.</p></li>
+<li><p><strong>scan</strong> (<em>str</em>) – Label used in output file names.</p></li>
 </ul>
 </dd>
 </dl>
-<p>mean_x (float):  Mean of x (for normalization)
-std_x (float): Standard deviation of x (for normalization)
-scan (str): ‘wide’ or ‘focused’</p>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="utils.read_outcomes_from_file">
-<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">read_outcomes_from_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/results.csv'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#read_outcomes_from_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.read_outcomes_from_file" title="Link to this definition"></a></dt>
-<dd><p>This function reads in results from the results.csv file. The
-function extracts the outcome under the true SCM given the
-agent’s decision based on their posterior beliefs, and separates
-this by name of modified prior and groups the results by unique
-values of the modified prior.</p>
-<p>E.g. results_summary[‘N_E_mu’][‘parameter_values’] contains a list of
-unique values that N_E_mu have taken in the results.csv-file, and
-results_summary[‘N_E_mu’][‘value_lists’] contains lists of outcomes
-where every list corresponds to the parameter value at corresponding
-index and every item in the list is the outcome for one randomly
-sample X_o.</p>
+<dt class="sig sig-object py" id="utils.plot_all_combined">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_all_combined</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/results_18_2.csv'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'wide'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan_centers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan_deviations</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#plot_all_combined"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_all_combined" title="Link to this definition"></a></dt>
+<dd><p>Create combined figures for all modified priors for one scan type.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>file_name</strong> (<em>str</em>) – Path and file name of results file.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_name</strong> (<em>str</em>) – Path and name of result file.</p></li>
+<li><p><strong>scan</strong> (<em>str</em>) – ‘wide’ (default) or ‘focused’.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.plot_cate_change_for_var">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_cate_change_for_var</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mean_x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">std_x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_label</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">misalignment_sds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(-5,</span> <span class="pre">0,</span> <span class="pre">5)</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#plot_cate_change_for_var"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_cate_change_for_var" title="Link to this definition"></a></dt>
+<dd><p>Plot ΔCATE (posterior − prior) vs X_o for three levels of prior misalignment.</p>
+<p>Selects the rows whose “New value of modified prior” is closest to
+mean_x + sd * std_x for each sd in misalignment_sds (~50 rows per level,
+covering the range of X_o values).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Results for one modified prior (from load_results).</p></li>
+<li><p><strong>variable_name</strong> (<em>str</em>) – Name of the modified prior.</p></li>
+<li><p><strong>mean_x</strong> (<em>float</em>) – True (aligned) value of the prior parameter.</p></li>
+<li><p><strong>std_x</strong> (<em>float</em>) – 1 SD unit for this parameter.</p></li>
+<li><p><strong>x_label</strong> (<em>str</em>) – X-axis label.</p></li>
+<li><p><strong>scan</strong> (<em>str</em>) – Label used in the output file name.</p></li>
+<li><p><strong>misalignment_sds</strong> (<em>tuple</em>) – SD offsets to plot (default −1, 0, +1).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.plot_combined_for_var">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_combined_for_var</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mean_x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">std_x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_label</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_lim</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_lim_cate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_boxes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#plot_combined_for_var"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_combined_for_var" title="Link to this definition"></a></dt>
+<dd><p>Combined CATE line plot (top), E[Y|do(A)] line plot (middle), and Y outcome
+boxplot (bottom) with a shared continuous x-axis.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Results for one modified prior (from load_results).</p></li>
+<li><p><strong>variable_name</strong> (<em>str</em>) – Name of the modified prior, used in the output
+file name.</p></li>
+<li><p><strong>mean_x</strong> (<em>float</em>) – Center of the x-axis (for normalization). Pass None
+to skip normalization.</p></li>
+<li><p><strong>std_x</strong> (<em>float</em>) – Scale of the x-axis (for normalization). Pass None
+to skip normalization.</p></li>
+<li><p><strong>x_label</strong> (<em>str</em>) – Label for the shared x-axis.</p></li>
+<li><p><strong>x_lim</strong> (<em>(</em><em>float</em><em>, </em><em>float</em><em>)</em>) – Horizontal axis limits after normalization.</p></li>
+<li><p><strong>y_lim_cate</strong> (<em>(</em><em>float</em><em>, </em><em>float</em><em>)</em>) – Vertical axis limits for the CATE panel.</p></li>
+<li><p><strong>max_boxes</strong> (<em>int</em>) – Maximum number of x-positions in the boxplot.</p></li>
+<li><p><strong>threshold</strong> (<em>float</em>) – CATE threshold line drawn in the CATE panel.</p></li>
+<li><p><strong>scan</strong> (<em>str</em>) – Scan label used in the output file name.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>The uncertainty bands are empirical-mixture standard deviations,
+combining the stored within-patient variance with variation between
+observed patients.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.plot_combined_grid">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_combined_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/results_18_2.csv'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'wide'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_boxes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan_centers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan_deviations</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#plot_combined_grid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_combined_grid" title="Link to this definition"></a></dt>
+<dd><p>Create a 3×3 grid figure for mu_X, mu_A, and N_E.</p>
+<p>Columns correspond to the three variables; rows correspond to the CATE
+panel, the E[Y|do(A)] panel, and the Y outcome boxplot. Each row shares
+a common y-axis scale across all three variable columns.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_name</strong> (<em>str</em>) – Path to the results CSV file.</p></li>
+<li><p><strong>scan</strong> (<em>str</em>) – ‘wide’ or ‘focused’; selects x-axis limits.</p></li>
+<li><p><strong>threshold</strong> (<em>float</em>) – CATE threshold line value.</p></li>
+<li><p><strong>max_boxes</strong> (<em>int</em>) – Maximum number of x-positions in the boxplot.</p></li>
+<li><p><strong>scan_centers</strong> (<em>dict</em><em> or </em><em>None</em>) – Optional mapping from prior name to
+<code class="docutils literal notranslate"><span class="pre">(center,</span> <span class="pre">step)</span></code>. The historical no-intercept values are used
+when omitted.</p></li>
+<li><p><strong>scan_deviations</strong> (<em>sequence</em><em> or </em><em>None</em>) – Optional scan offsets used for
+x-axis limits.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.plot_dimensionality">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_dimensionality</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/results_dimensionality.csv'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan_centers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#plot_dimensionality"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_dimensionality" title="Link to this definition"></a></dt>
+<dd><p>Plot mean posterior CATE against covariate dimensionality.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_name</strong> (<em>str</em>) – Consolidated dimensionality-results CSV.</p></li>
+<li><p><strong>scan_centers</strong> (<em>dict</em><em> or </em><em>None</em>) – Optional mapping from prior name to
+<code class="docutils literal notranslate"><span class="pre">(center,</span> <span class="pre">step)</span></code> used to label scan offsets.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.plot_dimensionality_improvement">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_dimensionality_improvement</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/results_dimensionality.csv'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan_centers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#plot_dimensionality_improvement"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_dimensionality_improvement" title="Link to this definition"></a></dt>
+<dd><p>Plot prior and posterior CATE against covariate dimensionality.</p>
+<p>One panel is produced for every scanned value of each prior family.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_name</strong> (<em>str</em>) – Consolidated dimensionality-results CSV.</p></li>
+<li><p><strong>scan_centers</strong> (<em>dict</em><em> or </em><em>None</em>) – Optional mapping from prior name to
+<code class="docutils literal notranslate"><span class="pre">(center,</span> <span class="pre">step)</span></code> used to label scan offsets.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="utils.plot_prior_and_posterior_Y">
+<span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">plot_prior_and_posterior_Y</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mean_x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">std_x</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xlim</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(None,</span> <span class="pre">None)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scan</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">keep_rate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#plot_prior_and_posterior_Y"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.plot_prior_and_posterior_Y" title="Link to this definition"></a></dt>
+<dd><p>Create side-by-side boxplots of prior and posterior Y outcomes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df</strong> (<em>pd.DataFrame</em>) – Results for one modified prior (from match_to_grid).</p></li>
+<li><p><strong>variable_name</strong> (<em>str</em>) – Name of the modified prior (e.g. ‘mu_X’).</p></li>
+<li><p><strong>mean_x</strong> (<em>float</em>) – Mean of x for normalization.</p></li>
+<li><p><strong>std_x</strong> (<em>float</em>) – Standard deviation of x for normalization.</p></li>
+<li><p><strong>xlim</strong> (<em>(</em><em>float</em><em>, </em><em>float</em><em>)</em>) – +-Limits of horizontal axis after normalization.</p></li>
+<li><p><strong>scan</strong> (<em>str</em>) – ‘wide’ or ‘focused’.</p></li>
+<li><p><strong>keep_rate</strong> (<em>int</em>) – Keep every nth x-value to reduce clutter.</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
@@ -221,6 +364,9 @@ sample X_o.</p>
 <dt class="sig sig-object py" id="utils.write_results_to_file">
 <span class="sig-prename descclassname"><span class="pre">utils.</span></span><span class="sig-name descname"><span class="pre">write_results_to_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">result_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'results.csv'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/utils.html#write_results_to_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#utils.write_results_to_file" title="Link to this definition"></a></dt>
 <dd><p>Function for writing results to file.</p>
+<p>Existing files must have exactly the same header as the row being
+appended. A schema mismatch raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> instead of producing a
+malformed CSV.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">

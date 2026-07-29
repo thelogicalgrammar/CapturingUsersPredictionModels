@@ -45,8 +45,11 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="modules/agent_model.html">Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/distributions.html">Custom Distributions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/dimensionality_config.html">Dimensionality Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/experiment_collapsed.html">Collapsed Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/utils.html">Utilities</a></li>
@@ -55,6 +58,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="modules/completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/generate_parameter_file.html">Generate Parameter File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
         </div>
@@ -88,6 +93,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="modules/agent_model.html">Agent Model</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="modules/agent_model.html#agent_model.AgentModel"><code class="docutils literal notranslate"><span class="pre">AgentModel</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="modules/agent_model.html#agent_model.AgentModelNormalPredictions"><code class="docutils literal notranslate"><span class="pre">AgentModelNormalPredictions</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="modules/agent_model.html#agent_model.MultivariateAgentModel"><code class="docutils literal notranslate"><span class="pre">MultivariateAgentModel</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="modules/agent_model.html#agent_model.ScalarAgentModel"><code class="docutils literal notranslate"><span class="pre">ScalarAgentModel</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="modules/agent_model.html#agent_model.printing_callback"><code class="docutils literal notranslate"><span class="pre">printing_callback()</span></code></a></li>
@@ -99,12 +105,29 @@
 <li class="toctree-l2"><a class="reference internal" href="modules/scm.html#scm.SCM_WithConstants"><code class="docutils literal notranslate"><span class="pre">SCM_WithConstants</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="modules/distributions.html">Custom Distributions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="modules/distributions.html#distributions.FoldedNormal"><code class="docutils literal notranslate"><span class="pre">FoldedNormal()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="modules/distributions.html#distributions.NoncentralChiSquared"><code class="docutils literal notranslate"><span class="pre">NoncentralChiSquared()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="modules/distributions.html#distributions.folded_normal_logp"><code class="docutils literal notranslate"><span class="pre">folded_normal_logp()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="modules/distributions.html#distributions.ncx2_logp"><code class="docutils literal notranslate"><span class="pre">ncx2_logp()</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="modules/experiment.html">Experiment</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="modules/experiment.html#experiment.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="modules/experiment_series.html">Experiment Series</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="modules/experiment_series.html#experiment_series.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="modules/dimensionality_config.html">Dimensionality Configuration</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="modules/dimensionality_config.html#dimensionality_config.format_stream_key"><code class="docutils literal notranslate"><span class="pre">format_stream_key()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="modules/dimensionality_config.html#dimensionality_config.run_stream_key"><code class="docutils literal notranslate"><span class="pre">run_stream_key()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="modules/dimensionality_config.html#dimensionality_config.scan_deviation"><code class="docutils literal notranslate"><span class="pre">scan_deviation()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="modules/experiment_dimensionality.html">Dimensionality Experiment</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="modules/experiment_dimensionality.html#experiment_dimensionality.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a><ul>
@@ -117,14 +140,20 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="modules/utils.html">Utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.load_results"><code class="docutils literal notranslate"><span class="pre">load_results()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.match_to_grid"><code class="docutils literal notranslate"><span class="pre">match_to_grid()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.parse_results"><code class="docutils literal notranslate"><span class="pre">parse_results()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.plot_CATE_for_var"><code class="docutils literal notranslate"><span class="pre">plot_CATE_for_var()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.plot_CATEs"><code class="docutils literal notranslate"><span class="pre">plot_CATEs()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.plot_all"><code class="docutils literal notranslate"><span class="pre">plot_all()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.plot_all_Y"><code class="docutils literal notranslate"><span class="pre">plot_all_Y()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.plot_all_cate_change"><code class="docutils literal notranslate"><span class="pre">plot_all_cate_change()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.plot_all_combined"><code class="docutils literal notranslate"><span class="pre">plot_all_combined()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.plot_cate_change_for_var"><code class="docutils literal notranslate"><span class="pre">plot_cate_change_for_var()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.plot_combined_for_var"><code class="docutils literal notranslate"><span class="pre">plot_combined_for_var()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.plot_combined_grid"><code class="docutils literal notranslate"><span class="pre">plot_combined_grid()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.plot_dimensionality"><code class="docutils literal notranslate"><span class="pre">plot_dimensionality()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.plot_dimensionality_improvement"><code class="docutils literal notranslate"><span class="pre">plot_dimensionality_improvement()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.plot_prior_and_posterior_Y"><code class="docutils literal notranslate"><span class="pre">plot_prior_and_posterior_Y()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.read_outcomes_from_file"><code class="docutils literal notranslate"><span class="pre">read_outcomes_from_file()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="modules/utils.html#utils.write_results_to_file"><code class="docutils literal notranslate"><span class="pre">write_results_to_file()</span></code></a></li>
 </ul>
 </li>
@@ -135,6 +164,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="modules/completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/generate_parameter_file.html">Generate Parameter File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 </div>
 </section>

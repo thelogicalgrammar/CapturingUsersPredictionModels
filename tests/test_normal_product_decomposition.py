@@ -1,8 +1,7 @@
-"""
-Following Davide's recent derivations (and my additions)
+r"""
+Test the normal-product decomposition
     \sum(x_i e_i) = \tau g \sqrt(\sum(x_i^2))
 where x_i ~ N(a, b), e_i ~ N(0, \tau^2), and g ~ N(0, 1).
-Here I will test this.
 """
 import random
 import math

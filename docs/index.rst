@@ -7,8 +7,11 @@ CapturingUsersPredictionModels
 
    modules/agent_model
    modules/scm
+   modules/distributions
    modules/experiment
    modules/experiment_series
+   modules/dimensionality_config
+   modules/experiment_dimensionality
    modules/single_prediction_collapsed_agent_model
    modules/experiment_collapsed
    modules/utils
@@ -19,3 +22,5 @@ CapturingUsersPredictionModels
 
    modules/completion_check
    modules/generate_parameter_file
+   modules/generate_parameter_file_dimensionality
+   modules/generate_parameter_file_univariate_intercept

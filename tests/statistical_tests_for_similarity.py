@@ -372,7 +372,6 @@ def normalized_wasserstein_distance(observations_a, observations_b,
     print("Normalized Wasserstein distance: {:.3}".format(normalized_wass_dist))
     if normalized_wass_dist > max_diff:
         # Raise warning. It seems the two are not identical.
-        # Claude (AI) suggest4ed that <0.1 is essentially identical, and 0.1-0.5 are "very close."
         text = "The Wasserstein distance is more than {:.3} pooled standard deviations.".format(max_diff)
         text += "\nThis indicates that the observations in the two groups are not from the same distributions."
         warnings.warn(text)

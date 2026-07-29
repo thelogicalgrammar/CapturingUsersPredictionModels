@@ -49,6 +49,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#agent_model.AgentModel"><code class="docutils literal notranslate"><span class="pre">AgentModel</span></code></a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.get_prior_CATE_mu"><code class="docutils literal notranslate"><span class="pre">AgentModel.get_prior_CATE_mu()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.load_agent_model"><code class="docutils literal notranslate"><span class="pre">AgentModel.load_agent_model()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.posterior_parameter_summaries"><code class="docutils literal notranslate"><span class="pre">AgentModel.posterior_parameter_summaries()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.sample"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.sample_posterior_predictive"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample_posterior_predictive()</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.sample_posterior_predictive_CATE"><code class="docutils literal notranslate"><span class="pre">AgentModel.sample_posterior_predictive_CATE()</span></code></a></li>
@@ -62,6 +63,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#agent_model.AgentModel.trace_diagnostics"><code class="docutils literal notranslate"><span class="pre">AgentModel.trace_diagnostics()</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#agent_model.AgentModelNormalPredictions"><code class="docutils literal notranslate"><span class="pre">AgentModelNormalPredictions</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#agent_model.MultivariateAgentModel"><code class="docutils literal notranslate"><span class="pre">MultivariateAgentModel</span></code></a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#agent_model.MultivariateAgentModel.sample"><code class="docutils literal notranslate"><span class="pre">MultivariateAgentModel.sample()</span></code></a></li>
 </ul>
@@ -74,8 +76,11 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributions.html">Custom Distributions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dimensionality_config.html">Dimensionality Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment_collapsed.html">Collapsed Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="utils.html">Utilities</a></li>
@@ -84,6 +89,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="generate_parameter_file.html">Generate Parameter File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
         </div>
@@ -189,6 +196,26 @@ and <code class="docutils literal notranslate"><span class="pre">{file_name}_pri
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference internal" href="#agent_model.MultivariateAgentModel" title="agent_model.MultivariateAgentModel">MultivariateAgentModel</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="agent_model.AgentModel.posterior_parameter_summaries">
+<span class="sig-name descname"><span class="pre">posterior_parameter_summaries</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/agent_model.html#AgentModel.posterior_parameter_summaries"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agent_model.AgentModel.posterior_parameter_summaries" title="Link to this definition"></a></dt>
+<dd><p>Compute mean, std, skewness, and kurtosis of the posterior samples
+for each population parameter (the variables sampled in trace.posterior).</p>
+<p>For scalar parameters (N_E, alpha_mu_A, …) returns one set of moments
+per parameter. For vector parameters (alpha_mu_X, N_b, …) with k = 1
+returns one set without a dimension index; with k &gt; 1 returns one set
+per dimension.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Summary statistics keyed by <code class="docutils literal notranslate"><span class="pre">param_&lt;name&gt;_&lt;moment&gt;</span></code> (scalar
+or k = 1) or <code class="docutils literal notranslate"><span class="pre">param_&lt;name&gt;_&lt;dim&gt;_&lt;moment&gt;</span></code> (k &gt; 1).</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict</p>
 </dd>
 </dl>
 </dd></dl>
@@ -427,6 +454,17 @@ with ArviZ), and <code class="docutils literal notranslate"><span class="pre">n_
 </dl>
 </dd></dl>
 
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="agent_model.AgentModelNormalPredictions">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">agent_model.</span></span><span class="sig-name descname"><span class="pre">AgentModelNormalPredictions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_covariates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plate_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prior_parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">predictive_var_names</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_intercept</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/agent_model.html#AgentModelNormalPredictions"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agent_model.AgentModelNormalPredictions" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#agent_model.MultivariateAgentModel" title="agent_model.MultivariateAgentModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">MultivariateAgentModel</span></code></a></p>
+<p>This class implements an Agent Model based on the finding that the
+Prediction pred^o follows a normal distribution given X. This is
+because all remaining transformations are then linear and as the
+error term follows a normal distribution, also the predictions is
+normally distributed.</p>
 </dd></dl>
 
 <dl class="py class">

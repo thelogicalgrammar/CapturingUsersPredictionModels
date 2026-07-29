@@ -43,8 +43,11 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../modules/agent_model.html">Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/distributions.html">Custom Distributions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/dimensionality_config.html">Dimensionality Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_collapsed.html">Collapsed Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/utils.html">Utilities</a></li>
@@ -53,6 +56,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../modules/completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file.html">Generate Parameter File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
         </div>
@@ -102,8 +107,12 @@
 <span class="sd">Notes:</span>
 <span class="sd">Could perhaps implement support for changing plate size and SCM parameters</span>
 <span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s1">&#39;~/.cache/arviz&#39;</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
 <span class="kn">import</span><span class="w"> </span><span class="nn">arviz</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">az</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>  <span class="c1"># Not used in array job.</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
@@ -229,6 +238,7 @@
         <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_posterior_predictive_CATE</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
     <span class="n">posterior_treatment</span> <span class="o">=</span> <span class="n">A1_treatment</span> <span class="k">if</span> <span class="n">posterior_CATE_mean</span> <span class="o">&gt;</span> <span class="n">threshold</span> <span class="k">else</span> <span class="n">A0_treatment</span>
     <span class="n">posterior_predictive_summaries</span> <span class="o">=</span> <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_posterior_predictive_summaries</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+    <span class="n">posterior_parameter_summaries</span> <span class="o">=</span> <span class="n">agent_model</span><span class="o">.</span><span class="n">posterior_parameter_summaries</span><span class="p">()</span>
 
     <span class="c1"># 8. Ground truth of CATE and potential outcomes</span>
     <span class="c1">#    based on the data generating SCM</span>
@@ -352,6 +362,8 @@
     <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">prior_predictive_summaries</span><span class="p">)</span>
     <span class="c1"># Add posterior predictive summaries</span>
     <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">posterior_predictive_summaries</span><span class="p">)</span>
+    <span class="c1"># Add posterior parameter summaries</span>
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">posterior_parameter_summaries</span><span class="p">)</span>
     <span class="c1"># Add expected predictive outputs:</span>
     <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">expected_outcomes</span><span class="p">)</span>
 

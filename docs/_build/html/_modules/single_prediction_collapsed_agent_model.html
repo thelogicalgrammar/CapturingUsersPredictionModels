@@ -43,8 +43,11 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../modules/agent_model.html">Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/distributions.html">Custom Distributions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/dimensionality_config.html">Dimensionality Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_collapsed.html">Collapsed Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/utils.html">Utilities</a></li>
@@ -53,6 +56,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../modules/completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file.html">Generate Parameter File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
         </div>
@@ -85,40 +90,46 @@
 
 <span class="sd">This is a further reduction of :class:`agent_model.MultivariateAgentModel`</span>
 <span class="sd">for the case where the agent observes a single scalar prediction ``pred_o`` for</span>
-<span class="sd">a single observed feature vector ``X_o``. Under independent Gaussian priors on</span>
-<span class="sd">the coordinates of the coefficient vectors N_b and N_d, those vectors are</span>
-<span class="sd">marginalized analytically, so the only non-auxiliary latent variables left are</span>
-<span class="sd">N_E and the population-level parameters.</span>
+<span class="sd">a single observed feature vector ``X_o``. Under independent Gaussian priors,</span>
+<span class="sd">the coefficient vectors N_b and N_d and the population means alpha_mu_A and</span>
+<span class="sd">alpha_mu_Y are marginalized analytically. The sign of N_E is also summed out:</span>
+<span class="sd">NUTS samples only U = abs(N_E), while both signed branches are evaluated in</span>
+<span class="sd">the likelihood.</span>
 
 <span class="sd">The reduced-plate auxiliary variables (s, W, g, h) of the multivariate model are</span>
 <span class="sd">replaced by two scalar auxiliaries (R, T), constant in both the plate size n and</span>
-<span class="sd">the number of covariates k. Conditional on (R, T, N_E, the population-level</span>
-<span class="sd">parameters, and X_o), the observed prediction is Gaussian: \n</span>
-<span class="sd">:math:`Pred^o \\sim \\mathcal{N}(\\mu_{red}, V_{red})` \n</span>
-<span class="sd">with \n</span>
-<span class="sd">:math:`\\mu_{red} = c + (m_b + N_E m_d) S_o` \n</span>
-<span class="sd">:math:`V_{red} = Q_o (v_b + 2 N_E v_{bd} + N_E^2 v_d) + \\tau^2 (1/n + R/T)`, \n</span>
-<span class="sd">where the cross term vanishes (:math:`v_{bd} = 0`) under the independent</span>
-<span class="sd">coefficient priors assumed by this class. Because PyMC does not provide a</span>
-<span class="sd">native non-central chi-squared distribution, R</span>
-<span class="sd">is built through the equivalent central-chi-squared (Cochran) construction \n</span>
-<span class="sd">:math:`G_R \\sim \\mathcal{N}(0, 1)`,</span>
-<span class="sd">:math:`Z_R \\sim \\chi^2_{k-1}`,</span>
-<span class="sd">:math:`R := (\\Delta_X + G_R / \\sqrt{n})^2 + Z_R / n`, \n</span>
+<span class="sd">the number of covariates k. Conditional on</span>
+<span class="sd">:math:`U=|N_E|`, R, T, the remaining scale parameters, and X_o, the observed</span>
+<span class="sd">prediction follows an exact two-component Gaussian mixture. For sign</span>
+<span class="sd">:math:`s\\in\\{-1,+1\\}`, the branch mean is \n</span>
+<span class="sd">:math:`M_s=m_Y+su\\,m_A+x^\\top(m_b+su\\,m_d)`, \n</span>
+<span class="sd">and its variance is \n</span>
+<span class="sd">:math:`W_s=v_Y+u^2v_A+\\sum_jx_j^2(v_{b,j}+u^2v_{d,j})</span>
+<span class="sd">+(u^2\\alpha_{A_\\sigma}^2+\\alpha_{Y_\\sigma}^2)(1/n+R/T)`. \n</span>
+<span class="sd">The mixture weights retain both branches of the normal prior on N_E, so no</span>
+<span class="sd">independence between sign and magnitude is assumed. The coefficient-prior</span>
+<span class="sd">cross term is absent because this class assumes independent N_b and N_d.</span>
+<span class="sd">The auxiliary R has the exact law \n</span>
+<span class="sd">:math:`n R \\sim \\chi&#39;^2_k(\\lambda)`,</span>
+<span class="sd">:math:`\\lambda = n \\Delta_X^2`, \n</span>
 <span class="sd">with :math:`\\Delta_X^2 := (X^o - \\vec{\\alpha}_{X\\mu})^\\top D_X^{-2}</span>
-<span class="sd">(X^o - \\vec{\\alpha}_{X\\mu})` and the convention :math:`\\chi^2_0 = 0` when</span>
-<span class="sd">k = 1. The orthogonal rotation behind Cochran&#39;s theorem concentrates the</span>
-<span class="sd">non-centrality in a single coordinate, so the model samples three scalar</span>
-<span class="sd">primitive variables (G_R, Z_R, T) regardless of k and n.</span>
+<span class="sd">(X^o - \\vec{\\alpha}_{X\\mu})`. For :math:`k &gt; 1`, R is drawn from the</span>
+<span class="sd">native non-central chi-squared in :mod:`distributions`. For :math:`k = 1`, the</span>
+<span class="sd">equivalent signed Cochran construction is used instead: \n</span>
+<span class="sd">:math:`R = (\\delta_X + G_R / \\sqrt{n})^2`, \n</span>
+<span class="sd">where</span>
+<span class="sd">:math:`\\delta_X = (X^o - \\alpha_{X\\mu}) / \\alpha_{X\\sigma}` and</span>
+<span class="sd">:math:`G_R \\sim \\mathcal{N}(0, 1)`. Thus</span>
+<span class="sd">:math:`nR = (\\sqrt{n}\\delta_X + G_R)^2` has exactly the required</span>
+<span class="sd">:math:`\\chi&#39;^2_1(n\\delta_X^2)` law while avoiding direct sampling at the</span>
+<span class="sd">singular boundary of a one-degree-of-freedom chi-squared distribution. The</span>
+<span class="sd">number of sampled plate primitives remains two (G_R and T for k = 1; the</span>
+<span class="sd">non-central chi-squared and T for k &gt; 1), independent of k and n.</span>
 
-<span class="sd">Since the CATE depends only on N_E, marginalizing N_b and N_d loses no</span>
-<span class="sd">information relevant to the decision rule. For the agent-side predictive</span>
-<span class="sd">quantities (predictive summaries of X, A, and Y, and expected do(A) outcomes)</span>
-<span class="sd">the marginalized coefficient vectors are recovered when needed: from their</span>
-<span class="sd">priors for prior predictive sampling, and from their conditional Gaussian</span>
-<span class="sd">given (N_E, R, T, the population-level parameters, and pred_o) for posterior</span>
-<span class="sd">predictive sampling. The derivation is in the &quot;Single-prediction collapsed</span>
-<span class="sd">reduction&quot; document of the paper derivations.</span>
+<span class="sd">The signed N_E, alpha_mu_A, alpha_mu_Y, N_b, and N_d are reconstructed jointly</span>
+<span class="sd">after sampling. Once the sign is drawn, their conditional distribution is</span>
+<span class="sd">Gaussian, so Matheron&#39;s rule gives exact draws for predictive summaries and</span>
+<span class="sd">do(A) outcomes. CATE moments are Rao--Blackwellized over both signs.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
@@ -131,6 +142,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">scipy.stats</span><span class="w"> </span><span class="kn">import</span> <span class="n">kurtosis</span><span class="p">,</span> <span class="n">skew</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">scm</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">distributions</span><span class="w"> </span><span class="kn">import</span> <span class="n">FoldedNormal</span><span class="p">,</span> <span class="n">NoncentralChiSquared</span>
 
 
 <span class="n">DEBUGGING</span> <span class="o">=</span> <span class="kc">False</span>
@@ -153,21 +165,17 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Bayesian agent model for the single-prediction collapsed likelihood.</span>
 
-<span class="sd">    The class assumes independent Gaussian priors for the coordinates of N_b</span>
-<span class="sd">    and N_d. These vectors are marginalized analytically and are not sampled by</span>
-<span class="sd">    PyMC, so the latent variables of the model are the population-level</span>
-<span class="sd">    parameters, N_E, and the two scalar auxiliaries (R, T) of the collapsed</span>
-<span class="sd">    likelihood.</span>
+<span class="sd">    The class assumes independent Gaussian priors for N_b, N_d, alpha_mu_A,</span>
+<span class="sd">    and alpha_mu_Y. These quantities and the sign of N_E are marginalized</span>
+<span class="sd">    analytically. PyMC samples the magnitude of N_E, the remaining population</span>
+<span class="sd">    parameters, and the two scalar auxiliaries (R, T).</span>
 
 <span class="sd">    The model always assumes an OLS predictive model with intercept, and is</span>
 <span class="sd">    specific to a single observed prediction: it does not extend, in this form,</span>
 <span class="sd">    to more than one prediction. Because the CATE depends only on N_E, the</span>
-<span class="sd">    prior and posterior CATE are obtained directly from N_E. The agent-side</span>
-<span class="sd">    predictive summaries and expected-outcome helpers of the multivariate model</span>
-<span class="sd">    are still provided: the marginalized coefficient vectors are recovered from</span>
-<span class="sd">    their priors for prior predictive sampling, and from their conditional</span>
-<span class="sd">    Gaussian given (N_E, R, T, the population-level parameters, and pred_o)</span>
-<span class="sd">    for posterior predictive sampling.</span>
+<span class="sd">    prior and posterior CATE are obtained from signed N_E. The marginalized</span>
+<span class="sd">    variables are recovered jointly from their exact conditional posterior for</span>
+<span class="sd">    predictive summaries and expected-outcome helpers.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        n_covariates (int): Number of covariates k (dimension of X).</span>
@@ -210,6 +218,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">posterior_predictive_samples</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">prior_coefficient_draws</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">posterior_coefficient_draws</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">posterior_sign_probabilities</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">prior_draws</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">X_o</span> <span class="o">=</span> <span class="kc">None</span>
@@ -313,13 +322,10 @@
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_default_predictive_var_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the names of the variables sampled for predictive calculations.</span>
+<span class="sd">        Return the public parameter names used in predictive calculations.</span>
 
-<span class="sd">        These are the population-level SCM parameters whose sampled values</span>
-<span class="sd">        replace the parameters of the internal predictive SCM during prior and</span>
-<span class="sd">        posterior predictive sampling, plus the collapsed auxiliaries R and T,</span>
-<span class="sd">        which are needed to reconstruct the marginalized coefficient vectors</span>
-<span class="sd">        in posterior predictive sampling.</span>
+<span class="sd">        N_E, alpha_mu_A, and alpha_mu_Y are reconstructed after posterior</span>
+<span class="sd">        sampling but retain the same public names as the explicit model.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            list: Default predictive variable names.</span>
@@ -327,15 +333,20 @@
         <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">,</span>
                 <span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">,</span> <span class="s1">&#39;N_E&#39;</span><span class="p">,</span> <span class="s1">&#39;R&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">]</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_sampled_predictive_var_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return graph variables needed to build prior predictive draws.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">,</span> <span class="s1">&#39;N_E_magnitude&#39;</span><span class="p">,</span> <span class="s1">&#39;R&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">]</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_build_population_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Build the PyMC variables that live outside the historical plate.</span>
 
 <span class="sd">        These are the population-level SCM parameters the agent has priors on:</span>
 <span class="sd">        the covariate parameters (vector-valued alpha_mu_X, alpha_sigma_X), the</span>
-<span class="sd">        treatment and outcome parameters (alpha_mu_A, alpha_sigma_A, alpha_mu_Y,</span>
-<span class="sd">        alpha_sigma_Y), and the effect size N_E. The coefficient vectors N_b and</span>
-<span class="sd">        N_d are not built here because they are marginalized analytically.</span>
+<span class="sd">        treatment and outcome scales (alpha_sigma_A, alpha_sigma_Y), and the</span>
+<span class="sd">        magnitude of N_E. The treatment and outcome means, the sign of N_E,</span>
+<span class="sd">        and the coefficient vectors are marginalized analytically.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            dict: Mapping from parameter name to its PyMC random variable.</span>
@@ -349,30 +360,26 @@
             <span class="n">sigma</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_sigma_X&#39;</span><span class="p">],</span>
             <span class="n">lower</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
             <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">)</span>
-        <span class="n">alpha_mu_A</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;mu_A&#39;</span><span class="p">],</span>
-                               <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_A&#39;</span><span class="p">])</span>
         <span class="n">alpha_sigma_A</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">TruncatedNormal</span><span class="p">(</span>
             <span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">,</span>
             <span class="n">mu</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;mu_sigma_A&#39;</span><span class="p">],</span>
             <span class="n">sigma</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_sigma_A&#39;</span><span class="p">],</span>
             <span class="n">lower</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-        <span class="n">alpha_mu_Y</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;mu_Y&#39;</span><span class="p">],</span>
-                               <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_Y&#39;</span><span class="p">])</span>
         <span class="n">alpha_sigma_Y</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">TruncatedNormal</span><span class="p">(</span>
             <span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">,</span>
             <span class="n">mu</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;mu_sigma_Y&#39;</span><span class="p">],</span>
             <span class="n">sigma</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_sigma_Y&#39;</span><span class="p">],</span>
             <span class="n">lower</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-        <span class="n">N_E</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;N_E&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_E_mu&#39;</span><span class="p">],</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_E_sigma&#39;</span><span class="p">])</span>
+        <span class="n">N_E_magnitude</span> <span class="o">=</span> <span class="n">FoldedNormal</span><span class="p">(</span>
+            <span class="s1">&#39;N_E_magnitude&#39;</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_E_mu&#39;</span><span class="p">],</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_E_sigma&#39;</span><span class="p">])</span>
         <span class="k">return</span> <span class="p">{</span>
             <span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">:</span> <span class="n">alpha_mu_X</span><span class="p">,</span>
             <span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">:</span> <span class="n">alpha_sigma_X</span><span class="p">,</span>
-            <span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">:</span> <span class="n">alpha_mu_A</span><span class="p">,</span>
             <span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">:</span> <span class="n">alpha_sigma_A</span><span class="p">,</span>
-            <span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">:</span> <span class="n">alpha_mu_Y</span><span class="p">,</span>
             <span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">:</span> <span class="n">alpha_sigma_Y</span><span class="p">,</span>
-            <span class="s1">&#39;N_E&#39;</span><span class="p">:</span> <span class="n">N_E</span><span class="p">,</span>
+            <span class="s1">&#39;N_E_magnitude&#39;</span><span class="p">:</span> <span class="n">N_E_magnitude</span><span class="p">,</span>
         <span class="p">}</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_build_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -382,18 +389,17 @@
 <span class="sd">        The observed feature vector ``X_o`` and the observed prediction</span>
 <span class="sd">        ``pred_o`` enter as :class:`pm.Data` placeholders, updated at sampling</span>
 <span class="sd">        time. The plate is reduced to the two scalar auxiliaries ``R`` and</span>
-<span class="sd">        ``T``: since PyMC has no native non-central chi-squared, ``R`` is built</span>
-<span class="sd">        through the central-chi-squared (Cochran) construction \n</span>
-<span class="sd">        :math:`R = (\\Delta_X + G_R / \\sqrt{n})^2 + Z_R / n` \n</span>
-<span class="sd">        with ``G_R ~ N(0, 1)``, ``Z_R ~ ChiSquared(k - 1)`` (the convention</span>
-<span class="sd">        ``ChiSquared(0) = 0`` applies when k = 1), and ``T`` is a centered</span>
-<span class="sd">        chi-squared with ``plate_size - n_covariates`` degrees of freedom. The</span>
-<span class="sd">        model therefore samples three scalar primitive variables (G_R, Z_R, T)</span>
-<span class="sd">        regardless of k and n. The collapsed mean ``prediction_mu`` and</span>
-<span class="sd">        variance ``prediction_variance`` are formed from the marginalized</span>
-<span class="sd">        coefficient priors and the auxiliaries, and the observed prediction is</span>
-<span class="sd">        given the likelihood ``N(prediction_mu, prediction_sigma)``. ``X_o`` is</span>
-<span class="sd">        also given the covariate likelihood ``N(alpha_mu_X, alpha_sigma_X)``.</span>
+<span class="sd">        ``T``. The target law is</span>
+<span class="sd">        :math:`n R \\sim \\chi&#39;^2_k(n \\Delta_X^2)`, while ``T`` is a centered</span>
+<span class="sd">        chi-squared with ``plate_size - n_covariates`` degrees of freedom. For</span>
+<span class="sd">        k = 1, R is represented by the exact signed Cochran construction</span>
+<span class="sd">        :math:`R = (\\delta_X + G_R / \\sqrt{n})^2`, with</span>
+<span class="sd">        ``G_R ~ N(0, 1)``. For k &gt; 1, R is sampled through</span>
+<span class="sd">        :func:`distributions.NoncentralChiSquared`. The likelihood integrates</span>
+<span class="sd">        alpha_mu_A, alpha_mu_Y, N_b, and N_d analytically and sums the positive</span>
+<span class="sd">        and negative N_E branches with their exact conditional prior weights.</span>
+<span class="sd">        ``X_o`` is also given the covariate likelihood</span>
+<span class="sd">        ``N(alpha_mu_X, alpha_sigma_X)``.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            pm.Model: The constructed PyMC model.</span>
@@ -406,52 +412,93 @@
             <span class="n">parameters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_population_parameters</span><span class="p">()</span>
             <span class="n">alpha_mu_X</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">]</span>
             <span class="n">alpha_sigma_X</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">]</span>
-            <span class="n">alpha_mu_A</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">]</span>
             <span class="n">alpha_sigma_A</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">]</span>
-            <span class="n">alpha_mu_Y</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">]</span>
             <span class="n">alpha_sigma_Y</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">]</span>
-            <span class="n">N_E</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;N_E&#39;</span><span class="p">]</span>
+            <span class="n">N_E_magnitude</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;N_E_magnitude&#39;</span><span class="p">]</span>
 
+            <span class="n">standardized_offset</span> <span class="o">=</span> <span class="p">(</span><span class="n">X_o_</span> <span class="o">-</span> <span class="n">alpha_mu_X</span><span class="p">)</span> <span class="o">/</span> <span class="n">alpha_sigma_X</span>
             <span class="n">Delta_X</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
                 <span class="s1">&#39;Delta_X&#39;</span><span class="p">,</span>
-                <span class="n">at</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">at</span><span class="o">.</span><span class="n">sum</span><span class="p">(((</span><span class="n">X_o_</span> <span class="o">-</span> <span class="n">alpha_mu_X</span><span class="p">)</span> <span class="o">/</span> <span class="n">alpha_sigma_X</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)))</span>
-            <span class="n">G_R</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;G_R&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">Z_R</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;Z_R&#39;</span><span class="p">,</span> <span class="n">nu</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="n">at</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">at</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">standardized_offset</span><span class="o">**</span><span class="mi">2</span><span class="p">)))</span>
+            <span class="c1"># R has the exact target law</span>
+            <span class="c1"># n R ~ chi&#39;^2_k(n * Delta_X^2). At k = 1, using the signed</span>
+            <span class="c1"># standardized offset in the equivalent Cochran construction</span>
+            <span class="c1"># removes the singular positive-support random variable from the</span>
+            <span class="c1"># NUTS state while preserving that law exactly.</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">G_R</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;G_R&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+                <span class="n">signed_delta_X</span> <span class="o">=</span> <span class="n">standardized_offset</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">R</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                    <span class="s1">&#39;R&#39;</span><span class="p">,</span>
+                    <span class="p">(</span><span class="n">signed_delta_X</span> <span class="o">+</span> <span class="n">G_R</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+                <span class="c1"># Keep NCX available in posterior traces for compatibility</span>
+                <span class="c1"># with traces produced by the native parameterization.</span>
+                <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;NCX&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">*</span> <span class="n">R</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="c1"># Convention ChiSquared(0) = 0 for k = 1: all non-centrality</span>
-                <span class="c1"># lives in the single rotated coordinate.</span>
-                <span class="n">Z_R</span> <span class="o">=</span> <span class="mf">0.0</span>
-            <span class="n">R</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
-                <span class="s1">&#39;R&#39;</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">Delta_X</span> <span class="o">+</span> <span class="n">G_R</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span>
-                <span class="n">Z_R</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">)</span>
+                <span class="n">NCX</span> <span class="o">=</span> <span class="n">NoncentralChiSquared</span><span class="p">(</span>
+                    <span class="s1">&#39;NCX&#39;</span><span class="p">,</span> <span class="n">nu</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">,</span>
+                    <span class="n">lam</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">*</span> <span class="n">Delta_X</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+                <span class="n">R</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;R&#39;</span><span class="p">,</span> <span class="n">NCX</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">)</span>
             <span class="n">T</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;T&#39;</span><span class="p">,</span> <span class="n">nu</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">)</span>
 
-            <span class="n">beta_mu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_b_mu&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span>
-                <span class="n">N_E</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_d_mu&#39;</span><span class="p">])</span>
-            <span class="n">coefficient_variance</span> <span class="o">=</span> <span class="n">at</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">X_o_</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_b_sigma&#39;</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
-            <span class="n">coefficient_variance</span> <span class="o">+=</span> <span class="n">N_E</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">at</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
-                <span class="p">(</span><span class="n">X_o_</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_d_sigma&#39;</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
-
-            <span class="n">c</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;c&#39;</span><span class="p">,</span> <span class="n">alpha_mu_Y</span> <span class="o">+</span> <span class="n">N_E</span> <span class="o">*</span> <span class="n">alpha_mu_A</span><span class="p">)</span>
-            <span class="n">tau</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
-                <span class="s1">&#39;tau&#39;</span><span class="p">,</span>
-                <span class="n">at</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">N_E</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">alpha_sigma_A</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">alpha_sigma_Y</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+            <span class="n">signs</span> <span class="o">=</span> <span class="n">at</span><span class="o">.</span><span class="n">as_tensor_variable</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">]))</span>
+            <span class="n">N_E_branches</span> <span class="o">=</span> <span class="n">signs</span> <span class="o">*</span> <span class="n">N_E_magnitude</span>
+            <span class="n">prediction_base</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;mu_Y&#39;</span><span class="p">]</span>
+                <span class="o">+</span> <span class="n">at</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X_o_</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_b_mu&#39;</span><span class="p">]))</span>
+            <span class="n">prediction_effect</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;mu_A&#39;</span><span class="p">]</span>
+                <span class="o">+</span> <span class="n">at</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X_o_</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_d_mu&#39;</span><span class="p">]))</span>
             <span class="n">prediction_mu</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
                 <span class="s1">&#39;prediction_mu&#39;</span><span class="p">,</span>
-                <span class="n">c</span> <span class="o">+</span> <span class="n">at</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X_o_</span><span class="p">,</span> <span class="n">beta_mu</span><span class="p">))</span>
+                <span class="n">prediction_base</span> <span class="o">+</span> <span class="n">N_E_branches</span> <span class="o">*</span> <span class="n">prediction_effect</span><span class="p">)</span>
+
+            <span class="n">coefficient_variance</span> <span class="o">=</span> <span class="n">at</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">X_o_</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_b_sigma&#39;</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+            <span class="n">coefficient_variance</span> <span class="o">+=</span> <span class="n">N_E_magnitude</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">at</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">X_o_</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_d_sigma&#39;</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+            <span class="n">mean_variance</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_Y&#39;</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span>
+                <span class="o">+</span> <span class="n">N_E_magnitude</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_A&#39;</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+            <span class="n">noise_variance</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">N_E_magnitude</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">alpha_sigma_A</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">alpha_sigma_Y</span><span class="o">**</span><span class="mi">2</span>
+            <span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">+</span> <span class="n">R</span> <span class="o">/</span> <span class="n">T</span><span class="p">)</span>
             <span class="n">prediction_variance</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
                 <span class="s1">&#39;prediction_variance&#39;</span><span class="p">,</span>
-                <span class="n">coefficient_variance</span> <span class="o">+</span> <span class="n">tau</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">+</span> <span class="n">R</span> <span class="o">/</span> <span class="n">T</span><span class="p">))</span>
+                <span class="n">coefficient_variance</span> <span class="o">+</span> <span class="n">mean_variance</span> <span class="o">+</span> <span class="n">noise_variance</span><span class="p">)</span>
             <span class="n">prediction_sigma</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
                 <span class="s1">&#39;prediction_sigma&#39;</span><span class="p">,</span>
                 <span class="n">at</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">prediction_variance</span><span class="p">))</span>
 
+            <span class="n">N_E_prior</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="o">.</span><span class="n">dist</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_E_mu&#39;</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_E_sigma&#39;</span><span class="p">])</span>
+            <span class="n">log_prior_branches</span> <span class="o">=</span> <span class="n">at</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span>
+                <span class="n">pm</span><span class="o">.</span><span class="n">logp</span><span class="p">(</span><span class="n">N_E_prior</span><span class="p">,</span> <span class="n">N_E_magnitude</span><span class="p">),</span>
+                <span class="n">pm</span><span class="o">.</span><span class="n">logp</span><span class="p">(</span><span class="n">N_E_prior</span><span class="p">,</span> <span class="o">-</span><span class="n">N_E_magnitude</span><span class="p">),</span>
+            <span class="p">])</span>
+            <span class="n">log_folded_prior</span> <span class="o">=</span> <span class="n">at</span><span class="o">.</span><span class="n">logsumexp</span><span class="p">(</span><span class="n">log_prior_branches</span><span class="p">)</span>
+            <span class="n">log_sign_weights</span> <span class="o">=</span> <span class="n">log_prior_branches</span> <span class="o">-</span> <span class="n">log_folded_prior</span>
+            <span class="n">prediction_logps</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">logp</span><span class="p">(</span>
+                <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="o">.</span><span class="n">dist</span><span class="p">(</span><span class="n">mu</span><span class="o">=</span><span class="n">prediction_mu</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">prediction_sigma</span><span class="p">),</span>
+                <span class="n">pred_o_</span><span class="p">)</span>
+            <span class="n">log_signed_branches</span> <span class="o">=</span> <span class="n">log_sign_weights</span> <span class="o">+</span> <span class="n">prediction_logps</span>
+            <span class="n">prediction_logp</span> <span class="o">=</span> <span class="n">at</span><span class="o">.</span><span class="n">logsumexp</span><span class="p">(</span><span class="n">log_signed_branches</span><span class="p">)</span>
+            <span class="n">pm</span><span class="o">.</span><span class="n">Mixture</span><span class="p">(</span>
+                <span class="s1">&#39;prediction_obs&#39;</span><span class="p">,</span>
+                <span class="n">w</span><span class="o">=</span><span class="n">at</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">log_sign_weights</span><span class="p">),</span>
+                <span class="n">comp_dists</span><span class="o">=</span><span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="o">.</span><span class="n">dist</span><span class="p">(</span>
+                    <span class="n">mu</span><span class="o">=</span><span class="n">prediction_mu</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">prediction_sigma</span><span class="p">),</span>
+                <span class="n">observed</span><span class="o">=</span><span class="n">pred_o_</span><span class="p">)</span>
+            <span class="n">N_E_positive_probability</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;N_E_positive_probability&#39;</span><span class="p">,</span>
+                <span class="n">at</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">log_signed_branches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">prediction_logp</span><span class="p">))</span>
+            <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;N_E_conditional_mean&#39;</span><span class="p">,</span>
+                <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">N_E_positive_probability</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">*</span> <span class="n">N_E_magnitude</span><span class="p">)</span>
+
             <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;X_o&#39;</span><span class="p">,</span> <span class="n">alpha_mu_X</span><span class="p">,</span> <span class="n">alpha_sigma_X</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="n">X_o_</span><span class="p">,</span>
                       <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">)</span>
-            <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;prediction_obs&#39;</span><span class="p">,</span> <span class="n">prediction_mu</span><span class="p">,</span> <span class="n">prediction_sigma</span><span class="p">,</span>
-                      <span class="n">observed</span><span class="o">=</span><span class="n">pred_o_</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">model</span>
 
 <div class="viewcode-block" id="SinglePredictionCollapsedAgentModel.sample">
@@ -479,6 +526,9 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">X_o</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalize_vector_parameter</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="s1">&#39;X_o&#39;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span> <span class="o">=</span> <span class="n">draws</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">X_o</span> <span class="o">=</span> <span class="n">X_o</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pred_o</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">pred_o</span><span class="p">))</span>
+        <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
         <span class="n">pm</span><span class="o">.</span><span class="n">set_data</span><span class="p">({</span><span class="s1">&#39;X_o_&#39;</span><span class="p">:</span> <span class="n">X_o</span><span class="p">,</span> <span class="s1">&#39;pred_o_&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">pred_o</span><span class="p">)},</span>
                     <span class="n">model</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">)</span>
         <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">:</span>
@@ -491,11 +541,10 @@
                               <span class="n">init</span><span class="o">=</span><span class="n">init</span><span class="p">,</span>
                               <span class="n">callback</span><span class="o">=</span><span class="n">printing_callback</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">trace</span> <span class="o">=</span> <span class="n">trace</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">X_o</span> <span class="o">=</span> <span class="n">X_o</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pred_o</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">pred_o</span><span class="p">))</span>
-        <span class="c1"># Posterior coefficient reconstructions belong to the previous trace.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">posterior_predictive_samples</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">posterior_coefficient_draws</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">posterior_sign_probabilities</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reconstruct_posterior_parameters</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
         <span class="k">return</span></div>
 
 
@@ -536,6 +585,162 @@
                 <span class="n">parameters</span><span class="p">[</span><span class="n">var_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
             <span class="n">draws</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">draws</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_normal_logpdf</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">mu</span><span class="p">,</span> <span class="n">sigma</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Evaluate a scalar normal log density with NumPy broadcasting.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="p">((</span><span class="n">value</span> <span class="o">-</span> <span class="n">mu</span><span class="p">)</span> <span class="o">/</span> <span class="n">sigma</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+            <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">sigma</span><span class="p">)</span>
+            <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_prior_positive_sign_probability</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">magnitude</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return P(N_E &gt; 0 | abs(N_E)) under the configured normal prior.&quot;&quot;&quot;</span>
+        <span class="n">mu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_E_mu&#39;</span><span class="p">]</span>
+        <span class="n">sigma</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_E_sigma&#39;</span><span class="p">]</span>
+        <span class="n">log_positive</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normal_logpdf</span><span class="p">(</span><span class="n">magnitude</span><span class="p">,</span> <span class="n">mu</span><span class="p">,</span> <span class="n">sigma</span><span class="p">)</span>
+        <span class="n">log_negative</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normal_logpdf</span><span class="p">(</span><span class="o">-</span><span class="n">magnitude</span><span class="p">,</span> <span class="n">mu</span><span class="p">,</span> <span class="n">sigma</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">log_positive</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">logaddexp</span><span class="p">(</span><span class="n">log_positive</span><span class="p">,</span> <span class="n">log_negative</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_sample_conditional_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">N_E</span><span class="p">,</span> <span class="n">rng</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Reconstruct all Gaussian variables marginalized from the likelihood.</span>
+
+<span class="sd">        For fixed signed N_E and one posterior draw of the remaining</span>
+<span class="sd">        parameters, ``z = (alpha_mu_A, alpha_mu_Y, N_b, N_d)`` has an</span>
+<span class="sd">        independent Gaussian prior and the observed prediction is a scalar</span>
+<span class="sd">        linear-Gaussian observation of z. Matheron&#39;s rule produces one exact</span>
+<span class="sd">        conditional draw.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            parameters (dict): Draw containing alpha_sigma_A, alpha_sigma_Y,</span>
+<span class="sd">                R, and T.</span>
+<span class="sd">            N_E (float): Reconstructed signed treatment effect.</span>
+<span class="sd">            rng (np.random.Generator): Random number generator.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple: ``(alpha_mu_A, alpha_mu_Y, N_b, N_d)``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">prior_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;mu_A&#39;</span><span class="p">],</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;mu_Y&#39;</span><span class="p">]]),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_b_mu&#39;</span><span class="p">],</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_d_mu&#39;</span><span class="p">],</span>
+        <span class="p">])</span>
+        <span class="n">prior_variance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_A&#39;</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_Y&#39;</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">]),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_b_sigma&#39;</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_d_sigma&#39;</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">])</span>
+        <span class="n">observation_vector</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="n">N_E</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">X_o</span><span class="p">,</span>
+            <span class="n">N_E</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">X_o</span><span class="p">,</span>
+        <span class="p">])</span>
+        <span class="n">noise_variance</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">N_E</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span>
+            <span class="o">+</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span>
+        <span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">+</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;R&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;T&#39;</span><span class="p">])</span>
+
+        <span class="n">prior_draw</span> <span class="o">=</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">prior_mean</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">prior_variance</span><span class="p">))</span>
+        <span class="n">prediction_draw</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">observation_vector</span> <span class="o">@</span> <span class="n">prior_draw</span>
+            <span class="o">+</span> <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">noise_variance</span><span class="p">)))</span>
+        <span class="n">denominator</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">observation_vector</span> <span class="o">@</span> <span class="p">(</span><span class="n">prior_variance</span> <span class="o">*</span> <span class="n">observation_vector</span><span class="p">)</span>
+            <span class="o">+</span> <span class="n">noise_variance</span><span class="p">)</span>
+        <span class="n">gain</span> <span class="o">=</span> <span class="n">prior_variance</span> <span class="o">*</span> <span class="n">observation_vector</span> <span class="o">/</span> <span class="n">denominator</span>
+        <span class="n">conditional_draw</span> <span class="o">=</span> <span class="n">prior_draw</span> <span class="o">+</span> <span class="n">gain</span> <span class="o">*</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pred_o</span> <span class="o">-</span> <span class="n">prediction_draw</span><span class="p">)</span>
+
+        <span class="n">start</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="n">stop</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="nb">float</span><span class="p">(</span><span class="n">conditional_draw</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+            <span class="nb">float</span><span class="p">(</span><span class="n">conditional_draw</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+            <span class="n">conditional_draw</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">stop</span><span class="p">],</span>
+            <span class="n">conditional_draw</span><span class="p">[</span><span class="n">stop</span><span class="p">:],</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_reconstruct_posterior_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rng</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attach exact signed and Gaussian reconstructions to the trace.&quot;&quot;&quot;</span>
+        <span class="n">posterior</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span>
+        <span class="n">magnitudes</span> <span class="o">=</span> <span class="n">posterior</span><span class="p">[</span><span class="s1">&#39;N_E_magnitude&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">positive_probabilities</span> <span class="o">=</span> <span class="n">posterior</span><span class="p">[</span>
+            <span class="s1">&#39;N_E_positive_probability&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">signs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+            <span class="n">rng</span><span class="o">.</span><span class="n">random</span><span class="p">(</span><span class="n">magnitudes</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">positive_probabilities</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">)</span>
+        <span class="n">N_E</span> <span class="o">=</span> <span class="n">signs</span> <span class="o">*</span> <span class="n">magnitudes</span>
+
+        <span class="n">flat_parameter_values</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">,</span> <span class="s1">&#39;R&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">):</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="n">posterior</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+            <span class="n">flat_parameter_values</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">alpha_mu_A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">N_E</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+        <span class="n">alpha_mu_Y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">N_E</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+        <span class="n">coefficient_draws</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">signed_effect</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">N_E</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)):</span>
+            <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">name</span><span class="p">:</span> <span class="n">values</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">values</span> <span class="ow">in</span> <span class="n">flat_parameter_values</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">}</span>
+            <span class="n">reconstructed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sample_conditional_parameters</span><span class="p">(</span>
+                <span class="n">parameters</span><span class="p">,</span> <span class="n">signed_effect</span><span class="p">,</span> <span class="n">rng</span><span class="p">)</span>
+            <span class="n">alpha_mu_A</span><span class="p">[</span><span class="n">index</span><span class="p">],</span> <span class="n">alpha_mu_Y</span><span class="p">[</span><span class="n">index</span><span class="p">],</span> <span class="n">N_b</span><span class="p">,</span> <span class="n">N_d</span> <span class="o">=</span> <span class="n">reconstructed</span>
+            <span class="n">coefficient_draws</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">N_b</span><span class="p">,</span> <span class="n">N_d</span><span class="p">))</span>
+
+        <span class="n">scalar_dims</span> <span class="o">=</span> <span class="n">posterior</span><span class="p">[</span><span class="s1">&#39;N_E_magnitude&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">dims</span>
+        <span class="n">scalar_shape</span> <span class="o">=</span> <span class="n">magnitudes</span><span class="o">.</span><span class="n">shape</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span> <span class="o">=</span> <span class="n">posterior</span><span class="o">.</span><span class="n">assign</span><span class="p">({</span>
+            <span class="s1">&#39;N_E&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">scalar_dims</span><span class="p">,</span> <span class="n">N_E</span><span class="p">),</span>
+            <span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">scalar_dims</span><span class="p">,</span> <span class="n">alpha_mu_A</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">scalar_shape</span><span class="p">)),</span>
+            <span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">scalar_dims</span><span class="p">,</span> <span class="n">alpha_mu_Y</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">scalar_shape</span><span class="p">)),</span>
+        <span class="p">})</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">posterior_sign_probabilities</span> <span class="o">=</span> <span class="n">positive_probabilities</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">posterior_coefficient_draws</span> <span class="o">=</span> <span class="n">coefficient_draws</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_rao_blackwellized_N_E_moments</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return posterior N_E moments after summing over the sign.&quot;&quot;&quot;</span>
+        <span class="n">posterior</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span>
+        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;N_E_magnitude&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">posterior</span>
+                <span class="ow">or</span> <span class="s1">&#39;N_E_positive_probability&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">posterior</span><span class="p">):</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="n">posterior</span><span class="p">[</span><span class="s1">&#39;N_E&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">values</span><span class="p">),</span>
+                <span class="s1">&#39;std&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">values</span><span class="p">),</span>
+                <span class="s1">&#39;skew&#39;</span><span class="p">:</span> <span class="n">skew</span><span class="p">(</span><span class="n">values</span><span class="p">),</span>
+                <span class="s1">&#39;kurtosis&#39;</span><span class="p">:</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">values</span><span class="p">),</span>
+            <span class="p">}</span>
+
+        <span class="n">magnitude</span> <span class="o">=</span> <span class="n">posterior</span><span class="p">[</span><span class="s1">&#39;N_E_magnitude&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">positive</span> <span class="o">=</span> <span class="n">posterior</span><span class="p">[</span>
+            <span class="s1">&#39;N_E_positive_probability&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">signed_weight</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">positive</span> <span class="o">-</span> <span class="mf">1.0</span>
+        <span class="n">raw_1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">signed_weight</span> <span class="o">*</span> <span class="n">magnitude</span><span class="p">)</span>
+        <span class="n">raw_2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">magnitude</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">raw_3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">signed_weight</span> <span class="o">*</span> <span class="n">magnitude</span><span class="o">**</span><span class="mi">3</span><span class="p">)</span>
+        <span class="n">raw_4</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">magnitude</span><span class="o">**</span><span class="mi">4</span><span class="p">)</span>
+        <span class="n">variance</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">raw_2</span> <span class="o">-</span> <span class="n">raw_1</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">variance</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="n">raw_1</span><span class="p">,</span>
+                <span class="s1">&#39;std&#39;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
+                <span class="s1">&#39;skew&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                <span class="s1">&#39;kurtosis&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="n">third_central</span> <span class="o">=</span> <span class="n">raw_3</span> <span class="o">-</span> <span class="mf">3.0</span> <span class="o">*</span> <span class="n">raw_1</span> <span class="o">*</span> <span class="n">raw_2</span> <span class="o">+</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">raw_1</span><span class="o">**</span><span class="mi">3</span>
+        <span class="n">fourth_central</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">raw_4</span> <span class="o">-</span> <span class="mf">4.0</span> <span class="o">*</span> <span class="n">raw_1</span> <span class="o">*</span> <span class="n">raw_3</span> <span class="o">+</span> <span class="mf">6.0</span> <span class="o">*</span> <span class="n">raw_1</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">raw_2</span>
+            <span class="o">-</span> <span class="mf">3.0</span> <span class="o">*</span> <span class="n">raw_1</span><span class="o">**</span><span class="mi">4</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="n">raw_1</span><span class="p">,</span>
+            <span class="s1">&#39;std&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">variance</span><span class="p">),</span>
+            <span class="s1">&#39;skew&#39;</span><span class="p">:</span> <span class="n">third_central</span> <span class="o">/</span> <span class="n">variance</span><span class="o">**</span><span class="mf">1.5</span><span class="p">,</span>
+            <span class="s1">&#39;kurtosis&#39;</span><span class="p">:</span> <span class="n">fourth_central</span> <span class="o">/</span> <span class="n">variance</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="mf">3.0</span><span class="p">,</span>
+        <span class="p">}</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_update_predictive_scm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">N_b</span><span class="p">,</span> <span class="n">N_d</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -649,8 +854,29 @@
         <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">:</span>
             <span class="n">tmp</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">sample_prior_predictive</span><span class="p">(</span>
                 <span class="n">draws</span><span class="o">=</span><span class="n">draws</span><span class="p">,</span>
-                <span class="n">var_names</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">predictive_var_names</span><span class="p">,</span>
+                <span class="n">var_names</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sampled_predictive_var_names</span><span class="p">(),</span>
                 <span class="n">random_seed</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+        <span class="n">magnitudes</span> <span class="o">=</span> <span class="n">tmp</span><span class="o">.</span><span class="n">prior</span><span class="p">[</span><span class="s1">&#39;N_E_magnitude&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+        <span class="n">positive_probabilities</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prior_positive_sign_probability</span><span class="p">(</span>
+            <span class="n">magnitudes</span><span class="p">)</span>
+        <span class="n">signs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+            <span class="n">rng</span><span class="o">.</span><span class="n">random</span><span class="p">(</span><span class="n">magnitudes</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">positive_probabilities</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">)</span>
+        <span class="n">scalar_dims</span> <span class="o">=</span> <span class="n">tmp</span><span class="o">.</span><span class="n">prior</span><span class="p">[</span><span class="s1">&#39;N_E_magnitude&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">dims</span>
+        <span class="n">tmp</span><span class="o">.</span><span class="n">prior</span> <span class="o">=</span> <span class="n">tmp</span><span class="o">.</span><span class="n">prior</span><span class="o">.</span><span class="n">assign</span><span class="p">({</span>
+            <span class="s1">&#39;N_E&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">scalar_dims</span><span class="p">,</span> <span class="n">signs</span> <span class="o">*</span> <span class="n">magnitudes</span><span class="p">),</span>
+            <span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="n">scalar_dims</span><span class="p">,</span>
+                <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;mu_A&#39;</span><span class="p">],</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_A&#39;</span><span class="p">],</span>
+                    <span class="n">size</span><span class="o">=</span><span class="n">magnitudes</span><span class="o">.</span><span class="n">shape</span><span class="p">)),</span>
+            <span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="n">scalar_dims</span><span class="p">,</span>
+                <span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;mu_Y&#39;</span><span class="p">],</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;sigma_Y&#39;</span><span class="p">],</span>
+                    <span class="n">size</span><span class="o">=</span><span class="n">magnitudes</span><span class="o">.</span><span class="n">shape</span><span class="p">)),</span>
+        <span class="p">})</span><span class="o">.</span><span class="n">drop_vars</span><span class="p">(</span><span class="s1">&#39;N_E_magnitude&#39;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">prior_samples</span> <span class="o">=</span> <span class="n">tmp</span>
         <span class="n">parameter_draws</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parameter_draws</span><span class="p">(</span><span class="n">tmp</span><span class="o">.</span><span class="n">prior</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">prior_draws</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">parameter_draws</span><span class="p">)</span>
@@ -695,6 +921,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            tuple: ``(do_A_samples, do_A_mean, do_A_std)``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_prior_samples</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
         <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalize_vector_parameter</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="s1">&#39;X&#39;</span><span class="p">)</span>
         <span class="n">do_A_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_draws</span><span class="p">,))</span>
@@ -729,16 +956,26 @@
         <span class="n">tmp_A</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_predictive_samples</span><span class="p">]</span>
         <span class="n">tmp_Y</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_predictive_samples</span><span class="p">]</span>
         <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_X_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)</span>
+        <span class="c1"># X follows the same convention as the multivariate agent model:</span>
+        <span class="c1"># a single pri_X_&lt;moment&gt; set at k = 1, one set per covariate</span>
+        <span class="c1"># dimension (pri_X_&lt;dim&gt;_&lt;moment&gt;) at k &gt; 1.</span>
+        <span class="n">X_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">x_targets</span> <span class="o">=</span> <span class="p">[(</span><span class="s1">&#39;pri_X&#39;</span><span class="p">,</span> <span class="n">X_array</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">x_targets</span> <span class="o">=</span> <span class="p">[(</span><span class="s1">&#39;pri_X_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dim</span><span class="p">),</span> <span class="n">X_array</span><span class="p">[:,</span> <span class="n">dim</span><span class="p">])</span>
+                         <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">)]</span>
+        <span class="k">for</span> <span class="n">key_prefix</span><span class="p">,</span> <span class="n">values</span> <span class="ow">in</span> <span class="n">x_targets</span><span class="p">:</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">key_prefix</span> <span class="o">+</span> <span class="s1">&#39;_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">key_prefix</span> <span class="o">+</span> <span class="s1">&#39;_std&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">key_prefix</span> <span class="o">+</span> <span class="s1">&#39;_skew&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">key_prefix</span> <span class="o">+</span> <span class="s1">&#39;_kurtosis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_A_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_Y_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)</span>
-        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_X_std&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_A_std&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_Y_std&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)</span>
-        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_X_skew&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_A_skew&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_Y_skew&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_X_kurtosis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_A_kurtosis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;pri_Y_kurtosis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">results</span></div>
@@ -848,16 +1085,26 @@
         <span class="n">tmp_A</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">posterior_predictive_samples</span><span class="p">]</span>
         <span class="n">tmp_Y</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">posterior_predictive_samples</span><span class="p">]</span>
         <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_X_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)</span>
+        <span class="c1"># X follows the same convention as the multivariate agent model:</span>
+        <span class="c1"># a single post_X_&lt;moment&gt; set at k = 1, one set per covariate</span>
+        <span class="c1"># dimension (post_X_&lt;dim&gt;_&lt;moment&gt;) at k &gt; 1.</span>
+        <span class="n">X_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">x_targets</span> <span class="o">=</span> <span class="p">[(</span><span class="s1">&#39;post_X&#39;</span><span class="p">,</span> <span class="n">X_array</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">x_targets</span> <span class="o">=</span> <span class="p">[(</span><span class="s1">&#39;post_X_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dim</span><span class="p">),</span> <span class="n">X_array</span><span class="p">[:,</span> <span class="n">dim</span><span class="p">])</span>
+                         <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">)]</span>
+        <span class="k">for</span> <span class="n">key_prefix</span><span class="p">,</span> <span class="n">values</span> <span class="ow">in</span> <span class="n">x_targets</span><span class="p">:</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">key_prefix</span> <span class="o">+</span> <span class="s1">&#39;_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">key_prefix</span> <span class="o">+</span> <span class="s1">&#39;_std&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">key_prefix</span> <span class="o">+</span> <span class="s1">&#39;_skew&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">key_prefix</span> <span class="o">+</span> <span class="s1">&#39;_kurtosis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_A_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_Y_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)</span>
-        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_X_std&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_A_std&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_Y_std&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)</span>
-        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_X_skew&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_A_skew&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_Y_skew&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_X_kurtosis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">tmp_X</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_A_kurtosis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">tmp_A</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
         <span class="n">results</span><span class="p">[</span><span class="s1">&#39;post_Y_kurtosis&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">tmp_Y</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">results</span></div>
@@ -914,9 +1161,23 @@
         <span class="n">N_E_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span><span class="p">[</span><span class="s1">&#39;N_E&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span> <span class="o">=</span> <span class="n">N_E_samples</span><span class="o">.</span><span class="n">size</span>
         <span class="n">CATE_samples</span> <span class="o">=</span> <span class="p">(</span><span class="n">A1_treatment</span> <span class="o">-</span> <span class="n">A0_treatment</span><span class="p">)</span> <span class="o">*</span> <span class="n">N_E_samples</span>
-        <span class="n">CATE_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">CATE_samples</span><span class="p">)</span>
-        <span class="n">CATE_std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">CATE_samples</span><span class="p">)</span>
+        <span class="n">N_E_moments</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rao_blackwellized_N_E_moments</span><span class="p">()</span>
+        <span class="n">treatment_difference</span> <span class="o">=</span> <span class="n">A1_treatment</span> <span class="o">-</span> <span class="n">A0_treatment</span>
+        <span class="n">CATE_mean</span> <span class="o">=</span> <span class="n">treatment_difference</span> <span class="o">*</span> <span class="n">N_E_moments</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">]</span>
+        <span class="n">CATE_std</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">treatment_difference</span><span class="p">)</span> <span class="o">*</span> <span class="n">N_E_moments</span><span class="p">[</span><span class="s1">&#39;std&#39;</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">CATE_samples</span><span class="p">,</span> <span class="n">CATE_mean</span><span class="p">,</span> <span class="n">CATE_std</span></div>
+
+
+<div class="viewcode-block" id="SinglePredictionCollapsedAgentModel.posterior_negative_sign_probability">
+<a class="viewcode-back" href="../modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.posterior_negative_sign_probability">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">posterior_negative_sign_probability</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the posterior probability that N_E is negative.&quot;&quot;&quot;</span>
+        <span class="n">posterior</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span>
+        <span class="k">if</span> <span class="s1">&#39;N_E_positive_probability&#39;</span> <span class="ow">in</span> <span class="n">posterior</span><span class="p">:</span>
+            <span class="n">positive</span> <span class="o">=</span> <span class="n">posterior</span><span class="p">[</span>
+                <span class="s1">&#39;N_E_positive_probability&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">positive</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">posterior</span><span class="p">[</span><span class="s1">&#39;N_E&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.0</span><span class="p">))</span></div>
 
 
 <div class="viewcode-block" id="SinglePredictionCollapsedAgentModel.get_prior_CATE_mu">
@@ -934,23 +1195,145 @@
         <span class="k">return</span> <span class="p">(</span><span class="n">A1_treatment</span> <span class="o">-</span> <span class="n">A0_treatment</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_E_mu&#39;</span><span class="p">]</span></div>
 
 
+<div class="viewcode-block" id="SinglePredictionCollapsedAgentModel.posterior_parameter_summaries">
+<a class="viewcode-back" href="../modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.posterior_parameter_summaries">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">posterior_parameter_summaries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute mean, std, skewness, and kurtosis of the posterior samples</span>
+<span class="sd">        for each population parameter, in the same key format as</span>
+<span class="sd">        :meth:`agent_model.AgentModel.posterior_parameter_summaries`, so that</span>
+<span class="sd">        experiment drivers can use the two model classes interchangeably.</span>
+
+<span class="sd">        Sampled population parameters are summarized directly. N_E moments are</span>
+<span class="sd">        Rao--Blackwellized over the exact conditional sign probabilities.</span>
+<span class="sd">        alpha_mu_A, alpha_mu_Y, N_b, and N_d are summarized from their coherent</span>
+<span class="sd">        conditional reconstruction, so the returned moments describe the same</span>
+<span class="sd">        posterior as an explicit model.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            rng: Seed or initialized generator for the coefficient</span>
+<span class="sd">                reconstruction (reused if draws are already cached).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict: ``param_&lt;name&gt;_&lt;moment&gt;`` (scalar or k = 1) or</span>
+<span class="sd">            ``param_&lt;name&gt;_&lt;dim&gt;_&lt;moment&gt;`` (k &gt; 1) entries.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No posterior samples available. Call sample() first.&quot;</span><span class="p">)</span>
+        <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">moment_dict</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">key_prefix</span><span class="p">):</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">values</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_mean&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key_prefix</span><span class="p">):</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">values</span><span class="p">),</span>
+                <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_std&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key_prefix</span><span class="p">):</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">values</span><span class="p">),</span>
+                <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_skew&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key_prefix</span><span class="p">):</span> <span class="n">skew</span><span class="p">(</span><span class="n">values</span><span class="p">),</span>
+                <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_kurtosis&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key_prefix</span><span class="p">):</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">values</span><span class="p">),</span>
+            <span class="p">}</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">vector_summaries</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+            <span class="c1"># values shape: (draws, k); k = 1 uses the non-indexed key.</span>
+            <span class="n">summaries</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">summaries</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">moment_dict</span><span class="p">(</span><span class="n">values</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;param_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">)))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+                    <span class="n">summaries</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">moment_dict</span><span class="p">(</span>
+                        <span class="n">values</span><span class="p">[:,</span> <span class="n">dim</span><span class="p">],</span> <span class="s1">&#39;param_</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">dim</span><span class="p">)))</span>
+            <span class="k">return</span> <span class="n">summaries</span>
+
+        <span class="n">posterior</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">):</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">moment_dict</span><span class="p">(</span><span class="n">posterior</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+                                       <span class="s1">&#39;param_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">)))</span>
+        <span class="k">for</span> <span class="n">moment</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rao_blackwellized_N_E_moments</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">results</span><span class="p">[</span><span class="s1">&#39;param_N_E_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">moment</span><span class="p">)]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">):</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="n">posterior</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+            <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="n">values</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">vector_summaries</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+
+        <span class="n">parameter_draws</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parameter_draws</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_posterior_coefficient_draws</span><span class="p">(</span><span class="n">parameter_draws</span><span class="p">,</span> <span class="n">rng</span><span class="p">)</span>
+        <span class="n">N_b_draws</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">draw</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">draw</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">posterior_coefficient_draws</span><span class="p">])</span>
+        <span class="n">N_d_draws</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">draw</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">draw</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">posterior_coefficient_draws</span><span class="p">])</span>
+        <span class="n">results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">vector_summaries</span><span class="p">(</span><span class="n">N_b_draws</span><span class="p">,</span> <span class="s1">&#39;N_b&#39;</span><span class="p">))</span>
+        <span class="n">results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">vector_summaries</span><span class="p">(</span><span class="n">N_d_draws</span><span class="p">,</span> <span class="s1">&#39;N_d&#39;</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">results</span></div>
+
+
 <div class="viewcode-block" id="SinglePredictionCollapsedAgentModel.trace_diagnostics">
 <a class="viewcode-back" href="../modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.trace_diagnostics">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">trace_diagnostics</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return basic sampler diagnostics for the current posterior trace.</span>
 
+<span class="sd">        Diagnostics cover the variables explored directly by NUTS and the</span>
+<span class="sd">        deterministic quantities that drive the CATE and reduced likelihood.</span>
+<span class="sd">        A deterministic component that is exactly constant is omitted because</span>
+<span class="sd">        its R-hat and ESS are undefined but it has no Monte Carlo error.</span>
+
 <span class="sd">        Returns:</span>
 <span class="sd">            dict: ``max_rhat``, ``min_ess_bulk``, ``min_ess_tail`` (computed</span>
 <span class="sd">            with ArviZ), and ``n_divergences``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">rhat_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">rhat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="p">)</span>
-        <span class="n">ess_bulk_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">ess</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;bulk&#39;</span><span class="p">)</span>
-        <span class="n">ess_tail_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">ess</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;tail&#39;</span><span class="p">)</span>
+        <span class="n">diagnostic_var_names</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">variable</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">variable</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">free_RVs</span>
+            <span class="k">if</span> <span class="n">variable</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span>
+        <span class="p">]</span>
+        <span class="n">diagnostic_var_names</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+            <span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span>
+                <span class="s1">&#39;R&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;N_E_conditional_mean&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;N_E_positive_probability&#39;</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span>
+            <span class="ow">and</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">diagnostic_var_names</span>
+        <span class="p">)</span>
+        <span class="n">rhat_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">rhat</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">var_names</span><span class="o">=</span><span class="n">diagnostic_var_names</span><span class="p">)</span>
+        <span class="n">ess_bulk_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">ess</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">var_names</span><span class="o">=</span><span class="n">diagnostic_var_names</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;bulk&#39;</span><span class="p">)</span>
+        <span class="n">ess_tail_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">ess</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">var_names</span><span class="o">=</span><span class="n">diagnostic_var_names</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;tail&#39;</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">finite_statistics</span><span class="p">(</span><span class="n">dataset</span><span class="p">):</span>
+            <span class="n">statistics</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">diagnostic_var_names</span><span class="p">:</span>
+                <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">)</span>
+                <span class="n">components</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+                    <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">dataset</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="n">components</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;Diagnostic shape mismatch for </span><span class="si">{!r}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">component</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                        <span class="n">np</span><span class="o">.</span><span class="n">moveaxis</span><span class="p">(</span><span class="n">components</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">values</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+                        <span class="n">statistics</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+                    <span class="k">elif</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">component</span><span class="p">))</span>
+                          <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">ptp</span><span class="p">(</span><span class="n">component</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">):</span>
+                        <span class="k">continue</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                            <span class="s2">&quot;Undefined diagnostic for non-constant </span><span class="si">{!r}</span><span class="s2">.&quot;</span>
+                            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">statistics</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No non-constant variables to diagnose.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">statistics</span>
+
+        <span class="n">rhat_statistics</span> <span class="o">=</span> <span class="n">finite_statistics</span><span class="p">(</span><span class="n">rhat_values</span><span class="p">)</span>
+        <span class="n">ess_bulk_statistics</span> <span class="o">=</span> <span class="n">finite_statistics</span><span class="p">(</span><span class="n">ess_bulk_values</span><span class="p">)</span>
+        <span class="n">ess_tail_statistics</span> <span class="o">=</span> <span class="n">finite_statistics</span><span class="p">(</span><span class="n">ess_tail_values</span><span class="p">)</span>
         <span class="k">return</span> <span class="p">{</span>
-            <span class="s1">&#39;max_rhat&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">rhat_values</span><span class="o">.</span><span class="n">to_array</span><span class="p">()</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
-            <span class="s1">&#39;min_ess_bulk&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">ess_bulk_values</span><span class="o">.</span><span class="n">to_array</span><span class="p">()</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
-            <span class="s1">&#39;min_ess_tail&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">ess_tail_values</span><span class="o">.</span><span class="n">to_array</span><span class="p">()</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
+            <span class="s1">&#39;max_rhat&#39;</span><span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="n">rhat_statistics</span><span class="p">),</span>
+            <span class="s1">&#39;min_ess_bulk&#39;</span><span class="p">:</span> <span class="nb">min</span><span class="p">(</span><span class="n">ess_bulk_statistics</span><span class="p">),</span>
+            <span class="s1">&#39;min_ess_tail&#39;</span><span class="p">:</span> <span class="nb">min</span><span class="p">(</span><span class="n">ess_tail_statistics</span><span class="p">),</span>
             <span class="s1">&#39;n_divergences&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">sample_stats</span><span class="p">[</span><span class="s1">&#39;diverging&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
         <span class="p">}</span></div>
 

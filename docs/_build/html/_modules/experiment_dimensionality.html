@@ -1,0 +1,803 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>experiment_dimensionality &mdash; CapturingUsersPredictionModels 1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=f2a433a1"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+</head>
+
+<body class="wy-body-for-nav">
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+
+
+          <a href="../index.html" class="icon icon-home">
+            CapturingUsersPredictionModels
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules/agent_model.html">Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/distributions.html">Custom Distributions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/dimensionality_config.html">Dimensionality Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_dimensionality.html">Dimensionality Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_collapsed.html">Collapsed Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/utils.html">Utilities</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">SLURM Scripts</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules/completion_check.html">Completion Check</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file.html">Generate Parameter File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CapturingUsersPredictionModels</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Module code</a></li>
+      <li class="breadcrumb-item active">experiment_dimensionality</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+
+  <h1>Source code for experiment_dimensionality</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Dimensionality experiment for a multivariate SCM with intercept.</span>
+
+<span class="sd">The coefficient-prior scaling is either ``1k`` or ``sqrtk``. Sampler settings</span>
+<span class="sd">and the selected model parameterization are written into every result row.</span>
+
+<span class="sd">Run ``python experiment_dimensionality.py --help`` for the command-line</span>
+<span class="sd">interface.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">uuid</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="c1"># ArviZ expects its cache directory to exist on compute nodes.</span>
+<span class="n">_cache_root</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+    <span class="s1">&#39;XDG_CACHE_HOME&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s1">&#39;~/.cache&#39;</span><span class="p">))</span>
+<span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">_cache_root</span><span class="p">,</span> <span class="s1">&#39;arviz&#39;</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">arviz</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">az</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.linear_model</span><span class="w"> </span><span class="kn">import</span> <span class="n">LinearRegression</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">agent_model</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">am</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">scm</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">single_prediction_collapsed_agent_model</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">spcam</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dimensionality_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AGENT_MODEL</span> <span class="k">as</span> <span class="n">DEFAULT_AGENT_MODEL</span><span class="p">,</span>
+    <span class="n">A0_TREATMENT</span><span class="p">,</span>
+    <span class="n">A1_TREATMENT</span><span class="p">,</span>
+    <span class="n">COEFFICIENT_PRIOR_REFERENCE</span><span class="p">,</span>
+    <span class="n">DECISION_THRESHOLD</span><span class="p">,</span>
+    <span class="n">DEFAULT_SCALING</span><span class="p">,</span>
+    <span class="n">DIMENSIONALITY_EXPERIMENT_DESIGN</span><span class="p">,</span>
+    <span class="n">FIT_INTERCEPT</span><span class="p">,</span>
+    <span class="n">FIXED_RNG_SEED</span><span class="p">,</span>
+    <span class="n">N_CHAINS</span><span class="p">,</span>
+    <span class="n">N_DRAWS</span><span class="p">,</span>
+    <span class="n">N_TUNE</span><span class="p">,</span>
+    <span class="n">OBSERVATION_SEED_SCHEME</span><span class="p">,</span>
+    <span class="n">PLATE_SIZE</span><span class="p">,</span>
+    <span class="n">RESULT_SCHEMA_VERSION</span><span class="p">,</span>
+    <span class="n">SCALING_CHOICES</span><span class="p">,</span>
+    <span class="n">TARGET_ACCEPT</span><span class="p">,</span>
+    <span class="n">TRUE_SCM</span><span class="p">,</span>
+    <span class="n">format_stream_key</span><span class="p">,</span>
+    <span class="n">run_stream_key</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<span class="n">plate_size</span> <span class="o">=</span> <span class="n">PLATE_SIZE</span>
+<span class="n">draws</span> <span class="o">=</span> <span class="n">N_DRAWS</span>
+<span class="n">A1_treatment</span> <span class="o">=</span> <span class="n">A1_TREATMENT</span>
+<span class="n">A0_treatment</span> <span class="o">=</span> <span class="n">A0_TREATMENT</span>
+<span class="n">threshold</span> <span class="o">=</span> <span class="n">DECISION_THRESHOLD</span>
+<span class="n">rng</span> <span class="o">=</span> <span class="n">FIXED_RNG_SEED</span>
+
+<span class="n">AGENT_MODEL</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DIM_MODEL&#39;</span><span class="p">,</span> <span class="n">DEFAULT_AGENT_MODEL</span><span class="p">)</span>
+<span class="n">VALID_AGENT_MODELS</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;normal&#39;</span><span class="p">,</span> <span class="s1">&#39;collapsed_sign_marginalized&#39;</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">AGENT_MODEL</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">VALID_AGENT_MODELS</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+        <span class="s2">&quot;DIM_MODEL must be one of </span><span class="si">{}</span><span class="s2">, not </span><span class="si">{!r}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">VALID_AGENT_MODELS</span><span class="p">,</span> <span class="n">AGENT_MODEL</span><span class="p">))</span>
+
+<span class="n">parameter_descriptions</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;agent_priors&#39;</span><span class="p">:</span>         <span class="s1">&#39;Default&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;scm_noise_parameters&#39;</span><span class="p">:</span> <span class="s1">&#39;Default&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;scm_constants&#39;</span><span class="p">:</span>        <span class="s1">&#39;Default&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="c1"># Vector prior keys that are broadcast directly vs those scaled by 1/k.</span>
+<span class="n">_BROADCAST_VECTOR_PARAMS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;mu_X&#39;</span><span class="p">,</span> <span class="s1">&#39;sigma_X&#39;</span><span class="p">,</span> <span class="s1">&#39;mu_sigma_X&#39;</span><span class="p">,</span> <span class="s1">&#39;sigma_sigma_X&#39;</span><span class="p">}</span>
+<span class="n">_SCALED_VECTOR_PARAMS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;N_b_mu&#39;</span><span class="p">,</span> <span class="s1">&#39;N_b_sigma&#39;</span><span class="p">,</span> <span class="s1">&#39;N_d_mu&#39;</span><span class="p">,</span> <span class="s1">&#39;N_d_sigma&#39;</span><span class="p">}</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_make_priors</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">coef_sigma_scaling</span><span class="o">=</span><span class="s1">&#39;1/k&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Build agent prior dict for k covariates.</span>
+
+<span class="sd">    N_b_mu[i] = -0.1/k and N_d_mu[i] = 0.125/k so that E[X^T N_b] and</span>
+<span class="sd">    E[X^T N_d] match the scalar case (mu_X = 80). The mean scaling is</span>
+<span class="sd">    forced: without it the total systematic effect grows with k.</span>
+
+<span class="sd">    The sigma scaling is a free design choice, controlled by</span>
+<span class="sd">    ``coef_sigma_scaling``:</span>
+
+<span class="sd">    - ``&#39;1/k&#39;`` (default, original convention): preserves the coefficient</span>
+<span class="sd">      of variation per dimension. The prior variance of the aggregate</span>
+<span class="sd">      projections x^T N_b and x^T N_d then decays like 1/k</span>
+<span class="sd">      (Q_o * (0.1/k)^2 with Q_o ~ 6500 k gives ~65/k), so the posterior</span>
+<span class="sd">      can tighten with k because the prior itself becomes more concentrated.</span>
+<span class="sd">    - ``&#39;1/sqrt(k)&#39;``: keeps the prior variance of the aggregate</span>
+<span class="sd">      projections approximately constant across k for the baseline design.</span>
+<span class="sd">      By the single-prediction reduction, the coefficients enter the</span>
+<span class="sd">      likelihood only through those projections. This makes it a</span>
+<span class="sd">      prior-variance-preserving sensitivity convention for comparing</span>
+<span class="sd">      dimensionalities; it does not by itself imply equal total information</span>
+<span class="sd">      or an invariant posterior across k.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">coef_sigma_scaling</span> <span class="o">==</span> <span class="s1">&#39;1/k&#39;</span><span class="p">:</span>
+        <span class="n">sigma_divisor</span> <span class="o">=</span> <span class="n">k</span>
+    <span class="k">elif</span> <span class="n">coef_sigma_scaling</span> <span class="o">==</span> <span class="s1">&#39;1/sqrt(k)&#39;</span><span class="p">:</span>
+        <span class="n">sigma_divisor</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;coef_sigma_scaling must be &#39;1/k&#39; or &#39;1/sqrt(k)&#39;, not </span><span class="si">{!r}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">coef_sigma_scaling</span><span class="p">))</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s1">&#39;mu_X&#39;</span><span class="p">:</span>          <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">]),</span>
+        <span class="s1">&#39;sigma_X&#39;</span><span class="p">:</span>       <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span>
+        <span class="s1">&#39;mu_sigma_X&#39;</span><span class="p">:</span>    <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">]),</span>
+        <span class="s1">&#39;sigma_sigma_X&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span>
+        <span class="s1">&#39;mu_A&#39;</span><span class="p">:</span>          <span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;sigma_A&#39;</span><span class="p">:</span>       <span class="mf">1.0</span><span class="p">,</span>
+        <span class="s1">&#39;mu_sigma_A&#39;</span><span class="p">:</span>    <span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;sigma_sigma_A&#39;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span>
+        <span class="s1">&#39;mu_Y&#39;</span><span class="p">:</span>          <span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;sigma_Y&#39;</span><span class="p">:</span>       <span class="mf">0.01</span><span class="p">,</span>
+        <span class="s1">&#39;mu_sigma_Y&#39;</span><span class="p">:</span>    <span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;sigma_sigma_Y&#39;</span><span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span>
+        <span class="s1">&#39;N_E_mu&#39;</span><span class="p">:</span>        <span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;N_E&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;N_E_sigma&#39;</span><span class="p">:</span>     <span class="mf">1.0</span><span class="p">,</span>
+        <span class="s1">&#39;N_b_mu&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span>
+            <span class="n">k</span><span class="p">,</span> <span class="n">COEFFICIENT_PRIOR_REFERENCE</span><span class="p">[</span><span class="s1">&#39;N_b_mu&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">k</span><span class="p">),</span>
+        <span class="s1">&#39;N_b_sigma&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span>
+            <span class="n">k</span><span class="p">,</span> <span class="n">COEFFICIENT_PRIOR_REFERENCE</span><span class="p">[</span><span class="s1">&#39;N_b_sigma&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">sigma_divisor</span><span class="p">),</span>
+        <span class="s1">&#39;N_d_mu&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span>
+            <span class="n">k</span><span class="p">,</span> <span class="n">COEFFICIENT_PRIOR_REFERENCE</span><span class="p">[</span><span class="s1">&#39;N_d_mu&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">k</span><span class="p">),</span>
+        <span class="s1">&#39;N_d_sigma&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span>
+            <span class="n">k</span><span class="p">,</span> <span class="n">COEFFICIENT_PRIOR_REFERENCE</span><span class="p">[</span><span class="s1">&#39;N_d_sigma&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">sigma_divisor</span><span class="p">),</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_apply_prior_modification</span><span class="p">(</span><span class="n">agent_priors</span><span class="p">,</span> <span class="n">param_name</span><span class="p">,</span> <span class="n">param_value</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span>
+                              <span class="n">coef_sigma_scaling</span><span class="o">=</span><span class="s1">&#39;1/k&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Apply a single-float CLI modification to agent_priors in-place.</span>
+
+<span class="sd">    For broadcast vector params (mu_X, …): sets every dimension to param_value.</span>
+<span class="sd">    For scaled vector params, param_value is the scalar (k = 1) equivalent:</span>
+<span class="sd">    means are always divided by k; sigmas are divided by k or sqrt(k)</span>
+<span class="sd">    according to ``coef_sigma_scaling``, consistently with ``_make_priors``.</span>
+<span class="sd">    For scalar params: assigns directly.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">param_name</span> <span class="ow">in</span> <span class="n">_BROADCAST_VECTOR_PARAMS</span><span class="p">:</span>
+        <span class="n">agent_priors</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">param_value</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">param_name</span> <span class="ow">in</span> <span class="p">{</span><span class="s1">&#39;N_b_sigma&#39;</span><span class="p">,</span> <span class="s1">&#39;N_d_sigma&#39;</span><span class="p">}:</span>
+        <span class="n">divisor</span> <span class="o">=</span> <span class="n">k</span> <span class="k">if</span> <span class="n">coef_sigma_scaling</span> <span class="o">==</span> <span class="s1">&#39;1/k&#39;</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+        <span class="n">agent_priors</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">param_value</span> <span class="o">/</span> <span class="n">divisor</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">param_name</span> <span class="ow">in</span> <span class="n">_SCALED_VECTOR_PARAMS</span><span class="p">:</span>
+        <span class="n">agent_priors</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">param_value</span> <span class="o">/</span> <span class="n">k</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">agent_priors</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">param_value</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_prepare_run_randomness</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">rng</span><span class="p">,</span> <span class="n">observed_x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">observation_rng</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                            <span class="n">data_rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Prepare the observed patient and random streams for one run.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        k (int): Number of covariates.</span>
+<span class="sd">        rng: Seed or NumPy Generator for the observed patient and sampler.</span>
+<span class="sd">        observed_x (array-like or None): Optional externally supplied</span>
+<span class="sd">            observation. Its shape must be ``(k,)``.</span>
+<span class="sd">        observation_rng: Optional independent seed or NumPy Generator for the</span>
+<span class="sd">            observed patient.</span>
+<span class="sd">        data_rng: Optional independent seed or NumPy Generator for the</span>
+<span class="sd">            historical dataset.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple: ``(X_o, sampler_rng, historical_data_rng)``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">run_rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">observed_x</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">patient_rng</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">run_rng</span> <span class="k">if</span> <span class="n">observation_rng</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">observation_rng</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">X_o</span> <span class="o">=</span> <span class="n">patient_rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span>
+            <span class="n">loc</span><span class="o">=</span><span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">],</span>
+            <span class="n">scale</span><span class="o">=</span><span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">],</span>
+            <span class="n">size</span><span class="o">=</span><span class="n">k</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">X_o</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">observed_x</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">X_o</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="p">(</span><span class="n">k</span><span class="p">,):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;observed_x must have shape (</span><span class="si">{}</span><span class="s2">,), not </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">k</span><span class="p">,</span> <span class="n">X_o</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">X_o</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;observed_x must contain only finite values&quot;</span><span class="p">)</span>
+
+    <span class="n">historical_data_rng</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">run_rng</span> <span class="k">if</span> <span class="n">data_rng</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">data_rng</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">X_o</span><span class="p">,</span> <span class="n">run_rng</span><span class="p">,</span> <span class="n">historical_data_rng</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_array_fingerprint</span><span class="p">(</span><span class="o">*</span><span class="n">arrays</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a stable SHA-256 fingerprint for typed NumPy arrays.&quot;&quot;&quot;</span>
+    <span class="n">digest</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">arrays</span><span class="p">:</span>
+        <span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="n">digest</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">array</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">str</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;ascii&#39;</span><span class="p">))</span>
+        <span class="n">digest</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">array</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;ascii&#39;</span><span class="p">))</span>
+        <span class="n">digest</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">array</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span>
+    <span class="k">return</span> <span class="n">digest</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_publish_without_overwrite</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="n">final_path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Atomically publish a staged file while preserving an existing result.&quot;&quot;&quot;</span>
+    <span class="n">tmp_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">)</span>
+    <span class="n">final_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">final_path</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">link</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="n">final_path</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">FileExistsError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">FileExistsError</span><span class="p">(</span>
+            <span class="s2">&quot;refusing to overwrite concurrently published result: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">final_path</span><span class="p">))</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">tmp_path</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">missing_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Main experiment function</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+
+<div class="viewcode-block" id="main">
+<a class="viewcode-back" href="../modules/experiment_dimensionality.html#experiment_dimensionality.main">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">agent_priors</span><span class="p">,</span> <span class="n">modified_prior</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span>
+         <span class="n">A1_treatment</span><span class="o">=</span><span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="o">=</span><span class="n">A0_treatment</span><span class="p">,</span>
+         <span class="n">plate_size</span><span class="o">=</span><span class="n">plate_size</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="n">draws</span><span class="p">,</span>
+         <span class="n">parameter_descriptions</span><span class="o">=</span><span class="n">parameter_descriptions</span><span class="p">,</span>
+         <span class="n">sampler_settings</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">output_dir</span><span class="o">=</span><span class="s1">&#39;./results/dim_runs&#39;</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">,</span>
+         <span class="n">observed_x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">observation_rng</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_rng</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+         <span class="n">result_metadata</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Run one experiment trial with k-dimensional X.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        agent_priors (dict): Prior parameter dict (already modified if needed).</span>
+<span class="sd">        modified_prior (dict): ``{&#39;modified_prior&#39;: name, &#39;modified_prior_value&#39;: value}``.</span>
+<span class="sd">        k (int): Number of covariates (dimensionality of X).</span>
+<span class="sd">        A1_treatment (float): Value of treatment 1.</span>
+<span class="sd">        A0_treatment (float): Value of treatment 0.</span>
+<span class="sd">        plate_size (int): Number of historical observations for the ML model.</span>
+<span class="sd">        draws (int): posterior draw count per chain, also used for the</span>
+<span class="sd">            predictive and CATE sample summaries.</span>
+<span class="sd">        parameter_descriptions (dict): Labels written to the result row.</span>
+<span class="sd">        sampler_settings (dict): ``draws``, ``tune``, ``chains`` and</span>
+<span class="sd">            ``target_accept`` passed to the sampler.</span>
+<span class="sd">        output_dir (str or Path): Directory for the per-run CSV file.</span>
+<span class="sd">        rng: Seed or NumPy Generator for the observed patient, sampler, and</span>
+<span class="sd">            predictive simulations.</span>
+<span class="sd">        observed_x (array-like or None): Optional observed feature vector.</span>
+<span class="sd">            When omitted, it is sampled from the true covariate distribution.</span>
+<span class="sd">        observation_rng: Optional independent seed or NumPy Generator used</span>
+<span class="sd">            only to generate ``X_o``.</span>
+<span class="sd">        data_rng: Optional independent seed or NumPy Generator for the</span>
+<span class="sd">            historical dataset.</span>
+<span class="sd">        result_metadata (dict or None): Additional provenance fields written</span>
+<span class="sd">            to the result row.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">sampler_settings</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">sampler_settings</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;draws&#39;</span><span class="p">:</span> <span class="n">draws</span><span class="p">,</span>
+            <span class="s1">&#39;tune&#39;</span><span class="p">:</span> <span class="n">N_TUNE</span><span class="p">,</span>
+            <span class="s1">&#39;chains&#39;</span><span class="p">:</span> <span class="n">N_CHAINS</span><span class="p">,</span>
+            <span class="s1">&#39;target_accept&#39;</span><span class="p">:</span> <span class="n">TARGET_ACCEPT</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">sampler_settings</span> <span class="o">=</span> <span class="n">sampler_settings</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">draws</span> <span class="o">=</span> <span class="n">sampler_settings</span><span class="p">[</span><span class="s1">&#39;draws&#39;</span><span class="p">]</span>
+    <span class="n">is_collapsed</span> <span class="o">=</span> <span class="n">AGENT_MODEL</span> <span class="o">==</span> <span class="s1">&#39;collapsed_sign_marginalized&#39;</span>
+    <span class="n">seed_value</span> <span class="o">=</span> <span class="n">modified_prior</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;seed&#39;</span><span class="p">,</span> <span class="s1">&#39;NA&#39;</span><span class="p">)</span>
+    <span class="n">scaling_tag</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;_sqrtk&#39;</span>
+                   <span class="k">if</span> <span class="n">modified_prior</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;coef_sigma_scaling&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;1/sqrt(k)&#39;</span>
+                   <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+    <span class="n">run_file</span> <span class="o">=</span> <span class="s1">&#39;results_</span><span class="si">{}</span><span class="s1">_</span><span class="si">{:.6f}</span><span class="s1">_k</span><span class="si">{}</span><span class="s1">_seed</span><span class="si">{}{}</span><span class="s1">.csv&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">modified_prior</span><span class="p">[</span><span class="s1">&#39;modified_prior&#39;</span><span class="p">],</span>
+        <span class="n">modified_prior</span><span class="p">[</span><span class="s1">&#39;modified_prior_value&#39;</span><span class="p">],</span>
+        <span class="n">k</span><span class="p">,</span> <span class="n">seed_value</span><span class="p">,</span> <span class="n">scaling_tag</span><span class="p">)</span>
+    <span class="n">output_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output_dir</span><span class="p">)</span>
+    <span class="n">final_path</span> <span class="o">=</span> <span class="n">output_dir</span> <span class="o">/</span> <span class="n">run_file</span>
+    <span class="k">if</span> <span class="n">final_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">FileExistsError</span><span class="p">(</span>
+            <span class="s2">&quot;refusing to overwrite existing result: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">final_path</span><span class="p">))</span>
+
+    <span class="c1"># 1. Data-generating SCM with true (fixed) parameters.</span>
+    <span class="n">data_scm</span> <span class="o">=</span> <span class="n">scm</span><span class="o">.</span><span class="n">MultivariateSCM</span><span class="p">(</span>
+        <span class="n">n_covariates</span><span class="o">=</span><span class="n">k</span><span class="p">,</span>
+        <span class="n">alpha_mu_X</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">]),</span>
+        <span class="n">alpha_sigma_X</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">]),</span>
+        <span class="n">alpha_mu_A</span><span class="o">=</span><span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">],</span>
+        <span class="n">alpha_sigma_A</span><span class="o">=</span><span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">],</span>
+        <span class="n">alpha_mu_Y</span><span class="o">=</span><span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">],</span>
+        <span class="n">alpha_sigma_Y</span><span class="o">=</span><span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">],</span>
+        <span class="n">N_E</span><span class="o">=</span><span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;N_E&#39;</span><span class="p">],</span>
+        <span class="n">N_b</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;N_b&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">k</span><span class="p">),</span>
+        <span class="n">N_d</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">TRUE_SCM</span><span class="p">[</span><span class="s1">&#39;N_d&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">k</span><span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="c1"># 2. Prepare the observed patient and historical-data random streams.</span>
+    <span class="n">X_o</span><span class="p">,</span> <span class="n">rng_obj</span><span class="p">,</span> <span class="n">historical_data_rng</span> <span class="o">=</span> <span class="n">_prepare_run_randomness</span><span class="p">(</span>
+        <span class="n">k</span><span class="p">,</span> <span class="n">rng</span><span class="p">,</span> <span class="n">observed_x</span><span class="o">=</span><span class="n">observed_x</span><span class="p">,</span>
+        <span class="n">observation_rng</span><span class="o">=</span><span class="n">observation_rng</span><span class="p">,</span> <span class="n">data_rng</span><span class="o">=</span><span class="n">data_rng</span><span class="p">)</span>
+
+    <span class="c1"># 3. Generate historical data and train prediction model.</span>
+    <span class="n">X</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">Y_historical</span><span class="p">,</span> <span class="o">*</span><span class="n">_</span> <span class="o">=</span> <span class="n">data_scm</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span>
+        <span class="n">draws</span><span class="o">=</span><span class="n">plate_size</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">historical_data_rng</span><span class="p">)</span>
+    <span class="n">pred_model</span> <span class="o">=</span> <span class="n">LinearRegression</span><span class="p">(</span>
+        <span class="n">fit_intercept</span><span class="o">=</span><span class="n">FIT_INTERCEPT</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y_historical</span><span class="p">)</span>
+    <span class="n">pred_o</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">pred_model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_o</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">))[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">historical_data_sha256</span> <span class="o">=</span> <span class="n">_array_fingerprint</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">Y_historical</span><span class="p">)</span>
+
+    <span class="c1"># 4. Construct the selected agent model.</span>
+    <span class="k">if</span> <span class="n">is_collapsed</span><span class="p">:</span>
+        <span class="n">agent_model</span> <span class="o">=</span> <span class="n">spcam</span><span class="o">.</span><span class="n">SinglePredictionCollapsedAgentModel</span><span class="p">(</span>
+            <span class="n">n_covariates</span><span class="o">=</span><span class="n">k</span><span class="p">,</span>
+            <span class="n">plate_size</span><span class="o">=</span><span class="n">plate_size</span><span class="p">,</span>
+            <span class="n">prior_parameters</span><span class="o">=</span><span class="n">agent_priors</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">agent_model</span> <span class="o">=</span> <span class="n">am</span><span class="o">.</span><span class="n">AgentModelNormalPredictions</span><span class="p">(</span>
+            <span class="n">n_covariates</span><span class="o">=</span><span class="n">k</span><span class="p">,</span>
+            <span class="n">plate_size</span><span class="o">=</span><span class="n">plate_size</span><span class="p">,</span>
+            <span class="n">prior_parameters</span><span class="o">=</span><span class="n">agent_priors</span><span class="p">,</span>
+            <span class="n">fit_intercept</span><span class="o">=</span><span class="n">FIT_INTERCEPT</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="c1"># 5. Prior CATE and treatment decision.</span>
+    <span class="n">prior_CATE_mu</span> <span class="o">=</span> <span class="n">agent_model</span><span class="o">.</span><span class="n">get_prior_CATE_mu</span><span class="p">(</span><span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">is_collapsed</span><span class="p">:</span>
+        <span class="n">prior_CATE_samples_</span><span class="p">,</span> <span class="n">prior_CATE_mean</span><span class="p">,</span> <span class="n">prior_CATE_std</span> <span class="o">=</span> \
+            <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_prior_predictive_CATE</span><span class="p">(</span><span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span>
+                                                     <span class="n">draws</span><span class="o">=</span><span class="n">draws</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">prior_CATE_samples_</span><span class="p">,</span> <span class="n">prior_CATE_mean</span><span class="p">,</span> <span class="n">prior_CATE_std</span> <span class="o">=</span> \
+            <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_prior_predictive_CATE</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span>
+                                                     <span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
+    <span class="n">prior_treatment</span> <span class="o">=</span> <span class="n">A1_treatment</span> <span class="k">if</span> <span class="n">prior_CATE_mean</span> <span class="o">&gt;</span> <span class="n">threshold</span> <span class="k">else</span> <span class="n">A0_treatment</span>
+    <span class="n">prior_predictive_summaries</span> <span class="o">=</span> <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_prior_predictive_summaries</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
+
+    <span class="c1"># 6. Posterior sampling. All settings are explicit and recorded below.</span>
+    <span class="n">agent_model</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">X_o</span><span class="o">=</span><span class="n">X_o</span><span class="p">,</span> <span class="n">pred_o</span><span class="o">=</span><span class="n">pred_o</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">,</span>
+                       <span class="o">**</span><span class="n">sampler_settings</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">is_collapsed</span><span class="p">:</span>
+        <span class="n">trace_diagnostics</span> <span class="o">=</span> <span class="n">agent_model</span><span class="o">.</span><span class="n">trace_diagnostics</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">rhat_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">rhat</span><span class="p">(</span><span class="n">agent_model</span><span class="o">.</span><span class="n">trace</span><span class="p">)</span>
+        <span class="n">ess_bulk_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">ess</span><span class="p">(</span><span class="n">agent_model</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;bulk&#39;</span><span class="p">)</span>
+        <span class="n">ess_tail_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">ess</span><span class="p">(</span><span class="n">agent_model</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;tail&#39;</span><span class="p">)</span>
+        <span class="n">trace_diagnostics</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;max_rhat&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">rhat_values</span><span class="o">.</span><span class="n">to_array</span><span class="p">()</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
+            <span class="s1">&#39;min_ess_bulk&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span>
+                <span class="n">ess_bulk_values</span><span class="o">.</span><span class="n">to_array</span><span class="p">()</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
+            <span class="s1">&#39;min_ess_tail&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span>
+                <span class="n">ess_tail_values</span><span class="o">.</span><span class="n">to_array</span><span class="p">()</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
+            <span class="s1">&#39;n_divergences&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span>
+                <span class="n">agent_model</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">sample_stats</span><span class="p">[</span><span class="s1">&#39;diverging&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+        <span class="p">}</span>
+
+    <span class="c1"># 7. Posterior CATE and treatment decision.</span>
+    <span class="k">if</span> <span class="n">is_collapsed</span><span class="p">:</span>
+        <span class="n">posterior_CATE_samples_</span><span class="p">,</span> <span class="n">posterior_CATE_mean</span><span class="p">,</span> <span class="n">posterior_CATE_std</span> <span class="o">=</span> \
+            <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_posterior_predictive_CATE</span><span class="p">(</span><span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">posterior_CATE_samples_</span><span class="p">,</span> <span class="n">posterior_CATE_mean</span><span class="p">,</span> <span class="n">posterior_CATE_std</span> <span class="o">=</span> \
+            <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_posterior_predictive_CATE</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span>
+                                                         <span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
+    <span class="n">posterior_treatment</span> <span class="o">=</span> <span class="n">A1_treatment</span> <span class="k">if</span> <span class="n">posterior_CATE_mean</span> <span class="o">&gt;</span> <span class="n">threshold</span> <span class="k">else</span> <span class="n">A0_treatment</span>
+    <span class="n">posterior_predictive_summaries</span>  <span class="o">=</span> <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_posterior_predictive_summaries</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">is_collapsed</span><span class="p">:</span>
+        <span class="n">posterior_parameter_summaries</span> <span class="o">=</span> <span class="n">agent_model</span><span class="o">.</span><span class="n">posterior_parameter_summaries</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">posterior_parameter_summaries</span> <span class="o">=</span> <span class="n">agent_model</span><span class="o">.</span><span class="n">posterior_parameter_summaries</span><span class="p">()</span>
+
+    <span class="c1"># 8. Ground truth CATE and potential outcomes.</span>
+    <span class="n">true_CATE_mu</span> <span class="o">=</span> <span class="n">data_scm</span><span class="o">.</span><span class="n">get_CATE_mu</span><span class="p">(</span><span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">)</span>
+    <span class="n">true_CATE_samples_</span><span class="p">,</span> <span class="n">true_CATE_mean</span><span class="p">,</span> <span class="n">true_CATE_std</span> <span class="o">=</span> \
+        <span class="n">data_scm</span><span class="o">.</span><span class="n">sample_CATE</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="n">draws</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
+    <span class="n">potential_outcome_A1_samples_</span><span class="p">,</span> <span class="n">potential_outcome_A1_mean</span><span class="p">,</span> <span class="n">potential_outcome_A1_std</span> <span class="o">=</span> \
+        <span class="n">data_scm</span><span class="o">.</span><span class="n">sample_do_A</span><span class="p">(</span><span class="n">A1_treatment</span><span class="p">,</span> <span class="n">X_o</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="n">draws</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
+    <span class="n">potential_outcome_A0_samples_</span><span class="p">,</span> <span class="n">potential_outcome_A0_mean</span><span class="p">,</span> <span class="n">potential_outcome_A0_std</span> <span class="o">=</span> \
+        <span class="n">data_scm</span><span class="o">.</span><span class="n">sample_do_A</span><span class="p">(</span><span class="n">A0_treatment</span><span class="p">,</span> <span class="n">X_o</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="n">draws</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
+
+    <span class="c1"># 9. Expected outcomes under prior and posterior beliefs.</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">expected_prior_outcome_A1_mean</span><span class="p">,</span> <span class="n">expected_prior_outcome_A1_std</span> <span class="o">=</span> \
+        <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_prior_predictive_do_A</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">expected_prior_outcome_A0_mean</span><span class="p">,</span> <span class="n">expected_prior_outcome_A0_std</span> <span class="o">=</span> \
+        <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_prior_predictive_do_A</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">expected_posterior_outcome_A1_mean</span><span class="p">,</span> <span class="n">expected_posterior_outcome_A1_std</span> <span class="o">=</span> \
+        <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_posterior_predictive_do_A</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">expected_posterior_outcome_A0_mean</span><span class="p">,</span> <span class="n">expected_posterior_outcome_A0_std</span> <span class="o">=</span> \
+        <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_posterior_predictive_do_A</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
+    <span class="n">expected_outcomes</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;expected_prior_outcome_A1_mean&#39;</span><span class="p">:</span>     <span class="n">expected_prior_outcome_A1_mean</span><span class="p">,</span>
+        <span class="s1">&#39;expected_prior_outcome_A1_std&#39;</span><span class="p">:</span>      <span class="n">expected_prior_outcome_A1_std</span><span class="p">,</span>
+        <span class="s1">&#39;expected_prior_outcome_A0_mean&#39;</span><span class="p">:</span>     <span class="n">expected_prior_outcome_A0_mean</span><span class="p">,</span>
+        <span class="s1">&#39;expected_prior_outcome_A0_std&#39;</span><span class="p">:</span>      <span class="n">expected_prior_outcome_A0_std</span><span class="p">,</span>
+        <span class="s1">&#39;expected_posterior_outcome_A1_mean&#39;</span><span class="p">:</span> <span class="n">expected_posterior_outcome_A1_mean</span><span class="p">,</span>
+        <span class="s1">&#39;expected_posterior_outcome_A1_std&#39;</span><span class="p">:</span>  <span class="n">expected_posterior_outcome_A1_std</span><span class="p">,</span>
+        <span class="s1">&#39;expected_posterior_outcome_A0_mean&#39;</span><span class="p">:</span> <span class="n">expected_posterior_outcome_A0_mean</span><span class="p">,</span>
+        <span class="s1">&#39;expected_posterior_outcome_A0_std&#39;</span><span class="p">:</span>  <span class="n">expected_posterior_outcome_A0_std</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="c1"># 10. Decision correctness and outcome quality.</span>
+    <span class="n">prior_decision_correct</span>     <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">prior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span>
+    <span class="n">posterior_decision_correct</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span>
+    <span class="n">true_best_treatment</span>        <span class="o">=</span> <span class="n">A1_treatment</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">A0_treatment</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">prior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">!=</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">):</span>
+        <span class="n">decision_changed</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">decision_changed</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">frac_correct_prior_decision</span>     <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_samples_</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">prior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">))</span>
+    <span class="n">frac_correct_posterior_decision</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_samples_</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">))</span>
+    <span class="n">frac_correct_true_best_treatment</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_samples_</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">))</span>
+
+    <span class="n">Y_mean_prior_treatment</span>     <span class="o">=</span> <span class="n">potential_outcome_A1_mean</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">prior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">potential_outcome_A0_mean</span>
+    <span class="n">Y_mean_posterior_treatment</span> <span class="o">=</span> <span class="n">potential_outcome_A1_mean</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">potential_outcome_A0_mean</span>
+    <span class="n">Y_mean_true_best_treatment</span> <span class="o">=</span> <span class="n">potential_outcome_A1_mean</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">potential_outcome_A0_mean</span>
+
+    <span class="n">outputs</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;pred_o&#39;</span><span class="p">:</span>                            <span class="n">pred_o</span><span class="p">,</span>
+        <span class="s1">&#39;threshold&#39;</span><span class="p">:</span>                         <span class="n">threshold</span><span class="p">,</span>
+        <span class="s1">&#39;prior_treatment&#39;</span><span class="p">:</span>                   <span class="n">prior_treatment</span><span class="p">,</span>
+        <span class="s1">&#39;posterior_treatment&#39;</span><span class="p">:</span>               <span class="n">posterior_treatment</span><span class="p">,</span>
+        <span class="s1">&#39;true_best_treatment&#39;</span><span class="p">:</span>               <span class="n">true_best_treatment</span><span class="p">,</span>
+        <span class="s1">&#39;prior_decision_correct&#39;</span><span class="p">:</span>            <span class="n">prior_decision_correct</span><span class="p">,</span>
+        <span class="s1">&#39;posterior_decision_correct&#39;</span><span class="p">:</span>        <span class="n">posterior_decision_correct</span><span class="p">,</span>
+        <span class="s1">&#39;decision_changed&#39;</span><span class="p">:</span>                  <span class="n">decision_changed</span><span class="p">,</span>
+        <span class="s1">&#39;frac_correct_prior_decision&#39;</span><span class="p">:</span>       <span class="n">frac_correct_prior_decision</span><span class="p">,</span>
+        <span class="s1">&#39;frac_correct_posterior_decision&#39;</span><span class="p">:</span>   <span class="n">frac_correct_posterior_decision</span><span class="p">,</span>
+        <span class="s1">&#39;frac_correct_true_best_treatment&#39;</span><span class="p">:</span>  <span class="n">frac_correct_true_best_treatment</span><span class="p">,</span>
+        <span class="s1">&#39;Y_mean_prior_treatment&#39;</span><span class="p">:</span>            <span class="n">Y_mean_prior_treatment</span><span class="p">,</span>
+        <span class="s1">&#39;Y_mean_posterior_treatment&#39;</span><span class="p">:</span>        <span class="n">Y_mean_posterior_treatment</span><span class="p">,</span>
+        <span class="s1">&#39;Y_mean_true_best_treatment&#39;</span><span class="p">:</span>        <span class="n">Y_mean_true_best_treatment</span><span class="p">,</span>
+        <span class="s1">&#39;potential_outcome_A1_mean&#39;</span><span class="p">:</span>         <span class="n">potential_outcome_A1_mean</span><span class="p">,</span>
+        <span class="s1">&#39;potential_outcome_A1_std&#39;</span><span class="p">:</span>          <span class="n">potential_outcome_A1_std</span><span class="p">,</span>
+        <span class="s1">&#39;potential_outcome_A0_mean&#39;</span><span class="p">:</span>         <span class="n">potential_outcome_A0_mean</span><span class="p">,</span>
+        <span class="s1">&#39;potential_outcome_A0_std&#39;</span><span class="p">:</span>          <span class="n">potential_outcome_A0_std</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="c1"># 11. Assemble results.</span>
+    <span class="n">current_time</span>  <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y%m</span><span class="si">%d</span><span class="s2">%H%M%S&quot;</span><span class="p">)</span>
+    <span class="n">experiment_id</span> <span class="o">=</span> <span class="n">current_time</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="mi">9999</span><span class="p">))</span>
+
+    <span class="c1"># X_o: store as scalar for k=1, as bracketed list for k&gt;1.</span>
+    <span class="c1"># Individual components are always written as extra columns X_o_0, X_o_1, …</span>
+    <span class="n">x_o_scalar</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">X_o</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">if</span> <span class="n">k</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">X_o</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+
+    <span class="n">compiled_results</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;experiment_id&#39;</span><span class="p">:</span>       <span class="n">experiment_id</span><span class="p">,</span>
+        <span class="s1">&#39;X_o&#39;</span><span class="p">:</span>                 <span class="n">x_o_scalar</span><span class="p">,</span>
+        <span class="s1">&#39;true_CATE_mu&#39;</span><span class="p">:</span>        <span class="n">true_CATE_mu</span><span class="p">,</span>
+        <span class="s1">&#39;true_CATE_mean&#39;</span><span class="p">:</span>      <span class="n">true_CATE_mean</span><span class="p">,</span>
+        <span class="s1">&#39;true_CATE_std&#39;</span><span class="p">:</span>       <span class="n">true_CATE_std</span><span class="p">,</span>
+        <span class="s1">&#39;prior_CATE_mu&#39;</span><span class="p">:</span>       <span class="n">prior_CATE_mu</span><span class="p">,</span>
+        <span class="s1">&#39;prior_CATE_mean&#39;</span><span class="p">:</span>     <span class="n">prior_CATE_mean</span><span class="p">,</span>
+        <span class="s1">&#39;prior_CATE_std&#39;</span><span class="p">:</span>      <span class="n">prior_CATE_std</span><span class="p">,</span>
+        <span class="s1">&#39;posterior_CATE_mean&#39;</span><span class="p">:</span> <span class="n">posterior_CATE_mean</span><span class="p">,</span>
+        <span class="s1">&#39;posterior_CATE_std&#39;</span><span class="p">:</span>  <span class="n">posterior_CATE_std</span><span class="p">,</span>
+        <span class="s1">&#39;plate_size&#39;</span><span class="p">:</span>          <span class="n">plate_size</span><span class="p">,</span>
+        <span class="s1">&#39;A1_treatment&#39;</span><span class="p">:</span>        <span class="n">A1_treatment</span><span class="p">,</span>
+        <span class="s1">&#39;A0_treatment&#39;</span><span class="p">:</span>        <span class="n">A0_treatment</span><span class="p">,</span>
+        <span class="s1">&#39;historical_data_sha256&#39;</span><span class="p">:</span> <span class="n">historical_data_sha256</span><span class="p">,</span>
+        <span class="s1">&#39;prediction_model_intercept&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">pred_model</span><span class="o">.</span><span class="n">intercept_</span><span class="p">),</span>
+    <span class="p">}</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">X_o</span><span class="p">):</span>
+        <span class="n">compiled_results</span><span class="p">[</span><span class="s1">&#39;X_o_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">pred_model</span><span class="o">.</span><span class="n">coef_</span><span class="p">)):</span>
+        <span class="n">compiled_results</span><span class="p">[</span><span class="s1">&#39;prediction_model_coef_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">outputs</span><span class="p">)</span>
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">parameter_descriptions</span><span class="p">)</span>
+
+    <span class="n">end_time</span>     <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="n">current_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%H:%M:%S </span><span class="si">%d</span><span class="s2">.%m.%Y&quot;</span><span class="p">)</span>
+    <span class="n">compiled_results</span><span class="p">[</span><span class="s1">&#39;time_stamp&#39;</span><span class="p">]</span>   <span class="o">=</span> <span class="n">current_time</span>
+    <span class="n">compiled_results</span><span class="p">[</span><span class="s1">&#39;running_time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span>
+    <span class="n">compiled_results</span><span class="p">[</span><span class="s1">&#39;n_covariates&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">k</span>
+
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">modified_prior</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">result_metadata</span><span class="p">:</span>
+        <span class="n">duplicate_metadata</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">result_metadata</span><span class="p">)</span><span class="o">.</span><span class="n">intersection</span><span class="p">(</span>
+            <span class="n">compiled_results</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">duplicate_metadata</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;result_metadata duplicates result fields: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="nb">sorted</span><span class="p">(</span><span class="n">duplicate_metadata</span><span class="p">)))</span>
+        <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">result_metadata</span><span class="p">)</span>
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">trace_diagnostics</span><span class="p">)</span>
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">prior_predictive_summaries</span><span class="p">)</span>
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">posterior_predictive_summaries</span><span class="p">)</span>
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">posterior_parameter_summaries</span><span class="p">)</span>
+    <span class="n">compiled_results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">expected_outcomes</span><span class="p">)</span>
+
+    <span class="c1"># One atomic file per configuration avoids mixed per-k schemas. Publishing</span>
+    <span class="c1"># fails if a result with the same scientific key already exists.</span>
+    <span class="n">compiled_results</span><span class="p">[</span><span class="s1">&#39;agent_model&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AGENT_MODEL</span>
+    <span class="n">compiled_results</span><span class="p">[</span><span class="s1">&#39;n_draws&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sampler_settings</span><span class="p">[</span><span class="s1">&#39;draws&#39;</span><span class="p">]</span>
+    <span class="n">compiled_results</span><span class="p">[</span><span class="s1">&#39;n_tune&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sampler_settings</span><span class="p">[</span><span class="s1">&#39;tune&#39;</span><span class="p">]</span>
+    <span class="n">compiled_results</span><span class="p">[</span><span class="s1">&#39;n_chains&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sampler_settings</span><span class="p">[</span><span class="s1">&#39;chains&#39;</span><span class="p">]</span>
+    <span class="n">compiled_results</span><span class="p">[</span><span class="s1">&#39;target_accept&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sampler_settings</span><span class="p">[</span><span class="s1">&#39;target_accept&#39;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">is_collapsed</span><span class="p">:</span>
+        <span class="n">compiled_results</span><span class="p">[</span><span class="s1">&#39;posterior_negative_sign_probability&#39;</span><span class="p">]</span> <span class="o">=</span> \
+            <span class="n">agent_model</span><span class="o">.</span><span class="n">posterior_negative_sign_probability</span><span class="p">()</span>
+    <span class="n">tmp_file</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">.tmp.</span><span class="si">{}</span><span class="s1">.</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">run_file</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">(),</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="p">)</span>
+    <span class="n">output_dir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">utils</span><span class="o">.</span><span class="n">write_results_to_file</span><span class="p">(</span><span class="n">compiled_results</span><span class="p">,</span>
+                                <span class="n">file_name</span><span class="o">=</span><span class="n">tmp_file</span><span class="p">,</span>
+                                <span class="n">path</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">output_dir</span><span class="p">)</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="p">)</span>
+    <span class="n">tmp_path</span> <span class="o">=</span> <span class="n">output_dir</span> <span class="o">/</span> <span class="n">tmp_file</span>
+    <span class="n">_publish_without_overwrite</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">,</span> <span class="n">final_path</span><span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_positive_int</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parse a positive integer for argparse.&quot;&quot;&quot;</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentTypeError</span><span class="p">(</span><span class="s2">&quot;expected a positive integer&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">value</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_nonnegative_int</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parse a non-negative integer for argparse.&quot;&quot;&quot;</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentTypeError</span><span class="p">(</span><span class="s2">&quot;expected a non-negative integer&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">value</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_target_accept</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parse a valid NUTS target acceptance probability.&quot;&quot;&quot;</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="mf">0.0</span> <span class="o">&lt;</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="mf">1.0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentTypeError</span><span class="p">(</span><span class="s2">&quot;expected a value strictly between 0 and 1&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">value</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_parse_args</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parse the dimensionality experiment command line.&quot;&quot;&quot;</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="vm">__doc__</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;param_name&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;param_value&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;n_covariates&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">_positive_int</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s1">&#39;seed&#39;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;?&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">_nonnegative_int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">FIXED_RNG_SEED</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;replicate identifier; used as the run seed unless &#39;</span>
+             <span class="s1">&#39;--fixed-rng-seed is supplied&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s1">&#39;sigma_scaling&#39;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;?&#39;</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">SCALING_CHOICES</span><span class="p">),</span>
+        <span class="n">default</span><span class="o">=</span><span class="n">DEFAULT_SCALING</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s1">&#39;legacy_draws&#39;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;?&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">_positive_int</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="n">argparse</span><span class="o">.</span><span class="n">SUPPRESS</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--draws&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">_positive_int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--tune&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">_positive_int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">N_TUNE</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--chains&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">_positive_int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">N_CHAINS</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s1">&#39;--target-accept&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">_target_accept</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">TARGET_ACCEPT</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--output-dir&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;./results/dim_runs&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s1">&#39;--fixed-rng-seed&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">_nonnegative_int</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;base seed for historical data, observation and sampler streams&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s1">&#39;--x-o&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;externally supplied observation; supported only for k=1&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s1">&#39;--source-row&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">_nonnegative_int</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;source-row identifier for an externally supplied observation&#39;</span><span class="p">)</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">draws</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">args</span><span class="o">.</span><span class="n">legacy_draws</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;draws was supplied both positionally and with --draws&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">x_o</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">n_covariates</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;--x-o is supported only when n_covariates is 1&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">fixed_rng_seed</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">args</span><span class="o">.</span><span class="n">source_row</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                <span class="s2">&quot;--x-o requires both --fixed-rng-seed and --source-row&quot;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">source_row</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;--source-row requires --x-o&quot;</span><span class="p">)</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">draws</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">draws</span> <span class="ow">or</span> <span class="n">args</span><span class="o">.</span><span class="n">legacy_draws</span> <span class="ow">or</span> <span class="n">N_DRAWS</span>
+    <span class="k">return</span> <span class="n">args</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">_parse_args</span><span class="p">()</span>
+    <span class="n">param_name</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">param_name</span>
+    <span class="n">param_value</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">param_value</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">n_covariates</span>
+    <span class="n">rng</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">seed</span>
+    <span class="n">coef_sigma_scaling</span> <span class="o">=</span> <span class="n">SCALING_CHOICES</span><span class="p">[</span><span class="n">args</span><span class="o">.</span><span class="n">sigma_scaling</span><span class="p">]</span>
+
+    <span class="n">agent_priors</span> <span class="o">=</span> <span class="n">_make_priors</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">coef_sigma_scaling</span><span class="o">=</span><span class="n">coef_sigma_scaling</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">param_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">agent_priors</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">&#39; is not a valid prior key. Valid keys: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">param_name</span><span class="p">,</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">agent_priors</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+        <span class="p">)</span>
+
+    <span class="n">default_value</span> <span class="o">=</span> <span class="n">agent_priors</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span>
+    <span class="n">_apply_prior_modification</span><span class="p">(</span><span class="n">agent_priors</span><span class="p">,</span> <span class="n">param_name</span><span class="p">,</span> <span class="n">param_value</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span>
+                              <span class="n">coef_sigma_scaling</span><span class="o">=</span><span class="n">coef_sigma_scaling</span><span class="p">)</span>
+
+    <span class="c1"># Compare element-wise for vector params, directly for scalars.</span>
+    <span class="n">is_default</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">agent_priors</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span> <span class="o">==</span> <span class="n">default_value</span><span class="p">)</span>
+    <span class="n">parameter_descriptions</span><span class="p">[</span><span class="s1">&#39;agent_priors&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Default&#39;</span> <span class="k">if</span> <span class="n">is_default</span> <span class="k">else</span> <span class="s1">&#39;Modified&#39;</span>
+
+    <span class="n">modified_prior</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;modified_prior&#39;</span><span class="p">:</span> <span class="n">param_name</span><span class="p">,</span>
+        <span class="s1">&#39;modified_prior_value&#39;</span><span class="p">:</span> <span class="n">param_value</span><span class="p">,</span>
+        <span class="s1">&#39;seed&#39;</span><span class="p">:</span> <span class="n">rng</span><span class="p">,</span>
+        <span class="s1">&#39;coef_sigma_scaling&#39;</span><span class="p">:</span> <span class="n">coef_sigma_scaling</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">observed_x</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">result_metadata</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">observation_rng</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">data_rng</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">run_rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">seed</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">fixed_rng_seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">data_rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">fixed_rng_seed</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">x_o</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">sampler_key</span> <span class="o">=</span> <span class="n">run_stream_key</span><span class="p">(</span>
+                <span class="s1">&#39;sampler&#39;</span><span class="p">,</span> <span class="n">param_name</span><span class="p">,</span> <span class="n">param_value</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">,</span>
+                <span class="n">args</span><span class="o">.</span><span class="n">seed</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">sigma_scaling</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sampler_key</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">source_row</span><span class="p">)</span>
+        <span class="n">sampler_sequence</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">SeedSequence</span><span class="p">(</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">fixed_rng_seed</span><span class="p">,</span> <span class="n">spawn_key</span><span class="o">=</span><span class="n">sampler_key</span><span class="p">)</span>
+        <span class="n">run_rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">sampler_sequence</span><span class="p">)</span>
+        <span class="n">result_metadata</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;result_schema_version&#39;</span><span class="p">:</span> <span class="n">RESULT_SCHEMA_VERSION</span><span class="p">,</span>
+            <span class="s1">&#39;replicate_id&#39;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">seed</span><span class="p">,</span>
+            <span class="s1">&#39;data_seed&#39;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">fixed_rng_seed</span><span class="p">,</span>
+            <span class="s1">&#39;sampler_seed&#39;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">fixed_rng_seed</span><span class="p">,</span>
+            <span class="s1">&#39;sampler_stream_key&#39;</span><span class="p">:</span> <span class="n">format_stream_key</span><span class="p">(</span><span class="n">sampler_key</span><span class="p">),</span>
+            <span class="s1">&#39;fit_intercept&#39;</span><span class="p">:</span> <span class="n">FIT_INTERCEPT</span><span class="p">,</span>
+            <span class="s1">&#39;experimental_unit&#39;</span><span class="p">:</span> <span class="s1">&#39;patient_observation&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">x_o</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">observation_key</span> <span class="o">=</span> <span class="n">run_stream_key</span><span class="p">(</span>
+                <span class="s1">&#39;observation&#39;</span><span class="p">,</span> <span class="n">param_name</span><span class="p">,</span> <span class="n">param_value</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">,</span>
+                <span class="n">args</span><span class="o">.</span><span class="n">seed</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">sigma_scaling</span><span class="p">)</span>
+            <span class="n">observation_seed</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">SeedSequence</span><span class="p">(</span>
+                <span class="n">args</span><span class="o">.</span><span class="n">fixed_rng_seed</span><span class="p">,</span> <span class="n">spawn_key</span><span class="o">=</span><span class="n">observation_key</span><span class="p">)</span>
+            <span class="n">observation_rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">observation_seed</span><span class="p">)</span>
+            <span class="n">result_metadata</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                <span class="s1">&#39;experiment_design&#39;</span><span class="p">:</span> <span class="n">DIMENSIONALITY_EXPERIMENT_DESIGN</span><span class="p">,</span>
+                <span class="s1">&#39;observation_seed_scheme&#39;</span><span class="p">:</span> <span class="n">OBSERVATION_SEED_SCHEME</span><span class="p">,</span>
+                <span class="s1">&#39;patient_id&#39;</span><span class="p">:</span> <span class="n">format_stream_key</span><span class="p">(</span><span class="n">observation_key</span><span class="p">),</span>
+            <span class="p">})</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">observed_x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="n">args</span><span class="o">.</span><span class="n">x_o</span><span class="p">])</span>
+            <span class="n">result_metadata</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                <span class="s1">&#39;experiment_design&#39;</span><span class="p">:</span> <span class="s1">&#39;univariate_intercept_wide&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;observation_seed_scheme&#39;</span><span class="p">:</span> <span class="s1">&#39;archived_observation&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;patient_id&#39;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">source_row</span><span class="p">,</span>
+                <span class="s1">&#39;source_row&#39;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">source_row</span><span class="p">,</span>
+            <span class="p">})</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Running experiment: param=</span><span class="si">{}</span><span class="s2">, value=</span><span class="si">{}</span><span class="s2">, k=</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">param_name</span><span class="p">,</span> <span class="n">param_value</span><span class="p">,</span> <span class="n">k</span><span class="p">))</span>
+
+    <span class="n">sampler_settings</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;draws&#39;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">draws</span><span class="p">,</span>
+        <span class="s1">&#39;tune&#39;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">tune</span><span class="p">,</span>
+        <span class="s1">&#39;chains&#39;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">chains</span><span class="p">,</span>
+        <span class="s1">&#39;target_accept&#39;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">target_accept</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">main</span><span class="p">(</span><span class="n">agent_priors</span><span class="p">,</span> <span class="n">modified_prior</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span>
+         <span class="n">parameter_descriptions</span><span class="o">=</span><span class="n">parameter_descriptions</span><span class="p">,</span>
+         <span class="n">draws</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">draws</span><span class="p">,</span>
+         <span class="n">sampler_settings</span><span class="o">=</span><span class="n">sampler_settings</span><span class="p">,</span>
+         <span class="n">output_dir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span>
+         <span class="n">rng</span><span class="o">=</span><span class="n">run_rng</span><span class="p">,</span>
+         <span class="n">observed_x</span><span class="o">=</span><span class="n">observed_x</span><span class="p">,</span>
+         <span class="n">observation_rng</span><span class="o">=</span><span class="n">observation_rng</span><span class="p">,</span>
+         <span class="n">data_rng</span><span class="o">=</span><span class="n">data_rng</span><span class="p">,</span>
+         <span class="n">result_metadata</span><span class="o">=</span><span class="n">result_metadata</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+</body>
+</html>

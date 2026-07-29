@@ -1,0 +1,424 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>distributions &mdash; CapturingUsersPredictionModels 1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=f2a433a1"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+</head>
+
+<body class="wy-body-for-nav">
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+
+
+          <a href="../index.html" class="icon icon-home">
+            CapturingUsersPredictionModels
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules/agent_model.html">Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/distributions.html">Custom Distributions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/dimensionality_config.html">Dimensionality Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_dimensionality.html">Dimensionality Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_collapsed.html">Collapsed Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/utils.html">Utilities</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">SLURM Scripts</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules/completion_check.html">Completion Check</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file.html">Generate Parameter File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CapturingUsersPredictionModels</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Module code</a></li>
+      <li class="breadcrumb-item active">distributions</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+
+  <h1>Source code for distributions</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Custom PyMC distributions used by the agent models.</span>
+
+<span class="sd">At present this module provides the two distributions used by the</span>
+<span class="sd">single-prediction collapsed model that PyMC does not ship out of the box: a</span>
+<span class="sd">native non-central chi-squared and a folded normal.</span>
+
+<span class="sd">The reduced auxiliary ``R`` of the collapsed model satisfies \n</span>
+<span class="sd">:math:`n R \\sim \\chi&#39;^2_k(\\lambda)` with :math:`\\lambda = n \\Delta_X^2`, \n</span>
+<span class="sd">i.e. a non-central chi-squared with ``k`` degrees of freedom and non-centrality</span>
+<span class="sd">:math:`\\lambda`, rescaled by the plate size ``n``. Cochran&#39;s theorem rewrites</span>
+<span class="sd">that same law as :math:`(\\Delta_X + G/\\sqrt{n})^2 + Z/n` with</span>
+<span class="sd">:math:`G \\sim \\mathcal{N}(0, 1)` and :math:`Z \\sim \\chi^2_{k-1}`. The</span>
+<span class="sd">collapsed model uses the native non-central chi-squared for ``k &gt; 1`` and an</span>
+<span class="sd">equivalent boundary-regular representation for ``k = 1``.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pymc</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pm</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytensor.tensor</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pymc.distributions.shape_utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">rv_size_is_none</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">scipy</span><span class="w"> </span><span class="kn">import</span> <span class="n">stats</span> <span class="k">as</span> <span class="n">st</span>
+
+
+<span class="c1"># Below this non-centrality the density is indistinguishable from a central</span>
+<span class="c1"># chi-squared (they differ by O(lam)), and the log-density has a removable</span>
+<span class="c1"># lam -&gt; 0 singularity that evaluates to a NaN at exactly lam = 0. Because the</span>
+<span class="c1"># collapsed model feeds lam = n * Delta_X^2 and Delta_X can pass through 0</span>
+<span class="c1"># during warmup, we switch to the central branch below this threshold.</span>
+<span class="n">LAM_EPS</span> <span class="o">=</span> <span class="mf">1e-8</span>
+<span class="n">LARGE_BESSEL_ARGUMENT</span> <span class="o">=</span> <span class="mf">1e6</span>
+<span class="n">ASYMPTOTIC_COEFFICIENTS</span> <span class="o">=</span> <span class="mi">6</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_central_chi2_logp</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">nu</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Log density of a central chi-squared, the ``lam -&gt; 0`` limit of the</span>
+<span class="sd">    non-central chi-squared.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        value: Point at which to evaluate the density (``value &gt; 0``).</span>
+<span class="sd">        nu: Degrees of freedom.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The log probability density (unclipped on the support).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="o">-</span><span class="p">(</span><span class="n">nu</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">2.0</span><span class="p">)</span>
+        <span class="o">-</span> <span class="n">pt</span><span class="o">.</span><span class="n">gammaln</span><span class="p">(</span><span class="n">nu</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">)</span>
+        <span class="o">+</span> <span class="p">(</span><span class="n">nu</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">*</span> <span class="n">pt</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="o">-</span> <span class="n">value</span> <span class="o">/</span> <span class="mf">2.0</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_asymptotic_log_ive</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Large-argument expansion of ``log(exp(-z) I_order(z))``.</span>
+
+<span class="sd">    Uses the first six coefficients of DLMF 10.40.1. The branch is used only</span>
+<span class="sd">    for ``z &gt;= LARGE_BESSEL_ARGUMENT``, where its truncation error for the</span>
+<span class="sd">    model&#39;s supported orders is below float64 rounding error.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mu</span> <span class="o">=</span> <span class="mf">4.0</span> <span class="o">*</span> <span class="n">order</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">term</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+    <span class="n">series</span> <span class="o">=</span> <span class="n">term</span>
+    <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ASYMPTOTIC_COEFFICIENTS</span><span class="p">):</span>
+        <span class="n">odd_square</span> <span class="o">=</span> <span class="nb">float</span><span class="p">((</span><span class="mi">2</span> <span class="o">*</span> <span class="n">index</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">term</span> <span class="o">*=</span> <span class="o">-</span><span class="p">(</span><span class="n">mu</span> <span class="o">-</span> <span class="n">odd_square</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mf">8.0</span> <span class="o">*</span> <span class="n">index</span> <span class="o">*</span> <span class="n">z</span><span class="p">)</span>
+        <span class="n">series</span> <span class="o">+=</span> <span class="n">term</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">pt</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">z</span><span class="p">)</span>
+        <span class="o">+</span> <span class="n">pt</span><span class="o">.</span><span class="n">log1p</span><span class="p">(</span><span class="n">series</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_stable_log_ratio</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">lam</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Evaluate ``log(value / lam)`` accurately near equal arguments.&quot;&quot;&quot;</span>
+    <span class="n">relative_delta</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span> <span class="o">-</span> <span class="n">lam</span><span class="p">)</span> <span class="o">/</span> <span class="n">lam</span>
+    <span class="n">near_equal</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">relative_delta</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mf">0.5</span>
+    <span class="n">bounded_delta</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">relative_delta</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pt</span><span class="o">.</span><span class="n">switch</span><span class="p">(</span>
+        <span class="n">near_equal</span><span class="p">,</span>
+        <span class="n">pt</span><span class="o">.</span><span class="n">log1p</span><span class="p">(</span><span class="n">bounded_delta</span><span class="p">),</span>
+        <span class="n">pt</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">-</span> <span class="n">pt</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">lam</span><span class="p">),</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="ncx2_logp">
+<a class="viewcode-back" href="../modules/distributions.html#distributions.ncx2_logp">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">ncx2_logp</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">nu</span><span class="p">,</span> <span class="n">lam</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Log density of a non-central chi-squared distribution.</span>
+
+<span class="sd">    Matches ``scipy.stats.ncx2(df=nu, nc=lam).logpdf`` to machine precision</span>
+<span class="sd">    where SciPy remains finite. The density is \n</span>
+<span class="sd">    :math:`f(x) = \\tfrac12 e^{-(x+\\lambda)/2} (x/\\lambda)^{\\nu/4 - 1/2}</span>
+<span class="sd">    I_{\\nu/2 - 1}(\\sqrt{\\lambda x})` \n</span>
+<span class="sd">    for :math:`x &gt; 0`. The cancelling exponential terms are combined before</span>
+<span class="sd">    evaluation. The exponentially scaled Bessel function ``ive`` is used for</span>
+<span class="sd">    ordinary arguments. For large arguments beyond the reliable numerical</span>
+<span class="sd">    range of the ordinary evaluator, a DLMF asymptotic expansion evaluates the</span>
+<span class="sd">    same density to float64 precision. The Bessel order</span>
+<span class="sd">    :math:`\\nu/2 - 1` may be a negative half-integer (e.g. ``nu = 1``);</span>
+<span class="sd">    ``ive`` handles that case directly.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        value: Point at which to evaluate the density (support ``value &gt; 0``).</span>
+<span class="sd">        nu: Degrees of freedom.</span>
+<span class="sd">        lam: Non-centrality parameter (``lam &gt;= 0``).</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The log probability density, ``-inf`` off the support.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Clamp lam INSIDE the non-central branch so that, even though the switch</span>
+    <span class="c1"># discards this branch for tiny lam, its gradient never differentiates</span>
+    <span class="c1"># through log(lam = 0) and leaks a NaN back into the sampler.</span>
+    <span class="n">lam_safe</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">switch</span><span class="p">(</span><span class="n">lam</span> <span class="o">&lt;</span> <span class="n">LAM_EPS</span><span class="p">,</span> <span class="n">LAM_EPS</span><span class="p">,</span> <span class="n">lam</span><span class="p">)</span>
+    <span class="n">value_safe</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span><span class="o">.</span><span class="n">tiny</span><span class="p">)</span>
+    <span class="n">sqrt_value</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">value_safe</span><span class="p">)</span>
+    <span class="n">sqrt_lam</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">lam_safe</span><span class="p">)</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">sqrt_value</span> <span class="o">*</span> <span class="n">sqrt_lam</span>
+    <span class="n">sqrt_delta</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">(</span><span class="n">value_safe</span> <span class="o">-</span> <span class="n">lam_safe</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">sqrt_value</span> <span class="o">+</span> <span class="n">sqrt_lam</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="n">nu</span> <span class="o">/</span> <span class="mf">2.0</span> <span class="o">-</span> <span class="mf">1.0</span>
+
+    <span class="c1"># Bound both switch inputs. PyTensor may evaluate the inactive branch</span>
+    <span class="c1"># while constructing gradients, so an out-of-range ive call must never</span>
+    <span class="c1"># enter the graph.</span>
+    <span class="n">ordinary_z</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">LARGE_BESSEL_ARGUMENT</span><span class="p">)</span>
+    <span class="n">asymptotic_z</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">LARGE_BESSEL_ARGUMENT</span><span class="p">)</span>
+    <span class="n">log_ive</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">switch</span><span class="p">(</span>
+        <span class="n">z</span> <span class="o">&lt;</span> <span class="n">LARGE_BESSEL_ARGUMENT</span><span class="p">,</span>
+        <span class="n">pt</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">pt</span><span class="o">.</span><span class="n">math</span><span class="o">.</span><span class="n">ive</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">ordinary_z</span><span class="p">)),</span>
+        <span class="n">_asymptotic_log_ive</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">asymptotic_z</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">logp_ncx</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">2.0</span><span class="p">)</span>
+        <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">sqrt_delta</span><span class="o">**</span><span class="mi">2</span>
+        <span class="o">+</span> <span class="p">(</span><span class="n">nu</span> <span class="o">/</span> <span class="mf">4.0</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">)</span>
+        <span class="o">*</span> <span class="n">_stable_log_ratio</span><span class="p">(</span><span class="n">value_safe</span><span class="p">,</span> <span class="n">lam_safe</span><span class="p">)</span>
+        <span class="o">+</span> <span class="n">log_ive</span>
+    <span class="p">)</span>
+    <span class="n">logp</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">switch</span><span class="p">(</span>
+        <span class="n">lam</span> <span class="o">&lt;</span> <span class="n">LAM_EPS</span><span class="p">,</span>
+        <span class="n">_central_chi2_logp</span><span class="p">(</span><span class="n">value_safe</span><span class="p">,</span> <span class="n">nu</span><span class="p">),</span>
+        <span class="n">logp_ncx</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">support</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">lam</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">nu</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pt</span><span class="o">.</span><span class="n">switch</span><span class="p">(</span><span class="n">support</span><span class="p">,</span> <span class="n">logp</span><span class="p">,</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_ncx2_random</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">lam</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Draw from the non-central chi-squared for prior/posterior predictive</span>
+<span class="sd">    sampling, delegating to ``scipy.stats.ncx2``.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        nu: Degrees of freedom.</span>
+<span class="sd">        lam: Non-centrality parameter.</span>
+<span class="sd">        rng: NumPy random generator supplied by PyMC.</span>
+<span class="sd">        size: Output shape supplied by PyMC (``None`` broadcasts the params).</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        np.ndarray: Samples with the requested shape.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">nu</span><span class="p">)</span>
+    <span class="n">lam</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">lam</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">broadcast</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">lam</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span>
+    <span class="k">return</span> <span class="n">st</span><span class="o">.</span><span class="n">ncx2</span><span class="o">.</span><span class="n">rvs</span><span class="p">(</span><span class="n">df</span><span class="o">=</span><span class="n">nu</span><span class="p">,</span> <span class="n">nc</span><span class="o">=</span><span class="n">lam</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_ncx2_support_point</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">nu</span><span class="p">,</span> <span class="n">lam</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Initial-point function for the non-central chi-squared.</span>
+
+<span class="sd">    Returns the distribution mean ``nu + lam``, which is strictly positive and</span>
+<span class="sd">    therefore always inside the support. Without it PyMC would fall back to a</span>
+<span class="sd">    zero initial value, which lies outside the support ``x &gt; 0`` and makes the</span>
+<span class="sd">    initial model log density ``-inf``.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        rv: The random variable (unused, required by the PyMC signature).</span>
+<span class="sd">        size: Requested output shape.</span>
+<span class="sd">        nu: Degrees of freedom.</span>
+<span class="sd">        lam: Non-centrality parameter.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The support point, broadcast to ``size`` when given.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="n">nu</span> <span class="o">+</span> <span class="n">lam</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">rv_size_is_none</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
+        <span class="n">mean</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="n">mean</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">mean</span>
+
+
+<div class="viewcode-block" id="NoncentralChiSquared">
+<a class="viewcode-back" href="../modules/distributions.html#distributions.NoncentralChiSquared">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">NoncentralChiSquared</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">nu</span><span class="p">,</span> <span class="n">lam</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A non-central chi-squared random variable for use inside a PyMC model.</span>
+
+<span class="sd">    Thin :func:`pm.CustomDist` wrapper pairing :func:`ncx2_logp` (used by NUTS,</span>
+<span class="sd">    differentiable in both ``value`` and ``lam``) with :func:`_ncx2_random`</span>
+<span class="sd">    (used by predictive sampling). Parametrized like</span>
+<span class="sd">    ``scipy.stats.ncx2(df=nu, nc=lam)``. The variable is sampled on the log</span>
+<span class="sd">    scale (like PyMC&#39;s own positive distributions, e.g. ``ChiSquared``), so</span>
+<span class="sd">    NUTS never proposes values outside the support ``x &gt; 0``, and its initial</span>
+<span class="sd">    value is the distribution mean ``nu + lam``.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        name (str): Name of the random variable in the model.</span>
+<span class="sd">        nu: Degrees of freedom (may be a constant or a model quantity).</span>
+<span class="sd">        lam: Non-centrality parameter (may be a constant or a model quantity).</span>
+<span class="sd">        **kwargs: Forwarded to :func:`pm.CustomDist` (e.g. ``observed``,</span>
+<span class="sd">            ``shape``, ``dims``).</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The PyMC random variable.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">pm</span><span class="o">.</span><span class="n">CustomDist</span><span class="p">(</span>
+        <span class="n">name</span><span class="p">,</span>
+        <span class="n">nu</span><span class="p">,</span>
+        <span class="n">lam</span><span class="p">,</span>
+        <span class="n">logp</span><span class="o">=</span><span class="n">ncx2_logp</span><span class="p">,</span>
+        <span class="n">random</span><span class="o">=</span><span class="n">_ncx2_random</span><span class="p">,</span>
+        <span class="n">support_point</span><span class="o">=</span><span class="n">_ncx2_support_point</span><span class="p">,</span>
+        <span class="n">signature</span><span class="o">=</span><span class="s2">&quot;(),()-&gt;()&quot;</span><span class="p">,</span>
+        <span class="n">default_transform</span><span class="o">=</span><span class="n">pm</span><span class="o">.</span><span class="n">distributions</span><span class="o">.</span><span class="n">transforms</span><span class="o">.</span><span class="n">log</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="folded_normal_logp">
+<a class="viewcode-back" href="../modules/distributions.html#distributions.folded_normal_logp">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">folded_normal_logp</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">mu</span><span class="p">,</span> <span class="n">sigma</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Log density of the absolute value of a normal random variable.</span>
+
+<span class="sd">    If ``Z ~ Normal(mu, sigma)``, then ``U = abs(Z)`` has density</span>
+<span class="sd">    ``Normal(u | mu, sigma) + Normal(-u | mu, sigma)`` on ``u &gt;= 0``.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        value: Point at which to evaluate the density.</span>
+<span class="sd">        mu: Mean of the underlying normal distribution.</span>
+<span class="sd">        sigma: Standard deviation of the underlying normal distribution.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The log probability density, ``-inf`` off the support.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">normal</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="o">.</span><span class="n">dist</span><span class="p">(</span><span class="n">mu</span><span class="o">=</span><span class="n">mu</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">sigma</span><span class="p">)</span>
+    <span class="n">logp</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">logaddexp</span><span class="p">(</span><span class="n">pm</span><span class="o">.</span><span class="n">logp</span><span class="p">(</span><span class="n">normal</span><span class="p">,</span> <span class="n">value</span><span class="p">),</span> <span class="n">pm</span><span class="o">.</span><span class="n">logp</span><span class="p">(</span><span class="n">normal</span><span class="p">,</span> <span class="o">-</span><span class="n">value</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">pt</span><span class="o">.</span><span class="n">switch</span><span class="p">(</span><span class="n">value</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">logp</span><span class="p">,</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_folded_normal_random</span><span class="p">(</span><span class="n">mu</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Draw the absolute value of a normal random variable.&quot;&quot;&quot;</span>
+    <span class="n">mu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">mu</span><span class="p">)</span>
+    <span class="n">sigma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">sigma</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">broadcast</span><span class="p">(</span><span class="n">mu</span><span class="p">,</span> <span class="n">sigma</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">rng</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">mu</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_folded_normal_support_point</span><span class="p">(</span><span class="n">rv</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">mu</span><span class="p">,</span> <span class="n">sigma</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a strictly positive initial point for a folded normal.&quot;&quot;&quot;</span>
+    <span class="n">support_point</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">pt</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">mu</span><span class="p">),</span> <span class="n">sigma</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">rv_size_is_none</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
+        <span class="n">support_point</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="n">support_point</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">support_point</span>
+
+
+<div class="viewcode-block" id="FoldedNormal">
+<a class="viewcode-back" href="../modules/distributions.html#distributions.FoldedNormal">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">FoldedNormal</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">mu</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Absolute value of a normally distributed random variable.</span>
+
+<span class="sd">    A softplus transform maps the positive support to the real line. Its</span>
+<span class="sd">    density retains both branches of the underlying normal distribution and</span>
+<span class="sd">    therefore also supports non-zero ``mu``.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        name (str): Name of the random variable in the model.</span>
+<span class="sd">        mu: Mean of the underlying normal distribution.</span>
+<span class="sd">        sigma: Standard deviation of the underlying normal distribution.</span>
+<span class="sd">        **kwargs: Forwarded to :func:`pm.CustomDist`.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The PyMC random variable.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">pm</span><span class="o">.</span><span class="n">CustomDist</span><span class="p">(</span>
+        <span class="n">name</span><span class="p">,</span>
+        <span class="n">mu</span><span class="p">,</span>
+        <span class="n">sigma</span><span class="p">,</span>
+        <span class="n">logp</span><span class="o">=</span><span class="n">folded_normal_logp</span><span class="p">,</span>
+        <span class="n">random</span><span class="o">=</span><span class="n">_folded_normal_random</span><span class="p">,</span>
+        <span class="n">support_point</span><span class="o">=</span><span class="n">_folded_normal_support_point</span><span class="p">,</span>
+        <span class="n">signature</span><span class="o">=</span><span class="s2">&quot;(),()-&gt;()&quot;</span><span class="p">,</span>
+        <span class="n">default_transform</span><span class="o">=</span><span class="n">pm</span><span class="o">.</span><span class="n">distributions</span><span class="o">.</span><span class="n">transforms</span><span class="o">.</span><span class="n">log_exp_m1</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+</body>
+</html>

@@ -43,8 +43,11 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="modules/agent_model.html">Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/distributions.html">Custom Distributions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/dimensionality_config.html">Dimensionality Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/experiment_collapsed.html">Collapsed Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/utils.html">Utilities</a></li>
@@ -53,6 +56,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="modules/completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="modules/generate_parameter_file.html">Generate Parameter File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules/generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
         </div>
@@ -86,6 +91,7 @@
  | <a href="#B"><strong>B</strong></a>
  | <a href="#D"><strong>D</strong></a>
  | <a href="#E"><strong>E</strong></a>
+ | <a href="#F"><strong>F</strong></a>
  | <a href="#G"><strong>G</strong></a>
  | <a href="#L"><strong>L</strong></a>
  | <a href="#M"><strong>M</strong></a>
@@ -111,6 +117,8 @@
 </li>
       </ul></li>
       <li><a href="modules/agent_model.html#agent_model.AgentModel">AgentModel (class in agent_model)</a>
+</li>
+      <li><a href="modules/agent_model.html#agent_model.AgentModelNormalPredictions">AgentModelNormalPredictions (class in agent_model)</a>
 </li>
       <li><a href="modules/scm.html#scm.MultivariateSCM.alpha_mu_A">alpha_mu_A (scm.MultivariateSCM attribute)</a>
 
@@ -166,6 +174,22 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/scm.html#scm.SCM_WithConstants.d">d (scm.SCM_WithConstants attribute)</a>
 </li>
+      <li>
+    dimensionality_config
+
+      <ul>
+        <li><a href="modules/dimensionality_config.html#module-dimensionality_config">module</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li>
+    distributions
+
+      <ul>
+        <li><a href="modules/distributions.html#module-distributions">module</a>
+</li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -189,6 +213,13 @@
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li>
+    experiment_dimensionality
+
+      <ul>
+        <li><a href="modules/experiment_dimensionality.html#module-experiment_dimensionality">module</a>
+</li>
+      </ul></li>
+      <li>
     experiment_series
 
       <ul>
@@ -198,15 +229,35 @@
   </ul></td>
 </tr></table>
 
+<h2 id="F">F</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="modules/distributions.html#distributions.folded_normal_logp">folded_normal_logp() (in module distributions)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="modules/distributions.html#distributions.FoldedNormal">FoldedNormal() (in module distributions)</a>
+</li>
+      <li><a href="modules/dimensionality_config.html#dimensionality_config.format_stream_key">format_stream_key() (in module dimensionality_config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
 <h2 id="G">G</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/generate_parameter_file.html#slurm.generate_parameter_file.generate_slurm_parameter_file">generate_slurm_parameter_file() (in module slurm.generate_parameter_file)</a>
+
+      <ul>
+        <li><a href="modules/generate_parameter_file_dimensionality.html#slurm.generate_parameter_file_dimensionality.generate_slurm_parameter_file">(in module slurm.generate_parameter_file_dimensionality)</a>
 </li>
-      <li><a href="modules/scm.html#scm.SCM.get_CATE_mu">get_CATE_mu() (scm.SCM method)</a>
+      </ul></li>
+      <li><a href="modules/generate_parameter_file_univariate_intercept.html#slurm.generate_parameter_file_univariate_intercept.generate_univariate_intercept_manifest">generate_univariate_intercept_manifest() (in module slurm.generate_parameter_file_univariate_intercept)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="modules/scm.html#scm.SCM.get_CATE_mu">get_CATE_mu() (scm.SCM method)</a>
+</li>
       <li><a href="modules/agent_model.html#agent_model.AgentModel.get_prior_CATE_mu">get_prior_CATE_mu() (agent_model.AgentModel method)</a>
 
       <ul>
@@ -226,6 +277,10 @@
 </li>
       </ul></li>
   </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="modules/utils.html#utils.load_results">load_results() (in module utils)</a>
+</li>
+  </ul></td>
 </tr></table>
 
 <h2 id="M">M</h2>
@@ -235,6 +290,8 @@
 
       <ul>
         <li><a href="modules/experiment_collapsed.html#experiment_collapsed.main">(in module experiment_collapsed)</a>
+</li>
+        <li><a href="modules/experiment_dimensionality.html#experiment_dimensionality.main">(in module experiment_dimensionality)</a>
 </li>
         <li><a href="modules/experiment_series.html#experiment_series.main">(in module experiment_series)</a>
 </li>
@@ -247,9 +304,15 @@
       <ul>
         <li><a href="modules/agent_model.html#module-agent_model">agent_model</a>
 </li>
+        <li><a href="modules/dimensionality_config.html#module-dimensionality_config">dimensionality_config</a>
+</li>
+        <li><a href="modules/distributions.html#module-distributions">distributions</a>
+</li>
         <li><a href="modules/experiment.html#module-experiment">experiment</a>
 </li>
         <li><a href="modules/experiment_collapsed.html#module-experiment_collapsed">experiment_collapsed</a>
+</li>
+        <li><a href="modules/experiment_dimensionality.html#module-experiment_dimensionality">experiment_dimensionality</a>
 </li>
         <li><a href="modules/experiment_series.html#module-experiment_series">experiment_series</a>
 </li>
@@ -260,6 +323,10 @@
         <li><a href="modules/completion_check.html#module-slurm.completion_check">slurm.completion_check</a>
 </li>
         <li><a href="modules/generate_parameter_file.html#module-slurm.generate_parameter_file">slurm.generate_parameter_file</a>
+</li>
+        <li><a href="modules/generate_parameter_file_dimensionality.html#module-slurm.generate_parameter_file_dimensionality">slurm.generate_parameter_file_dimensionality</a>
+</li>
+        <li><a href="modules/generate_parameter_file_univariate_intercept.html#module-slurm.generate_parameter_file_univariate_intercept">slurm.generate_parameter_file_univariate_intercept</a>
 </li>
         <li><a href="modules/utils.html#module-utils">utils</a>
 </li>
@@ -280,36 +347,62 @@
 </li>
       <li><a href="modules/scm.html#scm.MultivariateSCM.n_covariates">n_covariates (scm.MultivariateSCM attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/scm.html#scm.MultivariateSCM.N_d">N_d (scm.MultivariateSCM attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/scm.html#scm.MultivariateSCM.N_E">N_E (scm.MultivariateSCM attribute)</a>
 
       <ul>
         <li><a href="modules/scm.html#scm.SCM_WithConstants.N_E">(scm.SCM_WithConstants attribute)</a>
 </li>
       </ul></li>
+      <li><a href="modules/distributions.html#distributions.ncx2_logp">ncx2_logp() (in module distributions)</a>
+</li>
+      <li><a href="modules/distributions.html#distributions.NoncentralChiSquared">NoncentralChiSquared() (in module distributions)</a>
+</li>
   </ul></td>
 </tr></table>
 
 <h2 id="P">P</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="modules/utils.html#utils.parse_results">parse_results() (in module utils)</a>
+      <li><a href="modules/generate_parameter_file_dimensionality.html#slurm.generate_parameter_file_dimensionality.parse_integer_selection">parse_integer_selection() (in module slurm.generate_parameter_file_dimensionality)</a>
 </li>
       <li><a href="modules/utils.html#utils.plot_all">plot_all() (in module utils)</a>
 </li>
+      <li><a href="modules/utils.html#utils.plot_all_cate_change">plot_all_cate_change() (in module utils)</a>
+</li>
+      <li><a href="modules/utils.html#utils.plot_all_combined">plot_all_combined() (in module utils)</a>
+</li>
       <li><a href="modules/utils.html#utils.plot_all_Y">plot_all_Y() (in module utils)</a>
+</li>
+      <li><a href="modules/utils.html#utils.plot_cate_change_for_var">plot_cate_change_for_var() (in module utils)</a>
 </li>
       <li><a href="modules/utils.html#utils.plot_CATE_for_var">plot_CATE_for_var() (in module utils)</a>
 </li>
+      <li><a href="modules/utils.html#utils.plot_CATEs">plot_CATEs() (in module utils)</a>
+</li>
+      <li><a href="modules/utils.html#utils.plot_combined_for_var">plot_combined_for_var() (in module utils)</a>
+</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="modules/utils.html#utils.plot_CATEs">plot_CATEs() (in module utils)</a>
+      <li><a href="modules/utils.html#utils.plot_combined_grid">plot_combined_grid() (in module utils)</a>
+</li>
+      <li><a href="modules/utils.html#utils.plot_dimensionality">plot_dimensionality() (in module utils)</a>
+</li>
+      <li><a href="modules/utils.html#utils.plot_dimensionality_improvement">plot_dimensionality_improvement() (in module utils)</a>
 </li>
       <li><a href="modules/utils.html#utils.plot_prior_and_posterior_Y">plot_prior_and_posterior_Y() (in module utils)</a>
 </li>
+      <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.posterior_negative_sign_probability">posterior_negative_sign_probability() (single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
+</li>
+      <li><a href="modules/agent_model.html#agent_model.AgentModel.posterior_parameter_summaries">posterior_parameter_summaries() (agent_model.AgentModel method)</a>
+
+      <ul>
+        <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.posterior_parameter_summaries">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
+</li>
+      </ul></li>
       <li><a href="modules/agent_model.html#agent_model.printing_callback">printing_callback() (in module agent_model)</a>
 
       <ul>
@@ -322,11 +415,11 @@
 <h2 id="R">R</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="modules/utils.html#utils.read_outcomes_from_file">read_outcomes_from_file() (in module utils)</a>
+      <li><a href="modules/completion_check.html#slurm.completion_check.run_completion_check">run_completion_check() (in module slurm.completion_check)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="modules/completion_check.html#slurm.completion_check.run_completion_check">run_completion_check() (in module slurm.completion_check)</a>
+      <li><a href="modules/dimensionality_config.html#dimensionality_config.run_stream_key">run_stream_key() (in module dimensionality_config)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -390,14 +483,14 @@
         <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive_CATE">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/agent_model.html#agent_model.AgentModel.sample_prior_predictive_do_A">sample_prior_predictive_do_A() (agent_model.AgentModel method)</a>
 
       <ul>
         <li><a href="modules/single_prediction_collapsed_agent_model.html#single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel.sample_prior_predictive_do_A">(single_prediction_collapsed_agent_model.SinglePredictionCollapsedAgentModel method)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/agent_model.html#agent_model.AgentModel.sample_prior_predictive_summaries">sample_prior_predictive_summaries() (agent_model.AgentModel method)</a>
 
       <ul>
@@ -411,6 +504,8 @@
 </li>
       </ul></li>
       <li><a href="modules/agent_model.html#agent_model.ScalarAgentModel">ScalarAgentModel (class in agent_model)</a>
+</li>
+      <li><a href="modules/dimensionality_config.html#dimensionality_config.scan_deviation">scan_deviation() (in module dimensionality_config)</a>
 </li>
       <li>
     scm
@@ -444,6 +539,20 @@
 
       <ul>
         <li><a href="modules/generate_parameter_file.html#module-slurm.generate_parameter_file">module</a>
+</li>
+      </ul></li>
+      <li>
+    slurm.generate_parameter_file_dimensionality
+
+      <ul>
+        <li><a href="modules/generate_parameter_file_dimensionality.html#module-slurm.generate_parameter_file_dimensionality">module</a>
+</li>
+      </ul></li>
+      <li>
+    slurm.generate_parameter_file_univariate_intercept
+
+      <ul>
+        <li><a href="modules/generate_parameter_file_univariate_intercept.html#module-slurm.generate_parameter_file_univariate_intercept">module</a>
 </li>
       </ul></li>
       <li><a href="modules/completion_check.html#slurm.completion_check.summarize_results">summarize_results() (in module slurm.completion_check)</a>
@@ -482,6 +591,10 @@
 
 <h2 id="W">W</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="modules/generate_parameter_file_dimensionality.html#slurm.generate_parameter_file_dimensionality.write_atomic">write_atomic() (in module slurm.generate_parameter_file_dimensionality)</a>
+</li>
+  </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="modules/utils.html#utils.write_results_to_file">write_results_to_file() (in module utils)</a>
 </li>

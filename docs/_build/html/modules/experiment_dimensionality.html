@@ -1,0 +1,167 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dimensionality Experiment &mdash; CapturingUsersPredictionModels 1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=f2a433a1"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Single-Prediction Collapsed Agent Model" href="single_prediction_collapsed_agent_model.html" />
+    <link rel="prev" title="Dimensionality Configuration" href="dimensionality_config.html" />
+</head>
+
+<body class="wy-body-for-nav">
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+
+
+          <a href="../index.html" class="icon icon-home">
+            CapturingUsersPredictionModels
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="agent_model.html">Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="distributions.html">Custom Distributions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment.html">Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dimensionality_config.html">Dimensionality Configuration</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Dimensionality Experiment</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#experiment_dimensionality.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_collapsed.html">Collapsed Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="utils.html">Utilities</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">SLURM Scripts</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="completion_check.html">Completion Check</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generate_parameter_file.html">Generate Parameter File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CapturingUsersPredictionModels</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Dimensionality Experiment</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/modules/experiment_dimensionality.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+
+  <section id="module-experiment_dimensionality">
+<span id="dimensionality-experiment"></span><h1>Dimensionality Experiment<a class="headerlink" href="#module-experiment_dimensionality" title="Link to this heading"></a></h1>
+<p>Dimensionality experiment for a multivariate SCM with intercept.</p>
+<p>The coefficient-prior scaling is either <code class="docutils literal notranslate"><span class="pre">1k</span></code> or <code class="docutils literal notranslate"><span class="pre">sqrtk</span></code>. Sampler settings
+and the selected model parameterization are written into every result row.</p>
+<p>Run <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">experiment_dimensionality.py</span> <span class="pre">--help</span></code> for the command-line
+interface.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="experiment_dimensionality.main">
+<span class="sig-prename descclassname"><span class="pre">experiment_dimensionality.</span></span><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">agent_priors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modified_prior</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_treatment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_treatment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plate_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameter_descriptions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'agent_priors':</span> <span class="pre">'Default',</span> <span class="pre">'scm_constants':</span> <span class="pre">'Default',</span> <span class="pre">'scm_noise_parameters':</span> <span class="pre">'Default'}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampler_settings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results/dim_runs'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observed_x</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">observation_rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">result_metadata</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/experiment_dimensionality.html#main"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#experiment_dimensionality.main" title="Link to this definition"></a></dt>
+<dd><p>Run one experiment trial with k-dimensional X.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>agent_priors</strong> (<em>dict</em>) – Prior parameter dict (already modified if needed).</p></li>
+<li><p><strong>modified_prior</strong> (<em>dict</em>) – <code class="docutils literal notranslate"><span class="pre">{'modified_prior':</span> <span class="pre">name,</span> <span class="pre">'modified_prior_value':</span> <span class="pre">value}</span></code>.</p></li>
+<li><p><strong>k</strong> (<em>int</em>) – Number of covariates (dimensionality of X).</p></li>
+<li><p><strong>A1_treatment</strong> (<em>float</em>) – Value of treatment 1.</p></li>
+<li><p><strong>A0_treatment</strong> (<em>float</em>) – Value of treatment 0.</p></li>
+<li><p><strong>plate_size</strong> (<em>int</em>) – Number of historical observations for the ML model.</p></li>
+<li><p><strong>draws</strong> (<em>int</em>) – posterior draw count per chain, also used for the
+predictive and CATE sample summaries.</p></li>
+<li><p><strong>parameter_descriptions</strong> (<em>dict</em>) – Labels written to the result row.</p></li>
+<li><p><strong>sampler_settings</strong> (<em>dict</em>) – <code class="docutils literal notranslate"><span class="pre">draws</span></code>, <code class="docutils literal notranslate"><span class="pre">tune</span></code>, <code class="docutils literal notranslate"><span class="pre">chains</span></code> and
+<code class="docutils literal notranslate"><span class="pre">target_accept</span></code> passed to the sampler.</p></li>
+<li><p><strong>output_dir</strong> (<em>str</em><em> or </em><em>Path</em>) – Directory for the per-run CSV file.</p></li>
+<li><p><strong>rng</strong> – Seed or NumPy Generator for the observed patient, sampler, and
+predictive simulations.</p></li>
+<li><p><strong>observed_x</strong> (<em>array-like</em><em> or </em><em>None</em>) – Optional observed feature vector.
+When omitted, it is sampled from the true covariate distribution.</p></li>
+<li><p><strong>observation_rng</strong> – Optional independent seed or NumPy Generator used
+only to generate <code class="docutils literal notranslate"><span class="pre">X_o</span></code>.</p></li>
+<li><p><strong>data_rng</strong> – Optional independent seed or NumPy Generator for the
+historical dataset.</p></li>
+<li><p><strong>result_metadata</strong> (<em>dict</em><em> or </em><em>None</em>) – Additional provenance fields written
+to the result row.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="dimensionality_config.html" class="btn btn-neutral float-left" title="Dimensionality Configuration" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="single_prediction_collapsed_agent_model.html" class="btn btn-neutral float-right" title="Single-Prediction Collapsed Agent Model" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+</body>
+</html>

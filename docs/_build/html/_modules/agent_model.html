@@ -43,8 +43,11 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../modules/agent_model.html">Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/distributions.html">Custom Distributions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/dimensionality_config.html">Dimensionality Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_collapsed.html">Collapsed Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/utils.html">Utilities</a></li>
@@ -53,6 +56,8 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../modules/completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file.html">Generate Parameter File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
         </div>
@@ -115,12 +120,13 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">joblib</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pymc</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pm</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">pytensor.tensor</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">at</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pytensor.tensor</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pt</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">scipy.stats</span><span class="w"> </span><span class="kn">import</span> <span class="n">kurtosis</span><span class="p">,</span> <span class="n">skew</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">scm</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">distributions</span><span class="w"> </span><span class="kn">import</span> <span class="n">NoncentralChiSquared</span>
 
 
 <span class="n">DEBUGGING</span> <span class="o">=</span> <span class="kc">False</span>
@@ -783,6 +789,67 @@
         <span class="n">results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_moment_dict</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="s1">&#39;post_A&#39;</span><span class="p">))</span>
         <span class="n">results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_moment_dict</span><span class="p">(</span><span class="n">Y</span><span class="p">,</span> <span class="s1">&#39;post_Y&#39;</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">results</span></div>
+
+
+
+<div class="viewcode-block" id="AgentModel.posterior_parameter_summaries">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel.posterior_parameter_summaries">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">posterior_parameter_summaries</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute mean, std, skewness, and kurtosis of the posterior samples</span>
+<span class="sd">        for each population parameter (the variables sampled in trace.posterior).</span>
+
+<span class="sd">        For scalar parameters (N_E, alpha_mu_A, ...) returns one set of moments</span>
+<span class="sd">        per parameter. For vector parameters (alpha_mu_X, N_b, ...) with k = 1</span>
+<span class="sd">        returns one set without a dimension index; with k &gt; 1 returns one set</span>
+<span class="sd">        per dimension.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict: Summary statistics keyed by ``param_&lt;name&gt;_&lt;moment&gt;`` (scalar</span>
+<span class="sd">            or k = 1) or ``param_&lt;name&gt;_&lt;dim&gt;_&lt;moment&gt;`` (k &gt; 1).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No posterior samples available. Call sample() first.&quot;</span><span class="p">)</span>
+
+        <span class="n">posterior</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="n">nan_moments</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;_mean&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="s1">&#39;_std&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span>
+                       <span class="s1">&#39;_skew&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="s1">&#39;_kurtosis&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">}</span>
+
+        <span class="n">scalar_params</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">,</span>
+                         <span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">,</span> <span class="s1">&#39;N_E&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">scalar_params</span><span class="p">:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="s1">&#39;param_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">posterior</span><span class="p">:</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="n">posterior</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_moment_dict</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">key</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">results</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">key</span> <span class="o">+</span> <span class="n">suffix</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">suffix</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">nan_moments</span><span class="o">.</span><span class="n">items</span><span class="p">()})</span>
+
+        <span class="c1"># N_b and N_d are also vector params; the else-branch below covers them</span>
+        <span class="c1"># when the current model does not have these parameters.</span>
+        <span class="n">vector_params</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">,</span> <span class="s1">&#39;N_b&#39;</span><span class="p">,</span> <span class="s1">&#39;N_d&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">vector_params</span><span class="p">:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="s1">&#39;param_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">posterior</span><span class="p">:</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="n">posterior</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+                <span class="c1"># ArviZ squeezes trailing dim for shape=(1,) variables,</span>
+                <span class="c1"># giving (chains, draws) instead of (chains, draws, 1).</span>
+                <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">values</span> <span class="o">=</span> <span class="n">values</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+                <span class="n">k</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_moment_dict</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">key</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+                        <span class="n">results</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_moment_dict</span><span class="p">(</span>
+                            <span class="n">values</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">dim</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+                            <span class="s1">&#39;param_</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">dim</span><span class="p">)))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">results</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">key</span> <span class="o">+</span> <span class="n">suffix</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">suffix</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">nan_moments</span><span class="o">.</span><span class="n">items</span><span class="p">()})</span>
+
+        <span class="k">return</span> <span class="n">results</span></div>
 </div>
 
 
@@ -1019,7 +1086,7 @@
             <span class="n">N_b</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;N_b&#39;</span><span class="p">]</span>
             <span class="n">N_d</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;N_d&#39;</span><span class="p">]</span>
 
-            <span class="n">s</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;s&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">at</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">),</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;s&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">),</span>
                           <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">)</span>
             <span class="n">W_chol</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">WishartBartlett</span><span class="p">(</span>
                 <span class="s1">&#39;W_chol&#39;</span><span class="p">,</span>
@@ -1032,37 +1099,37 @@
             <span class="n">c</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;c&#39;</span><span class="p">,</span> <span class="n">alpha_mu_Y</span> <span class="o">+</span> <span class="n">N_E</span> <span class="o">*</span> <span class="n">alpha_mu_A</span><span class="p">)</span>
             <span class="n">tau</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
                 <span class="s1">&#39;tau&#39;</span><span class="p">,</span>
-                <span class="n">at</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">N_E</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">alpha_sigma_A</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">alpha_sigma_Y</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+                <span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">N_E</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">alpha_sigma_A</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">alpha_sigma_Y</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
 
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">fit_intercept</span><span class="p">:</span>
                 <span class="n">h</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;h&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-                <span class="n">W_minus_half_g</span> <span class="o">=</span> <span class="n">at</span><span class="o">.</span><span class="n">slinalg</span><span class="o">.</span><span class="n">solve_triangular</span><span class="p">(</span>
+                <span class="n">W_minus_half_g</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">slinalg</span><span class="o">.</span><span class="n">solve_triangular</span><span class="p">(</span>
                     <span class="n">W_chol</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
                 <span class="n">phi</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
                     <span class="s1">&#39;phi&#39;</span><span class="p">,</span>
                     <span class="n">beta</span> <span class="o">+</span> <span class="n">tau</span> <span class="o">*</span> <span class="n">W_minus_half_g</span> <span class="o">/</span> <span class="n">alpha_sigma_X</span><span class="p">)</span>
                 <span class="n">alpha</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
                     <span class="s1">&#39;alpha&#39;</span><span class="p">,</span>
-                    <span class="n">c</span> <span class="o">+</span> <span class="n">tau</span> <span class="o">*</span> <span class="n">h</span> <span class="o">/</span> <span class="n">at</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">)</span> <span class="o">-</span>
-                    <span class="n">tau</span> <span class="o">*</span> <span class="n">at</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">alpha_mu_X</span> <span class="o">/</span> <span class="n">alpha_sigma_X</span> <span class="o">+</span>
+                    <span class="n">c</span> <span class="o">+</span> <span class="n">tau</span> <span class="o">*</span> <span class="n">h</span> <span class="o">/</span> <span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">)</span> <span class="o">-</span>
+                    <span class="n">tau</span> <span class="o">*</span> <span class="n">pt</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">alpha_mu_X</span> <span class="o">/</span> <span class="n">alpha_sigma_X</span> <span class="o">+</span>
                                  <span class="n">s</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">,</span>
                                  <span class="n">W_minus_half_g</span><span class="p">))</span>
-                <span class="n">pred_reconstructed</span> <span class="o">=</span> <span class="n">alpha</span> <span class="o">+</span> <span class="n">at</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X_o_</span><span class="p">,</span> <span class="n">phi</span><span class="p">)</span>
+                <span class="n">pred_reconstructed</span> <span class="o">=</span> <span class="n">alpha</span> <span class="o">+</span> <span class="n">pt</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X_o_</span><span class="p">,</span> <span class="n">phi</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">W</span> <span class="o">=</span> <span class="n">at</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">W_chol</span><span class="p">,</span> <span class="n">W_chol</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+                <span class="n">W</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">W_chol</span><span class="p">,</span> <span class="n">W_chol</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
                 <span class="n">S_x</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
                     <span class="s1">&#39;S_x&#39;</span><span class="p">,</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">*</span> <span class="n">alpha_mu_X</span> <span class="o">+</span> <span class="n">alpha_sigma_X</span> <span class="o">*</span> <span class="n">s</span><span class="p">)</span>
                 <span class="n">XTX</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
                     <span class="s1">&#39;XTX&#39;</span><span class="p">,</span>
-                    <span class="n">at</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">S_x</span><span class="p">,</span> <span class="n">S_x</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">+</span>
+                    <span class="n">pt</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">S_x</span><span class="p">,</span> <span class="n">S_x</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">+</span>
                     <span class="n">alpha_sigma_X</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">W</span> <span class="o">*</span> <span class="n">alpha_sigma_X</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span>
-                <span class="n">XTX_chol</span> <span class="o">=</span> <span class="n">at</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span><span class="n">XTX</span><span class="p">)</span>
-                <span class="n">mean_term</span> <span class="o">=</span> <span class="n">c</span> <span class="o">*</span> <span class="n">at</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">XTX</span><span class="p">,</span> <span class="n">S_x</span><span class="p">)</span>
-                <span class="n">noise_term</span> <span class="o">=</span> <span class="n">tau</span> <span class="o">*</span> <span class="n">at</span><span class="o">.</span><span class="n">slinalg</span><span class="o">.</span><span class="n">solve_triangular</span><span class="p">(</span>
+                <span class="n">XTX_chol</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span><span class="n">XTX</span><span class="p">)</span>
+                <span class="n">mean_term</span> <span class="o">=</span> <span class="n">c</span> <span class="o">*</span> <span class="n">pt</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">XTX</span><span class="p">,</span> <span class="n">S_x</span><span class="p">)</span>
+                <span class="n">noise_term</span> <span class="o">=</span> <span class="n">tau</span> <span class="o">*</span> <span class="n">pt</span><span class="o">.</span><span class="n">slinalg</span><span class="o">.</span><span class="n">solve_triangular</span><span class="p">(</span>
                     <span class="n">XTX_chol</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
                 <span class="n">phi</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;phi&#39;</span><span class="p">,</span> <span class="n">beta</span> <span class="o">+</span> <span class="n">mean_term</span> <span class="o">+</span> <span class="n">noise_term</span><span class="p">)</span>
-                <span class="n">pred_reconstructed</span> <span class="o">=</span> <span class="n">at</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X_o_</span><span class="p">,</span> <span class="n">phi</span><span class="p">)</span>
+                <span class="n">pred_reconstructed</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X_o_</span><span class="p">,</span> <span class="n">phi</span><span class="p">)</span>
 
             <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;X_o&#39;</span><span class="p">,</span> <span class="n">alpha_mu_X</span><span class="p">,</span> <span class="n">alpha_sigma_X</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="n">X_o_</span><span class="p">,</span>
                       <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">)</span>
@@ -1310,9 +1377,9 @@
             <span class="n">alpha_sigma_Y</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">]</span>
             <span class="n">N_E</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;N_E&#39;</span><span class="p">]</span>
 
-            <span class="n">S_X</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;S_X&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">at</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span>
-            <span class="n">S_Y</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;S_Y&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">at</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span>
-            <span class="n">S_A</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;S_A&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">at</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span>
+            <span class="n">S_X</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;S_X&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span>
+            <span class="n">S_Y</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;S_Y&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span>
+            <span class="n">S_A</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;S_A&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span>
             <span class="n">Z_XX</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;Z_XX&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
             <span class="n">U_XY</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;U_XY&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
             <span class="n">V_XY</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;V_XY&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
@@ -1376,6 +1443,103 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">X_o</span> <span class="o">=</span> <span class="n">X_o</span>
         <span class="k">return</span></div>
 </div>
+
+
+
+<div class="viewcode-block" id="AgentModelNormalPredictions">
+<a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModelNormalPredictions">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">AgentModelNormalPredictions</span><span class="p">(</span><span class="n">MultivariateAgentModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This class implements an Agent Model based on the finding that the</span>
+<span class="sd">    Prediction pred^o follows a normal distribution given X. This is</span>
+<span class="sd">    because all remaining transformations are then linear and as the</span>
+<span class="sd">    error term follows a normal distribution, also the predictions is</span>
+<span class="sd">    normally distributed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Build the PyMC model.</span>
+
+<span class="sd">        The observed feature vector ``X_o`` and the observed prediction</span>
+<span class="sd">        ``pred_o`` included as :class:`pm.Data` placeholders, updated at sampling</span>
+<span class="sd">        time. The plate of plate_size patients is replaced by reduced</span>
+<span class="sd">        auxiliary variables.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            pm.Model: The constructed PyMC model.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Model</span><span class="p">()</span>
+        <span class="k">with</span> <span class="n">model</span><span class="p">:</span>
+            <span class="n">X_o_</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s1">&#39;X_o_&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">))</span>
+            <span class="n">pred_o_</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s1">&#39;pred_o_&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span>
+
+            <span class="n">parameters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_population_parameters</span><span class="p">()</span>
+            <span class="n">alpha_mu_X</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">]</span>
+            <span class="n">alpha_sigma_X</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_X&#39;</span><span class="p">]</span>
+            <span class="n">alpha_mu_A</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_A&#39;</span><span class="p">]</span>
+            <span class="n">alpha_sigma_A</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_A&#39;</span><span class="p">]</span>
+            <span class="n">alpha_mu_Y</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_Y&#39;</span><span class="p">]</span>
+            <span class="n">alpha_sigma_Y</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">]</span>
+            <span class="n">N_E</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;N_E&#39;</span><span class="p">]</span>
+            <span class="n">N_b</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;N_b&#39;</span><span class="p">]</span>
+            <span class="n">N_d</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;N_d&#39;</span><span class="p">]</span>
+
+            <span class="c1"># The SCM defines Y_i as</span>
+            <span class="c1"># Y_i = N_b^T X_i + N_E N_d^T X_i + N_E N_{A_i} + N_{Y_i}</span>
+            <span class="c1"># Given a sample from the priors, the regression estimate of the weights</span>
+            <span class="c1"># are then normally distributed around the true values, i.e.</span>
+            <span class="c1"># \hat{\beta} ~ N(\beta, (Z^T Z)^{-1} \tau), where</span>
+            <span class="c1"># Z = [\vec{1}, X],</span>
+            <span class="c1"># \beta = [[N_b + N_E * N_d], [N_E * \mu_A + \mu_Y]]) and</span>
+            <span class="c1"># \tau = N_E^2 * \sigma_A^2 + \sigma_Y^2</span>
+            <span class="c1"># Offset in \beta-vector (using augmented vectors)</span>
+            <span class="n">beta_0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;beta_0&#39;</span><span class="p">,</span> <span class="n">N_E</span> <span class="o">*</span> <span class="n">alpha_mu_A</span> <span class="o">+</span> <span class="n">alpha_mu_Y</span><span class="p">)</span>
+            <span class="c1"># Feature weights in \beta-vector</span>
+            <span class="n">beta_1</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;beta_1&#39;</span><span class="p">,</span> <span class="n">N_b</span> <span class="o">+</span> <span class="n">N_E</span> <span class="o">*</span> <span class="n">N_d</span><span class="p">)</span>
+            <span class="n">beta</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">pt</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">beta_0</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)),</span> <span class="n">beta_1</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="c1"># \tau-part of variance</span>
+            <span class="n">tau</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;tau&#39;</span><span class="p">,</span> <span class="n">N_E</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">alpha_sigma_A</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">alpha_sigma_Y</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+            <span class="c1"># The term (Z^T Z)^{-1} is still needed. Note that Z is the augmented</span>
+            <span class="c1"># version of X with a leading column of ones. Then</span>
+            <span class="c1"># Z_i ~ [1, N_p(\mu, \Sigma)], where p is the dimensionality of X.</span>
+            <span class="c1"># Using centered scatter \bar{x} ~ N_p(\mu, \Sigma/n) and the</span>
+            <span class="c1"># Schur complement S_c ~ Wishart_p(n-1, \Sigma), the block formula</span>
+            <span class="c1"># for inverses gives the only quantity the likelihood needs,</span>
+            <span class="c1"># X_o_aug^T (Z^T Z)^{-1} X_o_aug =</span>
+            <span class="c1">#     1/n + (X_o - \bar{x})^T S_c^{-1} (X_o - \bar{x}).</span>
+            <span class="c1"># Because a single prediction touches (\bar{x}, S_c) only through</span>
+            <span class="c1"># this scalar quadratic form, the pair collapses in distribution to</span>
+            <span class="c1"># two scalars (see the &quot;Single-prediction collapsed reduction&quot;</span>
+            <span class="c1"># derivation):</span>
+            <span class="c1"># X_o_aug^T (Z^T Z)^{-1} X_o_aug = 1/n + R/T, with</span>
+            <span class="c1"># n R ~ noncentral chi^2_p(n \Delta_X^2), T ~ chi^2_{n-p}, and</span>
+            <span class="c1"># \Delta_X^2 = (X_o - \mu)^T \Sigma^{-1} (X_o - \mu) the</span>
+            <span class="c1"># standardized distance of X_o from the covariate mean. This also</span>
+            <span class="c1"># avoids sampling the Wishart matrix directly, which PyMC&#39;s NUTS</span>
+            <span class="c1"># cannot do (proposals are not symmetric positive definite, so the</span>
+            <span class="c1"># model fails at the initial evaluation).</span>
+            <span class="n">Delta_X</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;Delta_X&#39;</span><span class="p">,</span>
+                <span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">pt</span><span class="o">.</span><span class="n">sum</span><span class="p">(((</span><span class="n">X_o_</span> <span class="o">-</span> <span class="n">alpha_mu_X</span><span class="p">)</span> <span class="o">/</span> <span class="n">alpha_sigma_X</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)))</span>
+            <span class="n">NCX</span> <span class="o">=</span> <span class="n">NoncentralChiSquared</span><span class="p">(</span>
+                <span class="s1">&#39;NCX&#39;</span><span class="p">,</span> <span class="n">nu</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">,</span>
+                <span class="n">lam</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">*</span> <span class="n">Delta_X</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+            <span class="n">R</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;R&#39;</span><span class="p">,</span> <span class="n">NCX</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">)</span>
+            <span class="n">T</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;T&#39;</span><span class="p">,</span> <span class="n">nu</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">)</span>
+
+            <span class="c1"># Augmet X_o_</span>
+            <span class="n">X_o_aug</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">pt</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">X_o_</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="c1"># Center of prediction if our beliefs were correct:</span>
+            <span class="n">mu_pred</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;mu_pred&#39;</span><span class="p">,</span> <span class="n">pt</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X_o_aug</span><span class="p">,</span> <span class="n">beta</span><span class="p">))</span>
+            <span class="c1"># Variance of the same: \tau times the collapsed quadratic form.</span>
+            <span class="n">sigma_2_pred</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;sigma_2_pred&#39;</span><span class="p">,</span> <span class="n">tau</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">+</span> <span class="n">R</span> <span class="o">/</span> <span class="n">T</span><span class="p">))</span>
+            <span class="n">sigma_pred</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;sigma_pred&#39;</span><span class="p">,</span> <span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">sigma_2_pred</span><span class="p">))</span>
+            <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;pred_o&#39;</span><span class="p">,</span> <span class="n">mu_pred</span><span class="p">,</span> <span class="n">sigma_pred</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="n">pred_o_</span><span class="p">)</span>
+            <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;X_o&#39;</span><span class="p">,</span> <span class="n">alpha_mu_X</span><span class="p">,</span> <span class="n">alpha_sigma_X</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="n">X_o_</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">model</span></div>
 
 </pre></div>
 
