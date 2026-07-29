@@ -1,22 +1,18 @@
 """
 Custom PyMC distributions used by the agent models.
 
-At present this module provides a native non-central chi-squared distribution,
-which PyMC does not ship out of the box. It exists so that the single-prediction
-collapsed model can sample the plate auxiliary ``R`` directly from its target
-law instead of rebuilding that law by hand through the central-chi-squared
-(Cochran) construction. \n
+At present this module provides the two distributions used by the
+single-prediction collapsed model that PyMC does not ship out of the box: a
+native non-central chi-squared and a folded normal.
 
 The reduced auxiliary ``R`` of the collapsed model satisfies \n
 :math:`n R \\sim \\chi'^2_k(\\lambda)` with :math:`\\lambda = n \\Delta_X^2`, \n
 i.e. a non-central chi-squared with ``k`` degrees of freedom and non-centrality
 :math:`\\lambda`, rescaled by the plate size ``n``. Cochran's theorem rewrites
 that same law as :math:`(\\Delta_X + G/\\sqrt{n})^2 + Z/n` with
-:math:`G \\sim \\mathcal{N}(0, 1)` and :math:`Z \\sim \\chi^2_{k-1}`; the two are
-distributionally identical, so exposing the non-central chi-squared as a first
-class distribution removes the auxiliary variables ``G`` and ``Z`` and lets the
-model read one-to-one off the derivation. See the "Single-prediction collapsed
-reduction" document of the paper derivations.
+:math:`G \\sim \\mathcal{N}(0, 1)` and :math:`Z \\sim \\chi^2_{k-1}`. The
+collapsed model uses the native non-central chi-squared for ``k > 1`` and an
+equivalent boundary-regular representation for ``k = 1``.
 """
 
 import numpy as np
@@ -32,6 +28,8 @@ from scipy import stats as st
 # collapsed model feeds lam = n * Delta_X^2 and Delta_X can pass through 0
 # during warmup, we switch to the central branch below this threshold.
 LAM_EPS = 1e-8
+LARGE_BESSEL_ARGUMENT = 1e6
+ASYMPTOTIC_COEFFICIENTS = 6
 
 
 def _central_chi2_logp(value, nu):
@@ -54,19 +52,54 @@ def _central_chi2_logp(value, nu):
     )
 
 
+def _asymptotic_log_ive(order, z):
+    """
+    Large-argument expansion of ``log(exp(-z) I_order(z))``.
+
+    Uses the first six coefficients of DLMF 10.40.1. The branch is used only
+    for ``z >= LARGE_BESSEL_ARGUMENT``, where its truncation error for the
+    model's supported orders is below float64 rounding error.
+    """
+    mu = 4.0 * order**2
+    term = pt.ones_like(z)
+    series = term
+    for index in range(1, ASYMPTOTIC_COEFFICIENTS):
+        odd_square = float((2 * index - 1) ** 2)
+        term *= -(mu - odd_square) / (8.0 * index * z)
+        series += term
+    return (
+        -0.5 * pt.log(2.0 * np.pi * z)
+        + pt.log1p(series - 1.0)
+    )
+
+
+def _stable_log_ratio(value, lam):
+    """Evaluate ``log(value / lam)`` accurately near equal arguments."""
+    relative_delta = (value - lam) / lam
+    near_equal = pt.abs(relative_delta) <= 0.5
+    bounded_delta = pt.clip(relative_delta, -0.5, 0.5)
+    return pt.switch(
+        near_equal,
+        pt.log1p(bounded_delta),
+        pt.log(value) - pt.log(lam),
+    )
+
+
 def ncx2_logp(value, nu, lam):
     """
     Log density of a non-central chi-squared distribution.
 
-    Matches ``scipy.stats.ncx2(df=nu, nc=lam).logpdf`` to machine precision. The
-    density is \n
+    Matches ``scipy.stats.ncx2(df=nu, nc=lam).logpdf`` to machine precision
+    where SciPy remains finite. The density is \n
     :math:`f(x) = \\tfrac12 e^{-(x+\\lambda)/2} (x/\\lambda)^{\\nu/4 - 1/2}
     I_{\\nu/2 - 1}(\\sqrt{\\lambda x})` \n
-    for :math:`x > 0`. It is evaluated through the exponentially scaled Bessel
-    function ``ive`` using :math:`\\log I_v(z) = \\log \\mathrm{ive}(v, z) + z`,
-    which stays finite for the large arguments that arise when ``lam`` is large.
-    The Bessel order :math:`\\nu/2 - 1` may be a negative half-integer (e.g.
-    ``nu = 1``); ``ive`` handles that case directly.
+    for :math:`x > 0`. The cancelling exponential terms are combined before
+    evaluation. The exponentially scaled Bessel function ``ive`` is used for
+    ordinary arguments. For large arguments beyond the reliable numerical
+    range of the ordinary evaluator, a DLMF asymptotic expansion evaluates the
+    same density to float64 precision. The Bessel order
+    :math:`\\nu/2 - 1` may be a negative half-integer (e.g. ``nu = 1``);
+    ``ive`` handles that case directly.
 
     Args:
         value: Point at which to evaluate the density (support ``value > 0``).
@@ -80,16 +113,39 @@ def ncx2_logp(value, nu, lam):
     # discards this branch for tiny lam, its gradient never differentiates
     # through log(lam = 0) and leaks a NaN back into the sampler.
     lam_safe = pt.switch(lam < LAM_EPS, LAM_EPS, lam)
-    z = pt.sqrt(lam_safe * value)
+    value_safe = pt.maximum(value, np.finfo(np.float64).tiny)
+    sqrt_value = pt.sqrt(value_safe)
+    sqrt_lam = pt.sqrt(lam_safe)
+    z = sqrt_value * sqrt_lam
+    sqrt_delta = (
+        (value_safe - lam_safe) / (sqrt_value + sqrt_lam)
+    )
+    order = nu / 2.0 - 1.0
+
+    # Bound both switch inputs. PyTensor may evaluate the inactive branch
+    # while constructing gradients, so an out-of-range ive call must never
+    # enter the graph.
+    ordinary_z = pt.minimum(z, LARGE_BESSEL_ARGUMENT)
+    asymptotic_z = pt.maximum(z, LARGE_BESSEL_ARGUMENT)
+    log_ive = pt.switch(
+        z < LARGE_BESSEL_ARGUMENT,
+        pt.log(pt.math.ive(order, ordinary_z)),
+        _asymptotic_log_ive(order, asymptotic_z),
+    )
     logp_ncx = (
         -np.log(2.0)
-        - (value + lam_safe) / 2.0
-        + (nu / 4.0 - 0.5) * (pt.log(value) - pt.log(lam_safe))
-        + pt.log(pt.math.ive(nu / 2.0 - 1.0, z))
-        + z
+        - 0.5 * sqrt_delta**2
+        + (nu / 4.0 - 0.5)
+        * _stable_log_ratio(value_safe, lam_safe)
+        + log_ive
     )
-    logp = pt.switch(lam < LAM_EPS, _central_chi2_logp(value, nu), logp_ncx)
-    return pt.switch(value > 0, logp, -np.inf)
+    logp = pt.switch(
+        lam < LAM_EPS,
+        _central_chi2_logp(value_safe, nu),
+        logp_ncx,
+    )
+    support = (value > 0) & (lam >= 0) & (nu > 0)
+    return pt.switch(support, logp, -np.inf)
 
 
 def _ncx2_random(nu, lam, rng=None, size=None):
@@ -168,5 +224,72 @@ def NoncentralChiSquared(name, nu, lam, **kwargs):
         support_point=_ncx2_support_point,
         signature="(),()->()",
         default_transform=pm.distributions.transforms.log,
+        **kwargs,
+    )
+
+
+def folded_normal_logp(value, mu, sigma):
+    """
+    Log density of the absolute value of a normal random variable.
+
+    If ``Z ~ Normal(mu, sigma)``, then ``U = abs(Z)`` has density
+    ``Normal(u | mu, sigma) + Normal(-u | mu, sigma)`` on ``u >= 0``.
+
+    Args:
+        value: Point at which to evaluate the density.
+        mu: Mean of the underlying normal distribution.
+        sigma: Standard deviation of the underlying normal distribution.
+
+    Returns:
+        The log probability density, ``-inf`` off the support.
+    """
+    normal = pm.Normal.dist(mu=mu, sigma=sigma)
+    logp = pt.logaddexp(pm.logp(normal, value), pm.logp(normal, -value))
+    return pt.switch(value >= 0, logp, -np.inf)
+
+
+def _folded_normal_random(mu, sigma, rng=None, size=None):
+    """Draw the absolute value of a normal random variable."""
+    mu = np.asarray(mu)
+    sigma = np.asarray(sigma)
+    if size is None:
+        size = np.broadcast(mu, sigma).shape
+    return np.abs(rng.normal(mu, sigma, size=size))
+
+
+def _folded_normal_support_point(rv, size, mu, sigma):
+    """Return a strictly positive initial point for a folded normal."""
+    support_point = pt.maximum(pt.abs(mu), sigma)
+    if not rv_size_is_none(size):
+        support_point = pt.full(size, support_point)
+    return support_point
+
+
+def FoldedNormal(name, mu, sigma, **kwargs):
+    """
+    Absolute value of a normally distributed random variable.
+
+    A softplus transform maps the positive support to the real line. Its
+    density retains both branches of the underlying normal distribution and
+    therefore also supports non-zero ``mu``.
+
+    Args:
+        name (str): Name of the random variable in the model.
+        mu: Mean of the underlying normal distribution.
+        sigma: Standard deviation of the underlying normal distribution.
+        **kwargs: Forwarded to :func:`pm.CustomDist`.
+
+    Returns:
+        The PyMC random variable.
+    """
+    return pm.CustomDist(
+        name,
+        mu,
+        sigma,
+        logp=folded_normal_logp,
+        random=_folded_normal_random,
+        support_point=_folded_normal_support_point,
+        signature="(),()->()",
+        default_transform=pm.distributions.transforms.log_exp_m1,
         **kwargs,
     )

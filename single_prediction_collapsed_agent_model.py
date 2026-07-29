@@ -3,41 +3,46 @@ Single-prediction collapsed Bayesian agent model.
 
 This is a further reduction of :class:`agent_model.MultivariateAgentModel`
 for the case where the agent observes a single scalar prediction ``pred_o`` for
-a single observed feature vector ``X_o``. Under independent Gaussian priors on
-the coordinates of the coefficient vectors N_b and N_d, those vectors are
-marginalized analytically, so the only non-auxiliary latent variables left are
-N_E and the population-level parameters.
+a single observed feature vector ``X_o``. Under independent Gaussian priors,
+the coefficient vectors N_b and N_d and the population means alpha_mu_A and
+alpha_mu_Y are marginalized analytically. The sign of N_E is also summed out:
+NUTS samples only U = abs(N_E), while both signed branches are evaluated in
+the likelihood.
 
 The reduced-plate auxiliary variables (s, W, g, h) of the multivariate model are
 replaced by two scalar auxiliaries (R, T), constant in both the plate size n and
-the number of covariates k. Conditional on (R, T, N_E, the population-level
-parameters, and X_o), the observed prediction is Gaussian: \n
-:math:`Pred^o \\sim \\mathcal{N}(\\mu_{red}, V_{red})` \n
-with \n
-:math:`\\mu_{red} = c + (m_b + N_E m_d) S_o` \n
-:math:`V_{red} = Q_o (v_b + 2 N_E v_{bd} + N_E^2 v_d) + \\tau^2 (1/n + R/T)`, \n
-where the cross term vanishes (:math:`v_{bd} = 0`) under the independent
-coefficient priors assumed by this class. The auxiliary R is drawn from a
-native non-central chi-squared (see :mod:`distributions`), \n
+the number of covariates k. Conditional on
+:math:`U=|N_E|`, R, T, the remaining scale parameters, and X_o, the observed
+prediction follows an exact two-component Gaussian mixture. For sign
+:math:`s\\in\\{-1,+1\\}`, the branch mean is \n
+:math:`M_s=m_Y+su\\,m_A+x^\\top(m_b+su\\,m_d)`, \n
+and its variance is \n
+:math:`W_s=v_Y+u^2v_A+\\sum_jx_j^2(v_{b,j}+u^2v_{d,j})
++(u^2\\alpha_{A_\\sigma}^2+\\alpha_{Y_\\sigma}^2)(1/n+R/T)`. \n
+The mixture weights retain both branches of the normal prior on N_E, so no
+independence between sign and magnitude is assumed. The coefficient-prior
+cross term is absent because this class assumes independent N_b and N_d.
+The auxiliary R has the exact law \n
 :math:`n R \\sim \\chi'^2_k(\\lambda)`,
 :math:`\\lambda = n \\Delta_X^2`, \n
 with :math:`\\Delta_X^2 := (X^o - \\vec{\\alpha}_{X\\mu})^\\top D_X^{-2}
-(X^o - \\vec{\\alpha}_{X\\mu})`. This replaces the equivalent central-chi-squared
-(Cochran) construction
-:math:`R = (\\Delta_X + G_R / \\sqrt{n})^2 + Z_R / n` with
-:math:`G_R \\sim \\mathcal{N}(0, 1)`, :math:`Z_R \\sim \\chi^2_{k-1}` and the
-convention :math:`\\chi^2_0 = 0` when k = 1, so the model now samples the two
-scalar primitives (the non-central chi-squared and T) regardless of k and n,
-with no k = 1 special case.
+(X^o - \\vec{\\alpha}_{X\\mu})`. For :math:`k > 1`, R is drawn from the
+native non-central chi-squared in :mod:`distributions`. For :math:`k = 1`, the
+equivalent signed Cochran construction is used instead: \n
+:math:`R = (\\delta_X + G_R / \\sqrt{n})^2`, \n
+where
+:math:`\\delta_X = (X^o - \\alpha_{X\\mu}) / \\alpha_{X\\sigma}` and
+:math:`G_R \\sim \\mathcal{N}(0, 1)`. Thus
+:math:`nR = (\\sqrt{n}\\delta_X + G_R)^2` has exactly the required
+:math:`\\chi'^2_1(n\\delta_X^2)` law while avoiding direct sampling at the
+singular boundary of a one-degree-of-freedom chi-squared distribution. The
+number of sampled plate primitives remains two (G_R and T for k = 1; the
+non-central chi-squared and T for k > 1), independent of k and n.
 
-Since the CATE depends only on N_E, marginalizing N_b and N_d loses no
-information relevant to the decision rule. For the agent-side predictive
-quantities (predictive summaries of X, A, and Y, and expected do(A) outcomes)
-the marginalized coefficient vectors are recovered when needed: from their
-priors for prior predictive sampling, and from their conditional Gaussian
-given (N_E, R, T, the population-level parameters, and pred_o) for posterior
-predictive sampling. The derivation is in the "Single-prediction collapsed
-reduction" document of the paper derivations.
+The signed N_E, alpha_mu_A, alpha_mu_Y, N_b, and N_d are reconstructed jointly
+after sampling. Once the sign is drawn, their conditional distribution is
+Gaussian, so Matheron's rule gives exact draws for predictive summaries and
+do(A) outcomes. CATE moments are Rao--Blackwellized over both signs.
 """
 
 from pathlib import Path
@@ -50,7 +55,7 @@ import pytensor.tensor as at
 from scipy.stats import kurtosis, skew
 
 import scm
-from distributions import NoncentralChiSquared
+from distributions import FoldedNormal, NoncentralChiSquared
 
 
 DEBUGGING = False
@@ -68,21 +73,17 @@ class SinglePredictionCollapsedAgentModel:
     """
     Bayesian agent model for the single-prediction collapsed likelihood.
 
-    The class assumes independent Gaussian priors for the coordinates of N_b
-    and N_d. These vectors are marginalized analytically and are not sampled by
-    PyMC, so the latent variables of the model are the population-level
-    parameters, N_E, and the two scalar auxiliaries (R, T) of the collapsed
-    likelihood.
+    The class assumes independent Gaussian priors for N_b, N_d, alpha_mu_A,
+    and alpha_mu_Y. These quantities and the sign of N_E are marginalized
+    analytically. PyMC samples the magnitude of N_E, the remaining population
+    parameters, and the two scalar auxiliaries (R, T).
 
     The model always assumes an OLS predictive model with intercept, and is
     specific to a single observed prediction: it does not extend, in this form,
     to more than one prediction. Because the CATE depends only on N_E, the
-    prior and posterior CATE are obtained directly from N_E. The agent-side
-    predictive summaries and expected-outcome helpers of the multivariate model
-    are still provided: the marginalized coefficient vectors are recovered from
-    their priors for prior predictive sampling, and from their conditional
-    Gaussian given (N_E, R, T, the population-level parameters, and pred_o)
-    for posterior predictive sampling.
+    prior and posterior CATE are obtained from signed N_E. The marginalized
+    variables are recovered jointly from their exact conditional posterior for
+    predictive summaries and expected-outcome helpers.
 
     Args:
         n_covariates (int): Number of covariates k (dimension of X).
@@ -125,6 +126,7 @@ class SinglePredictionCollapsedAgentModel:
         self.posterior_predictive_samples = None
         self.prior_coefficient_draws = None
         self.posterior_coefficient_draws = None
+        self.posterior_sign_probabilities = None
         self.posterior_draws = None
         self.prior_draws = None
         self.X_o = None
@@ -228,13 +230,10 @@ class SinglePredictionCollapsedAgentModel:
 
     def _default_predictive_var_names(self):
         """
-        Return the names of the variables sampled for predictive calculations.
+        Return the public parameter names used in predictive calculations.
 
-        These are the population-level SCM parameters whose sampled values
-        replace the parameters of the internal predictive SCM during prior and
-        posterior predictive sampling, plus the collapsed auxiliaries R and T,
-        which are needed to reconstruct the marginalized coefficient vectors
-        in posterior predictive sampling.
+        N_E, alpha_mu_A, and alpha_mu_Y are reconstructed after posterior
+        sampling but retain the same public names as the explicit model.
 
         Returns:
             list: Default predictive variable names.
@@ -242,15 +241,20 @@ class SinglePredictionCollapsedAgentModel:
         return ['alpha_mu_X', 'alpha_sigma_X', 'alpha_mu_A', 'alpha_sigma_A',
                 'alpha_mu_Y', 'alpha_sigma_Y', 'N_E', 'R', 'T']
 
+    def _sampled_predictive_var_names(self):
+        """Return graph variables needed to build prior predictive draws."""
+        return ['alpha_mu_X', 'alpha_sigma_X', 'alpha_sigma_A',
+                'alpha_sigma_Y', 'N_E_magnitude', 'R', 'T']
+
     def _build_population_parameters(self):
         """
         Build the PyMC variables that live outside the historical plate.
 
         These are the population-level SCM parameters the agent has priors on:
         the covariate parameters (vector-valued alpha_mu_X, alpha_sigma_X), the
-        treatment and outcome parameters (alpha_mu_A, alpha_sigma_A, alpha_mu_Y,
-        alpha_sigma_Y), and the effect size N_E. The coefficient vectors N_b and
-        N_d are not built here because they are marginalized analytically.
+        treatment and outcome scales (alpha_sigma_A, alpha_sigma_Y), and the
+        magnitude of N_E. The treatment and outcome means, the sign of N_E,
+        and the coefficient vectors are marginalized analytically.
 
         Returns:
             dict: Mapping from parameter name to its PyMC random variable.
@@ -264,30 +268,26 @@ class SinglePredictionCollapsedAgentModel:
             sigma=self.prior_parameters['sigma_sigma_X'],
             lower=0,
             shape=self.n_covariates)
-        alpha_mu_A = pm.Normal('alpha_mu_A', self.prior_parameters['mu_A'],
-                               self.prior_parameters['sigma_A'])
         alpha_sigma_A = pm.TruncatedNormal(
             'alpha_sigma_A',
             mu=self.prior_parameters['mu_sigma_A'],
             sigma=self.prior_parameters['sigma_sigma_A'],
             lower=0)
-        alpha_mu_Y = pm.Normal('alpha_mu_Y', self.prior_parameters['mu_Y'],
-                               self.prior_parameters['sigma_Y'])
         alpha_sigma_Y = pm.TruncatedNormal(
             'alpha_sigma_Y',
             mu=self.prior_parameters['mu_sigma_Y'],
             sigma=self.prior_parameters['sigma_sigma_Y'],
             lower=0)
-        N_E = pm.Normal('N_E', self.prior_parameters['N_E_mu'],
-                        self.prior_parameters['N_E_sigma'])
+        N_E_magnitude = FoldedNormal(
+            'N_E_magnitude',
+            self.prior_parameters['N_E_mu'],
+            self.prior_parameters['N_E_sigma'])
         return {
             'alpha_mu_X': alpha_mu_X,
             'alpha_sigma_X': alpha_sigma_X,
-            'alpha_mu_A': alpha_mu_A,
             'alpha_sigma_A': alpha_sigma_A,
-            'alpha_mu_Y': alpha_mu_Y,
             'alpha_sigma_Y': alpha_sigma_Y,
-            'N_E': N_E,
+            'N_E_magnitude': N_E_magnitude,
         }
 
     def _build_model(self):
@@ -297,21 +297,17 @@ class SinglePredictionCollapsedAgentModel:
         The observed feature vector ``X_o`` and the observed prediction
         ``pred_o`` enter as :class:`pm.Data` placeholders, updated at sampling
         time. The plate is reduced to the two scalar auxiliaries ``R`` and
-        ``T``: ``R`` is drawn from a native non-central chi-squared
-        (:func:`distributions.NoncentralChiSquared`) with \n
-        :math:`n R \\sim \\chi'^2_k(n \\Delta_X^2)` \n
-        and ``T`` is a centered chi-squared with
-        ``plate_size - n_covariates`` degrees of freedom. This replaces the
-        central-chi-squared (Cochran) construction
-        :math:`R = (\\Delta_X + G_R / \\sqrt{n})^2 + Z_R / n` with
-        ``G_R ~ N(0, 1)``, ``Z_R ~ ChiSquared(k - 1)`` (and the convention
-        ``ChiSquared(0) = 0`` when k = 1), so the model samples two scalar
-        primitive variables (the non-central chi-squared and T) regardless of
-        k and n. The collapsed mean ``prediction_mu`` and
-        variance ``prediction_variance`` are formed from the marginalized
-        coefficient priors and the auxiliaries, and the observed prediction is
-        given the likelihood ``N(prediction_mu, prediction_sigma)``. ``X_o`` is
-        also given the covariate likelihood ``N(alpha_mu_X, alpha_sigma_X)``.
+        ``T``. The target law is
+        :math:`n R \\sim \\chi'^2_k(n \\Delta_X^2)`, while ``T`` is a centered
+        chi-squared with ``plate_size - n_covariates`` degrees of freedom. For
+        k = 1, R is represented by the exact signed Cochran construction
+        :math:`R = (\\delta_X + G_R / \\sqrt{n})^2`, with
+        ``G_R ~ N(0, 1)``. For k > 1, R is sampled through
+        :func:`distributions.NoncentralChiSquared`. The likelihood integrates
+        alpha_mu_A, alpha_mu_Y, N_b, and N_d analytically and sums the positive
+        and negative N_E branches with their exact conditional prior weights.
+        ``X_o`` is also given the covariate likelihood
+        ``N(alpha_mu_X, alpha_sigma_X)``.
 
         Returns:
             pm.Model: The constructed PyMC model.
@@ -324,53 +320,93 @@ class SinglePredictionCollapsedAgentModel:
             parameters = self._build_population_parameters()
             alpha_mu_X = parameters['alpha_mu_X']
             alpha_sigma_X = parameters['alpha_sigma_X']
-            alpha_mu_A = parameters['alpha_mu_A']
             alpha_sigma_A = parameters['alpha_sigma_A']
-            alpha_mu_Y = parameters['alpha_mu_Y']
             alpha_sigma_Y = parameters['alpha_sigma_Y']
-            N_E = parameters['N_E']
+            N_E_magnitude = parameters['N_E_magnitude']
 
+            standardized_offset = (X_o_ - alpha_mu_X) / alpha_sigma_X
             Delta_X = pm.Deterministic(
                 'Delta_X',
-                at.sqrt(at.sum(((X_o_ - alpha_mu_X) / alpha_sigma_X)**2)))
-            # R is the plate auxiliary whose target law is a non-central
-            # chi-squared: n R ~ chi'^2_k(lam) with non-centrality
-            # lam = n * Delta_X^2. Sampling it natively from
-            # NoncentralChiSquared replaces the equivalent central-chi-squared
-            # (Cochran) construction R = (Delta_X + G / sqrt(n))^2 + Z / n with
-            # G ~ N(0, 1), Z ~ chi^2_{k-1}, which needed the two auxiliary
-            # variables G and Z and a k = 1 special case. The native
-            # distribution covers k = 1 without any special case.
-            NCX = NoncentralChiSquared(
-                'NCX', nu=self.n_covariates,
-                lam=self.plate_size * Delta_X**2)
-            R = pm.Deterministic('R', NCX / self.plate_size)
+                at.sqrt(at.sum(standardized_offset**2)))
+            # R has the exact target law
+            # n R ~ chi'^2_k(n * Delta_X^2). At k = 1, using the signed
+            # standardized offset in the equivalent Cochran construction
+            # removes the singular positive-support random variable from the
+            # NUTS state while preserving that law exactly.
+            if self.n_covariates == 1:
+                G_R = pm.Normal('G_R', mu=0.0, sigma=1.0)
+                signed_delta_X = standardized_offset[0]
+                R = pm.Deterministic(
+                    'R',
+                    (signed_delta_X + G_R / np.sqrt(self.plate_size))**2)
+                # Keep NCX available in posterior traces for compatibility
+                # with traces produced by the native parameterization.
+                pm.Deterministic('NCX', self.plate_size * R)
+            else:
+                NCX = NoncentralChiSquared(
+                    'NCX', nu=self.n_covariates,
+                    lam=self.plate_size * Delta_X**2)
+                R = pm.Deterministic('R', NCX / self.plate_size)
             T = pm.ChiSquared('T', nu=self.plate_size - self.n_covariates)
 
-            beta_mu = self.prior_parameters['N_b_mu'] + (
-                N_E * self.prior_parameters['N_d_mu'])
-            coefficient_variance = at.sum((X_o_ * self.prior_parameters['N_b_sigma'])**2)
-            coefficient_variance += N_E**2 * at.sum(
-                (X_o_ * self.prior_parameters['N_d_sigma'])**2)
-
-            c = pm.Deterministic('c', alpha_mu_Y + N_E * alpha_mu_A)
-            tau = pm.Deterministic(
-                'tau',
-                at.sqrt(N_E**2 * alpha_sigma_A**2 + alpha_sigma_Y**2))
+            signs = at.as_tensor_variable(np.asarray([1.0, -1.0]))
+            N_E_branches = signs * N_E_magnitude
+            prediction_base = (
+                self.prior_parameters['mu_Y']
+                + at.dot(X_o_, self.prior_parameters['N_b_mu']))
+            prediction_effect = (
+                self.prior_parameters['mu_A']
+                + at.dot(X_o_, self.prior_parameters['N_d_mu']))
             prediction_mu = pm.Deterministic(
                 'prediction_mu',
-                c + at.dot(X_o_, beta_mu))
+                prediction_base + N_E_branches * prediction_effect)
+
+            coefficient_variance = at.sum(
+                (X_o_ * self.prior_parameters['N_b_sigma'])**2)
+            coefficient_variance += N_E_magnitude**2 * at.sum(
+                (X_o_ * self.prior_parameters['N_d_sigma'])**2)
+            mean_variance = (
+                self.prior_parameters['sigma_Y']**2
+                + N_E_magnitude**2 * self.prior_parameters['sigma_A']**2)
+            noise_variance = (
+                N_E_magnitude**2 * alpha_sigma_A**2 + alpha_sigma_Y**2
+            ) * (1.0 / self.plate_size + R / T)
             prediction_variance = pm.Deterministic(
                 'prediction_variance',
-                coefficient_variance + tau**2 * (1.0 / self.plate_size + R / T))
+                coefficient_variance + mean_variance + noise_variance)
             prediction_sigma = pm.Deterministic(
                 'prediction_sigma',
                 at.sqrt(prediction_variance))
 
+            N_E_prior = pm.Normal.dist(
+                self.prior_parameters['N_E_mu'],
+                self.prior_parameters['N_E_sigma'])
+            log_prior_branches = at.stack([
+                pm.logp(N_E_prior, N_E_magnitude),
+                pm.logp(N_E_prior, -N_E_magnitude),
+            ])
+            log_folded_prior = at.logsumexp(log_prior_branches)
+            log_sign_weights = log_prior_branches - log_folded_prior
+            prediction_logps = pm.logp(
+                pm.Normal.dist(mu=prediction_mu, sigma=prediction_sigma),
+                pred_o_)
+            log_signed_branches = log_sign_weights + prediction_logps
+            prediction_logp = at.logsumexp(log_signed_branches)
+            pm.Mixture(
+                'prediction_obs',
+                w=at.exp(log_sign_weights),
+                comp_dists=pm.Normal.dist(
+                    mu=prediction_mu, sigma=prediction_sigma),
+                observed=pred_o_)
+            N_E_positive_probability = pm.Deterministic(
+                'N_E_positive_probability',
+                at.exp(log_signed_branches[0] - prediction_logp))
+            pm.Deterministic(
+                'N_E_conditional_mean',
+                (2.0 * N_E_positive_probability - 1.0) * N_E_magnitude)
+
             pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_,
                       shape=self.n_covariates)
-            pm.Normal('prediction_obs', prediction_mu, prediction_sigma,
-                      observed=pred_o_)
         return model
 
     def sample(self, X_o, pred_o, draws=1000, tune=1000, target_accept=.85,
@@ -396,6 +432,9 @@ class SinglePredictionCollapsedAgentModel:
         """
         X_o = self._normalize_vector_parameter(X_o, 'X_o')
         self.posterior_draws = draws
+        self.X_o = X_o
+        self.pred_o = float(np.asarray(pred_o))
+        rng = np.random.default_rng(rng)
         pm.set_data({'X_o_': X_o, 'pred_o_': np.asarray(pred_o)},
                     model=self.model)
         with self.model:
@@ -408,11 +447,10 @@ class SinglePredictionCollapsedAgentModel:
                               init=init,
                               callback=printing_callback)
         self.trace = trace
-        self.X_o = X_o
-        self.pred_o = float(np.asarray(pred_o))
-        # Posterior coefficient reconstructions belong to the previous trace.
         self.posterior_predictive_samples = None
         self.posterior_coefficient_draws = None
+        self.posterior_sign_probabilities = None
+        self._reconstruct_posterior_parameters(rng)
         return
 
     def _parameter_draws(self, sample_group):
@@ -452,6 +490,162 @@ class SinglePredictionCollapsedAgentModel:
                 parameters[var_name] = value
             draws.append(parameters)
         return draws
+
+    @staticmethod
+    def _normal_logpdf(value, mu, sigma):
+        """Evaluate a scalar normal log density with NumPy broadcasting."""
+        return (
+            -0.5 * ((value - mu) / sigma)**2
+            - np.log(sigma)
+            - 0.5 * np.log(2.0 * np.pi)
+        )
+
+    def _prior_positive_sign_probability(self, magnitude):
+        """Return P(N_E > 0 | abs(N_E)) under the configured normal prior."""
+        mu = self.prior_parameters['N_E_mu']
+        sigma = self.prior_parameters['N_E_sigma']
+        log_positive = self._normal_logpdf(magnitude, mu, sigma)
+        log_negative = self._normal_logpdf(-magnitude, mu, sigma)
+        return np.exp(log_positive - np.logaddexp(log_positive, log_negative))
+
+    def _sample_conditional_parameters(self, parameters, N_E, rng):
+        """
+        Reconstruct all Gaussian variables marginalized from the likelihood.
+
+        For fixed signed N_E and one posterior draw of the remaining
+        parameters, ``z = (alpha_mu_A, alpha_mu_Y, N_b, N_d)`` has an
+        independent Gaussian prior and the observed prediction is a scalar
+        linear-Gaussian observation of z. Matheron's rule produces one exact
+        conditional draw.
+
+        Args:
+            parameters (dict): Draw containing alpha_sigma_A, alpha_sigma_Y,
+                R, and T.
+            N_E (float): Reconstructed signed treatment effect.
+            rng (np.random.Generator): Random number generator.
+
+        Returns:
+            tuple: ``(alpha_mu_A, alpha_mu_Y, N_b, N_d)``.
+        """
+        prior_mean = np.concatenate([
+            np.asarray([self.prior_parameters['mu_A'],
+                        self.prior_parameters['mu_Y']]),
+            self.prior_parameters['N_b_mu'],
+            self.prior_parameters['N_d_mu'],
+        ])
+        prior_variance = np.concatenate([
+            np.asarray([self.prior_parameters['sigma_A']**2,
+                        self.prior_parameters['sigma_Y']**2]),
+            self.prior_parameters['N_b_sigma']**2,
+            self.prior_parameters['N_d_sigma']**2,
+        ])
+        observation_vector = np.concatenate([
+            np.asarray([N_E, 1.0]),
+            self.X_o,
+            N_E * self.X_o,
+        ])
+        noise_variance = (
+            N_E**2 * parameters['alpha_sigma_A']**2
+            + parameters['alpha_sigma_Y']**2
+        ) * (1.0 / self.plate_size + parameters['R'] / parameters['T'])
+
+        prior_draw = rng.normal(prior_mean, np.sqrt(prior_variance))
+        prediction_draw = (
+            observation_vector @ prior_draw
+            + rng.normal(0.0, np.sqrt(noise_variance)))
+        denominator = (
+            observation_vector @ (prior_variance * observation_vector)
+            + noise_variance)
+        gain = prior_variance * observation_vector / denominator
+        conditional_draw = prior_draw + gain * (
+            self.pred_o - prediction_draw)
+
+        start = 2
+        stop = start + self.n_covariates
+        return (
+            float(conditional_draw[0]),
+            float(conditional_draw[1]),
+            conditional_draw[start:stop],
+            conditional_draw[stop:],
+        )
+
+    def _reconstruct_posterior_parameters(self, rng):
+        """Attach exact signed and Gaussian reconstructions to the trace."""
+        posterior = self.trace.posterior
+        magnitudes = posterior['N_E_magnitude'].values
+        positive_probabilities = posterior[
+            'N_E_positive_probability'].values
+        signs = np.where(
+            rng.random(magnitudes.shape) < positive_probabilities, 1.0, -1.0)
+        N_E = signs * magnitudes
+
+        flat_parameter_values = {}
+        for name in ('alpha_sigma_A', 'alpha_sigma_Y', 'R', 'T'):
+            values = posterior[name].values
+            flat_parameter_values[name] = values.reshape(-1)
+
+        alpha_mu_A = np.empty(N_E.size)
+        alpha_mu_Y = np.empty(N_E.size)
+        coefficient_draws = []
+        for index, signed_effect in enumerate(N_E.reshape(-1)):
+            parameters = {
+                name: values[index]
+                for name, values in flat_parameter_values.items()
+            }
+            reconstructed = self._sample_conditional_parameters(
+                parameters, signed_effect, rng)
+            alpha_mu_A[index], alpha_mu_Y[index], N_b, N_d = reconstructed
+            coefficient_draws.append((N_b, N_d))
+
+        scalar_dims = posterior['N_E_magnitude'].dims
+        scalar_shape = magnitudes.shape
+        self.trace.posterior = posterior.assign({
+            'N_E': (scalar_dims, N_E),
+            'alpha_mu_A': (scalar_dims, alpha_mu_A.reshape(scalar_shape)),
+            'alpha_mu_Y': (scalar_dims, alpha_mu_Y.reshape(scalar_shape)),
+        })
+        self.posterior_sign_probabilities = positive_probabilities
+        self.posterior_coefficient_draws = coefficient_draws
+
+    def _rao_blackwellized_N_E_moments(self):
+        """Return posterior N_E moments after summing over the sign."""
+        posterior = self.trace.posterior
+        if ('N_E_magnitude' not in posterior
+                or 'N_E_positive_probability' not in posterior):
+            values = posterior['N_E'].values.reshape(-1)
+            return {
+                'mean': np.mean(values),
+                'std': np.std(values),
+                'skew': skew(values),
+                'kurtosis': kurtosis(values),
+            }
+
+        magnitude = posterior['N_E_magnitude'].values.reshape(-1)
+        positive = posterior[
+            'N_E_positive_probability'].values.reshape(-1)
+        signed_weight = 2.0 * positive - 1.0
+        raw_1 = np.mean(signed_weight * magnitude)
+        raw_2 = np.mean(magnitude**2)
+        raw_3 = np.mean(signed_weight * magnitude**3)
+        raw_4 = np.mean(magnitude**4)
+        variance = max(raw_2 - raw_1**2, 0.0)
+        if variance == 0.0:
+            return {
+                'mean': raw_1,
+                'std': 0.0,
+                'skew': np.nan,
+                'kurtosis': np.nan,
+            }
+        third_central = raw_3 - 3.0 * raw_1 * raw_2 + 2.0 * raw_1**3
+        fourth_central = (
+            raw_4 - 4.0 * raw_1 * raw_3 + 6.0 * raw_1**2 * raw_2
+            - 3.0 * raw_1**4)
+        return {
+            'mean': raw_1,
+            'std': np.sqrt(variance),
+            'skew': third_central / variance**1.5,
+            'kurtosis': fourth_central / variance**2 - 3.0,
+        }
 
     def _update_predictive_scm(self, parameters, N_b, N_d):
         """
@@ -563,8 +757,29 @@ class SinglePredictionCollapsedAgentModel:
         with self.model:
             tmp = pm.sample_prior_predictive(
                 draws=draws,
-                var_names=self.predictive_var_names,
+                var_names=self._sampled_predictive_var_names(),
                 random_seed=rng)
+        magnitudes = tmp.prior['N_E_magnitude'].values
+        positive_probabilities = self._prior_positive_sign_probability(
+            magnitudes)
+        signs = np.where(
+            rng.random(magnitudes.shape) < positive_probabilities, 1.0, -1.0)
+        scalar_dims = tmp.prior['N_E_magnitude'].dims
+        tmp.prior = tmp.prior.assign({
+            'N_E': (scalar_dims, signs * magnitudes),
+            'alpha_mu_A': (
+                scalar_dims,
+                rng.normal(
+                    self.prior_parameters['mu_A'],
+                    self.prior_parameters['sigma_A'],
+                    size=magnitudes.shape)),
+            'alpha_mu_Y': (
+                scalar_dims,
+                rng.normal(
+                    self.prior_parameters['mu_Y'],
+                    self.prior_parameters['sigma_Y'],
+                    size=magnitudes.shape)),
+        }).drop_vars('N_E_magnitude')
         self.prior_samples = tmp
         parameter_draws = self._parameter_draws(tmp.prior)
         self.prior_draws = len(parameter_draws)
@@ -606,6 +821,7 @@ class SinglePredictionCollapsedAgentModel:
         Returns:
             tuple: ``(do_A_samples, do_A_mean, do_A_std)``.
         """
+        rng = np.random.default_rng(rng)
         self._ensure_prior_samples(rng=rng)
         X = self._normalize_vector_parameter(X, 'X')
         do_A_samples = np.zeros(shape=(self.prior_draws,))
@@ -637,16 +853,26 @@ class SinglePredictionCollapsedAgentModel:
         tmp_A = [item[1] for item in self.prior_predictive_samples]
         tmp_Y = [item[2] for item in self.prior_predictive_samples]
         results = {}
-        results['pri_X_mean'] = np.mean(tmp_X)
+        # X follows the same convention as the multivariate agent model:
+        # a single pri_X_<moment> set at k = 1, one set per covariate
+        # dimension (pri_X_<dim>_<moment>) at k > 1.
+        X_array = np.asarray(tmp_X).reshape(-1, self.n_covariates)
+        if self.n_covariates == 1:
+            x_targets = [('pri_X', X_array[:, 0])]
+        else:
+            x_targets = [('pri_X_{}'.format(dim), X_array[:, dim])
+                         for dim in range(self.n_covariates)]
+        for key_prefix, values in x_targets:
+            results[key_prefix + '_mean'] = np.mean(values)
+            results[key_prefix + '_std'] = np.std(values)
+            results[key_prefix + '_skew'] = skew(values)
+            results[key_prefix + '_kurtosis'] = kurtosis(values)
         results['pri_A_mean'] = np.mean(tmp_A)
         results['pri_Y_mean'] = np.mean(tmp_Y)
-        results['pri_X_std'] = np.std(tmp_X)
         results['pri_A_std'] = np.std(tmp_A)
         results['pri_Y_std'] = np.std(tmp_Y)
-        results['pri_X_skew'] = skew(np.asarray(tmp_X).reshape(-1))
         results['pri_A_skew'] = skew(tmp_A)[0]
         results['pri_Y_skew'] = skew(tmp_Y)[0]
-        results['pri_X_kurtosis'] = kurtosis(np.asarray(tmp_X).reshape(-1))
         results['pri_A_kurtosis'] = kurtosis(tmp_A)[0]
         results['pri_Y_kurtosis'] = kurtosis(tmp_Y)[0]
         return results
@@ -747,16 +973,26 @@ class SinglePredictionCollapsedAgentModel:
         tmp_A = [item[1] for item in self.posterior_predictive_samples]
         tmp_Y = [item[2] for item in self.posterior_predictive_samples]
         results = {}
-        results['post_X_mean'] = np.mean(tmp_X)
+        # X follows the same convention as the multivariate agent model:
+        # a single post_X_<moment> set at k = 1, one set per covariate
+        # dimension (post_X_<dim>_<moment>) at k > 1.
+        X_array = np.asarray(tmp_X).reshape(-1, self.n_covariates)
+        if self.n_covariates == 1:
+            x_targets = [('post_X', X_array[:, 0])]
+        else:
+            x_targets = [('post_X_{}'.format(dim), X_array[:, dim])
+                         for dim in range(self.n_covariates)]
+        for key_prefix, values in x_targets:
+            results[key_prefix + '_mean'] = np.mean(values)
+            results[key_prefix + '_std'] = np.std(values)
+            results[key_prefix + '_skew'] = skew(values)
+            results[key_prefix + '_kurtosis'] = kurtosis(values)
         results['post_A_mean'] = np.mean(tmp_A)
         results['post_Y_mean'] = np.mean(tmp_Y)
-        results['post_X_std'] = np.std(tmp_X)
         results['post_A_std'] = np.std(tmp_A)
         results['post_Y_std'] = np.std(tmp_Y)
-        results['post_X_skew'] = skew(np.asarray(tmp_X).reshape(-1))
         results['post_A_skew'] = skew(tmp_A)[0]
         results['post_Y_skew'] = skew(tmp_Y)[0]
-        results['post_X_kurtosis'] = kurtosis(np.asarray(tmp_X).reshape(-1))
         results['post_A_kurtosis'] = kurtosis(tmp_A)[0]
         results['post_Y_kurtosis'] = kurtosis(tmp_Y)[0]
         return results
@@ -807,9 +1043,20 @@ class SinglePredictionCollapsedAgentModel:
         N_E_samples = self.trace.posterior['N_E'].values.reshape(-1)
         self.posterior_draws = N_E_samples.size
         CATE_samples = (A1_treatment - A0_treatment) * N_E_samples
-        CATE_mean = np.mean(CATE_samples)
-        CATE_std = np.std(CATE_samples)
+        N_E_moments = self._rao_blackwellized_N_E_moments()
+        treatment_difference = A1_treatment - A0_treatment
+        CATE_mean = treatment_difference * N_E_moments['mean']
+        CATE_std = abs(treatment_difference) * N_E_moments['std']
         return CATE_samples, CATE_mean, CATE_std
+
+    def posterior_negative_sign_probability(self):
+        """Return the posterior probability that N_E is negative."""
+        posterior = self.trace.posterior
+        if 'N_E_positive_probability' in posterior:
+            positive = posterior[
+                'N_E_positive_probability'].values.reshape(-1)
+            return float(np.mean(1.0 - positive))
+        return float(np.mean(posterior['N_E'].values.reshape(-1) < 0.0))
 
     def get_prior_CATE_mu(self, A1_treatment, A0_treatment):
         """
@@ -823,21 +1070,140 @@ class SinglePredictionCollapsedAgentModel:
         """
         return (A1_treatment - A0_treatment) * self.prior_parameters['N_E_mu']
 
+    def posterior_parameter_summaries(self, rng=None):
+        """
+        Compute mean, std, skewness, and kurtosis of the posterior samples
+        for each population parameter, in the same key format as
+        :meth:`agent_model.AgentModel.posterior_parameter_summaries`, so that
+        experiment drivers can use the two model classes interchangeably.
+
+        Sampled population parameters are summarized directly. N_E moments are
+        Rao--Blackwellized over the exact conditional sign probabilities.
+        alpha_mu_A, alpha_mu_Y, N_b, and N_d are summarized from their coherent
+        conditional reconstruction, so the returned moments describe the same
+        posterior as an explicit model.
+
+        Args:
+            rng: Seed or initialized generator for the coefficient
+                reconstruction (reused if draws are already cached).
+
+        Returns:
+            dict: ``param_<name>_<moment>`` (scalar or k = 1) or
+            ``param_<name>_<dim>_<moment>`` (k > 1) entries.
+        """
+        if self.trace is None:
+            raise ValueError("No posterior samples available. Call sample() first.")
+        rng = np.random.default_rng(rng)
+
+        def moment_dict(values, key_prefix):
+            values = np.asarray(values).reshape(-1)
+            return {
+                '{}_mean'.format(key_prefix): np.mean(values),
+                '{}_std'.format(key_prefix): np.std(values),
+                '{}_skew'.format(key_prefix): skew(values),
+                '{}_kurtosis'.format(key_prefix): kurtosis(values),
+            }
+
+        def vector_summaries(values, name):
+            # values shape: (draws, k); k = 1 uses the non-indexed key.
+            summaries = {}
+            k = values.shape[-1]
+            if k == 1:
+                summaries.update(moment_dict(values[:, 0], 'param_{}'.format(name)))
+            else:
+                for dim in range(k):
+                    summaries.update(moment_dict(
+                        values[:, dim], 'param_{}_{}'.format(name, dim)))
+            return summaries
+
+        posterior = self.trace.posterior
+        results = {}
+        for name in ('alpha_mu_A', 'alpha_sigma_A',
+                     'alpha_mu_Y', 'alpha_sigma_Y'):
+            results.update(moment_dict(posterior[name].values.reshape(-1),
+                                       'param_{}'.format(name)))
+        for moment, value in self._rao_blackwellized_N_E_moments().items():
+            results['param_N_E_{}'.format(moment)] = value
+        for name in ('alpha_mu_X', 'alpha_sigma_X'):
+            values = posterior[name].values
+            if values.ndim == 2:
+                values = values[:, :, np.newaxis]
+            values = values.reshape((-1, values.shape[-1]))
+            results.update(vector_summaries(values, name))
+
+        parameter_draws = self._parameter_draws(self.trace.posterior)
+        self._ensure_posterior_coefficient_draws(parameter_draws, rng)
+        N_b_draws = np.stack([draw[0] for draw in self.posterior_coefficient_draws])
+        N_d_draws = np.stack([draw[1] for draw in self.posterior_coefficient_draws])
+        results.update(vector_summaries(N_b_draws, 'N_b'))
+        results.update(vector_summaries(N_d_draws, 'N_d'))
+        return results
+
     def trace_diagnostics(self):
         """
         Return basic sampler diagnostics for the current posterior trace.
+
+        Diagnostics cover the variables explored directly by NUTS and the
+        deterministic quantities that drive the CATE and reduced likelihood.
+        A deterministic component that is exactly constant is omitted because
+        its R-hat and ESS are undefined but it has no Monte Carlo error.
 
         Returns:
             dict: ``max_rhat``, ``min_ess_bulk``, ``min_ess_tail`` (computed
             with ArviZ), and ``n_divergences``.
         """
-        rhat_values = az.rhat(self.trace)
-        ess_bulk_values = az.ess(self.trace, method='bulk')
-        ess_tail_values = az.ess(self.trace, method='tail')
+        diagnostic_var_names = [
+            variable.name for variable in self.model.free_RVs
+            if variable.name in self.trace.posterior
+        ]
+        diagnostic_var_names.extend(
+            name for name in (
+                'R',
+                'N_E_conditional_mean',
+                'N_E_positive_probability',
+            )
+            if name in self.trace.posterior
+            and name not in diagnostic_var_names
+        )
+        rhat_values = az.rhat(
+            self.trace, var_names=diagnostic_var_names)
+        ess_bulk_values = az.ess(
+            self.trace, var_names=diagnostic_var_names, method='bulk')
+        ess_tail_values = az.ess(
+            self.trace, var_names=diagnostic_var_names, method='tail')
+
+        def finite_statistics(dataset):
+            statistics = []
+            for name in diagnostic_var_names:
+                samples = np.asarray(self.trace.posterior[name].values)
+                components = samples.reshape(
+                    samples.shape[0], samples.shape[1], -1)
+                values = np.asarray(dataset[name].values).reshape(-1)
+                if values.size != components.shape[-1]:
+                    raise ValueError(
+                        "Diagnostic shape mismatch for {!r}.".format(name))
+                for component, value in zip(
+                        np.moveaxis(components, -1, 0), values):
+                    if np.isfinite(value):
+                        statistics.append(float(value))
+                    elif (np.all(np.isfinite(component))
+                          and np.ptp(component) == 0.0):
+                        continue
+                    else:
+                        raise ValueError(
+                            "Undefined diagnostic for non-constant {!r}."
+                            .format(name))
+            if not statistics:
+                raise ValueError("No non-constant variables to diagnose.")
+            return statistics
+
+        rhat_statistics = finite_statistics(rhat_values)
+        ess_bulk_statistics = finite_statistics(ess_bulk_values)
+        ess_tail_statistics = finite_statistics(ess_tail_values)
         return {
-            'max_rhat': float(rhat_values.to_array().max().values),
-            'min_ess_bulk': float(ess_bulk_values.to_array().min().values),
-            'min_ess_tail': float(ess_tail_values.to_array().min().values),
+            'max_rhat': max(rhat_statistics),
+            'min_ess_bulk': min(ess_bulk_statistics),
+            'min_ess_tail': min(ess_tail_statistics),
             'n_divergences': int(self.trace.sample_stats['diverging'].sum()),
         }
 
