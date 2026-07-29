@@ -54,6 +54,21 @@ RESULT_COLUMNS = [
     ('scm_noise_parameters', 'SCM Noise Parameters'),
     ('scm_constants', 'SCM Constants'),
     ('running_time', 'Running Time'),
+    # Design-specific provenance is part of the shared, versioned schema.
+    # Drivers that do not provide these fields retain a missing value.
+    ('result_schema_version', 'result_schema_version'),
+    ('experiment_design', 'experiment_design'),
+    ('experimental_unit', 'experimental_unit'),
+    ('replicate_id', 'replicate_id'),
+    ('patient_id', 'patient_id'),
+    ('data_seed', 'data_seed'),
+    ('sampler_seed', 'sampler_seed'),
+    ('sampler_stream_key', 'sampler_stream_key'),
+    ('observation_seed_scheme', 'observation_seed_scheme'),
+    ('fit_intercept', 'fit_intercept'),
+    ('source_row', 'source_row'),
+    ('historical_data_sha256', 'historical_data_sha256'),
+    ('prediction_model_intercept', 'prediction_model_intercept'),
     ('max_rhat', 'max(R-hat)'),
     ('min_ess_bulk', 'min(ESS), bulk'),
     ('min_ess_tail', 'min(ESS), tail'),
@@ -96,6 +111,7 @@ RESULT_COLUMNS = [
     ('param_N_E_std',           'param_N_E_std'),
     ('param_N_E_skew',          'param_N_E_skew'),
     ('param_N_E_kurtosis',      'param_N_E_kurtosis'),
+    ('posterior_negative_sign_probability', 'Posterior P(N_E < 0)'),
     ('param_alpha_mu_A_mean',   'param_alpha_mu_A_mean'),
     ('param_alpha_mu_A_std',    'param_alpha_mu_A_std'),
     ('param_alpha_mu_A_skew',   'param_alpha_mu_A_skew'),
@@ -129,12 +145,21 @@ RESULT_COLUMNS = [
     ('param_N_d_std',    'param_N_d_std'),
     ('param_N_d_skew',   'param_N_d_skew'),
     ('param_N_d_kurtosis', 'param_N_d_kurtosis'),
+    # Sampler settings make each result row self-describing.
+    ('n_draws',       'n_draws'),
+    ('n_tune',        'n_tune'),
+    ('n_chains',      'n_chains'),
+    ('target_accept', 'target_accept'),
 ]
 
 
 def write_results_to_file(result_dict, file_name='results.csv', path='./results/'):
     """
     Function for writing results to file.
+
+    Existing files must have exactly the same header as the row being
+    appended. A schema mismatch raises ``ValueError`` instead of producing a
+    malformed CSV.
 
     Args:
         result_dict [dict]: Dict of results to store.
@@ -159,6 +184,14 @@ def write_results_to_file(result_dict, file_name='results.csv', path='./results/
     row = {key: result_dict.get(key, float('nan')) for key in fieldnames}
 
     file_is_new = not Path(full_path).exists()
+    if not file_is_new:
+        with open(full_path, newline='') as existing_file:
+            existing_header = next(csv.reader(existing_file), None)
+        expected_header = [display_name for _, display_name in columns]
+        if existing_header != expected_header:
+            raise ValueError(
+                "existing results file has a different schema: {}".format(
+                    full_path))
     with open(full_path, 'a', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL,
                                 lineterminator='\n')

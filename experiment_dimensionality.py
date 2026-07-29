@@ -1,48 +1,69 @@
 """
-Dimensionality experiment: runs AgentModelNormalPredictions with k-dimensional X.
+Dimensionality experiment for a multivariate SCM with intercept.
 
-CLI usage::
+The coefficient-prior scaling is either ``1k`` or ``sqrtk``. Sampler settings
+and the selected model parameterization are written into every result row.
 
-    python experiment_dimensionality.py <param_name> <param_value> <n_covariates>
-
-``param_name`` is a key in ``agent_priors``; ``param_value`` is the new value
-(scalar equivalent for vector-valued priors; see _apply_prior_modification).
-``n_covariates`` sets the dimensionality k of X.
-
-Example::
-
-    python experiment_dimensionality.py N_E_mu 2.0 3
-    python experiment_dimensionality.py N_b_mu -0.3 2
-
-X_o is always sampled internally from the correct covariate distribution.
+Run ``python experiment_dimensionality.py --help`` for the command-line
+interface.
 """
+import argparse
+import hashlib
 import os
-import sys
 import time
+import uuid
+from pathlib import Path
 
-# ArviZ tries to write ~/.cache/arviz/ on import; the directory may not
-# exist on cluster nodes where the home directory is freshly mounted.
-os.makedirs(os.path.expanduser('~/.cache/arviz'), exist_ok=True)
+# ArviZ expects its cache directory to exist on compute nodes.
+_cache_root = os.environ.get(
+    'XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
+os.makedirs(os.path.join(_cache_root, 'arviz'), exist_ok=True)
 
 import arviz as az
-import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
-import scm
-import utils
 import agent_model as am
+import scm
+import single_prediction_collapsed_agent_model as spcam
+import utils
+from dimensionality_config import (
+    AGENT_MODEL as DEFAULT_AGENT_MODEL,
+    A0_TREATMENT,
+    A1_TREATMENT,
+    COEFFICIENT_PRIOR_REFERENCE,
+    DECISION_THRESHOLD,
+    DEFAULT_SCALING,
+    DIMENSIONALITY_EXPERIMENT_DESIGN,
+    FIT_INTERCEPT,
+    FIXED_RNG_SEED,
+    N_CHAINS,
+    N_DRAWS,
+    N_TUNE,
+    OBSERVATION_SEED_SCHEME,
+    PLATE_SIZE,
+    RESULT_SCHEMA_VERSION,
+    SCALING_CHOICES,
+    TARGET_ACCEPT,
+    TRUE_SCM,
+    format_stream_key,
+    run_stream_key,
+)
 
 
-# ---------------------------------------------------------------------------
-# Module-level defaults (identical treatment / threshold / draws as experiment.py)
-# ---------------------------------------------------------------------------
-plate_size  = 1000
-draws       = 1000
-A1_treatment = 20
-A0_treatment = 10
-threshold    = 5
-rng          = 4   # Selected by fair die
+plate_size = PLATE_SIZE
+draws = N_DRAWS
+A1_treatment = A1_TREATMENT
+A0_treatment = A0_TREATMENT
+threshold = DECISION_THRESHOLD
+rng = FIXED_RNG_SEED
+
+AGENT_MODEL = os.environ.get('DIM_MODEL', DEFAULT_AGENT_MODEL)
+VALID_AGENT_MODELS = ('normal', 'collapsed_sign_marginalized')
+if AGENT_MODEL not in VALID_AGENT_MODELS:
+    raise ValueError(
+        "DIM_MODEL must be one of {}, not {!r}".format(
+            VALID_AGENT_MODELS, AGENT_MODEL))
 
 parameter_descriptions = {
     'agent_priors':         'Default',
@@ -50,70 +71,154 @@ parameter_descriptions = {
     'scm_constants':        'Default',
 }
 
-# Scalar equivalents (k = 1 reference values) used for CV-preserving scaling.
-_NB_MU_1D   = -0.1
-_NB_SIG_1D  =  0.1
-_ND_MU_1D   =  0.125
-_ND_SIG_1D  =  0.1
-
 # Vector prior keys that are broadcast directly vs those scaled by 1/k.
 _BROADCAST_VECTOR_PARAMS = {'mu_X', 'sigma_X', 'mu_sigma_X', 'sigma_sigma_X'}
-_SCALED_VECTOR_PARAMS    = {'N_b_mu', 'N_b_sigma', 'N_d_mu', 'N_d_sigma'}
-_VECTOR_PARAMS           = _BROADCAST_VECTOR_PARAMS | _SCALED_VECTOR_PARAMS
+_SCALED_VECTOR_PARAMS = {'N_b_mu', 'N_b_sigma', 'N_d_mu', 'N_d_sigma'}
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _make_priors(k):
+def _make_priors(k, coef_sigma_scaling='1/k'):
     """
     Build agent prior dict for k covariates.
 
     N_b_mu[i] = -0.1/k and N_d_mu[i] = 0.125/k so that E[X^T N_b] and
-    E[X^T N_d] match the scalar case (mu_X = 80).  N_b_sigma and N_d_sigma
-    are scaled the same way to preserve the coefficient of variation per
-    dimension.
+    E[X^T N_d] match the scalar case (mu_X = 80). The mean scaling is
+    forced: without it the total systematic effect grows with k.
+
+    The sigma scaling is a free design choice, controlled by
+    ``coef_sigma_scaling``:
+
+    - ``'1/k'`` (default, original convention): preserves the coefficient
+      of variation per dimension. The prior variance of the aggregate
+      projections x^T N_b and x^T N_d then decays like 1/k
+      (Q_o * (0.1/k)^2 with Q_o ~ 6500 k gives ~65/k), so the posterior
+      can tighten with k because the prior itself becomes more concentrated.
+    - ``'1/sqrt(k)'``: keeps the prior variance of the aggregate
+      projections approximately constant across k for the baseline design.
+      By the single-prediction reduction, the coefficients enter the
+      likelihood only through those projections. This makes it a
+      prior-variance-preserving sensitivity convention for comparing
+      dimensionalities; it does not by itself imply equal total information
+      or an invariant posterior across k.
     """
+    if coef_sigma_scaling == '1/k':
+        sigma_divisor = k
+    elif coef_sigma_scaling == '1/sqrt(k)':
+        sigma_divisor = np.sqrt(k)
+    else:
+        raise ValueError(
+            "coef_sigma_scaling must be '1/k' or '1/sqrt(k)', not {!r}".format(
+                coef_sigma_scaling))
     return {
-        'mu_X':          np.full(k, 80.0),
+        'mu_X':          np.full(k, TRUE_SCM['alpha_mu_X']),
         'sigma_X':       np.full(k, 0.1),
-        'mu_sigma_X':    np.full(k, 10.0),
+        'mu_sigma_X':    np.full(k, TRUE_SCM['alpha_sigma_X']),
         'sigma_sigma_X': np.full(k, 0.1),
-        'mu_A':          2.0,
+        'mu_A':          TRUE_SCM['alpha_mu_A'],
         'sigma_A':       1.0,
-        'mu_sigma_A':    1.0,
+        'mu_sigma_A':    TRUE_SCM['alpha_sigma_A'],
         'sigma_sigma_A': 0.1,
-        'mu_Y':          12.0,
+        'mu_Y':          TRUE_SCM['alpha_mu_Y'],
         'sigma_Y':       0.01,
-        'mu_sigma_Y':    0.1,
+        'mu_sigma_Y':    TRUE_SCM['alpha_sigma_Y'],
         'sigma_sigma_Y': 0.01,
-        'N_E_mu':        1.0,
+        'N_E_mu':        TRUE_SCM['N_E'],
         'N_E_sigma':     1.0,
-        'N_b_mu':        np.full(k, _NB_MU_1D  / k),
-        'N_b_sigma':     np.full(k, _NB_SIG_1D / k),
-        'N_d_mu':        np.full(k, _ND_MU_1D  / k),
-        'N_d_sigma':     np.full(k, _ND_SIG_1D / k),
+        'N_b_mu': np.full(
+            k, COEFFICIENT_PRIOR_REFERENCE['N_b_mu'] / k),
+        'N_b_sigma': np.full(
+            k, COEFFICIENT_PRIOR_REFERENCE['N_b_sigma'] / sigma_divisor),
+        'N_d_mu': np.full(
+            k, COEFFICIENT_PRIOR_REFERENCE['N_d_mu'] / k),
+        'N_d_sigma': np.full(
+            k, COEFFICIENT_PRIOR_REFERENCE['N_d_sigma'] / sigma_divisor),
     }
 
 
-def _apply_prior_modification(agent_priors, param_name, param_value, k):
+def _apply_prior_modification(agent_priors, param_name, param_value, k,
+                              coef_sigma_scaling='1/k'):
     """
     Apply a single-float CLI modification to agent_priors in-place.
 
     For broadcast vector params (mu_X, …): sets every dimension to param_value.
-    For scaled vector params (N_b_mu, …): interprets param_value as the scalar
-    equivalent and divides by k per dimension (preserves E[X^T param] and CV).
+    For scaled vector params, param_value is the scalar (k = 1) equivalent:
+    means are always divided by k; sigmas are divided by k or sqrt(k)
+    according to ``coef_sigma_scaling``, consistently with ``_make_priors``.
     For scalar params: assigns directly.
-
-    Returns the modified dict and a bool indicating whether anything changed.
     """
     if param_name in _BROADCAST_VECTOR_PARAMS:
         agent_priors[param_name] = np.full(k, param_value)
+    elif param_name in {'N_b_sigma', 'N_d_sigma'}:
+        divisor = k if coef_sigma_scaling == '1/k' else np.sqrt(k)
+        agent_priors[param_name] = np.full(k, param_value / divisor)
     elif param_name in _SCALED_VECTOR_PARAMS:
         agent_priors[param_name] = np.full(k, param_value / k)
     else:
         agent_priors[param_name] = param_value
+
+
+def _prepare_run_randomness(k, rng, observed_x=None, observation_rng=None,
+                            data_rng=None):
+    """Prepare the observed patient and random streams for one run.
+
+    Args:
+        k (int): Number of covariates.
+        rng: Seed or NumPy Generator for the observed patient and sampler.
+        observed_x (array-like or None): Optional externally supplied
+            observation. Its shape must be ``(k,)``.
+        observation_rng: Optional independent seed or NumPy Generator for the
+            observed patient.
+        data_rng: Optional independent seed or NumPy Generator for the
+            historical dataset.
+
+    Returns:
+        tuple: ``(X_o, sampler_rng, historical_data_rng)``.
+    """
+    run_rng = np.random.default_rng(rng)
+    if observed_x is None:
+        patient_rng = (
+            run_rng if observation_rng is None
+            else np.random.default_rng(observation_rng)
+        )
+        X_o = patient_rng.normal(
+            loc=TRUE_SCM['alpha_mu_X'],
+            scale=TRUE_SCM['alpha_sigma_X'],
+            size=k)
+    else:
+        X_o = np.asarray(observed_x, dtype=float)
+        if X_o.shape != (k,):
+            raise ValueError(
+                "observed_x must have shape ({},), not {}".format(
+                    k, X_o.shape))
+        if not np.all(np.isfinite(X_o)):
+            raise ValueError("observed_x must contain only finite values")
+
+    historical_data_rng = (
+        run_rng if data_rng is None else np.random.default_rng(data_rng))
+    return X_o, run_rng, historical_data_rng
+
+
+def _array_fingerprint(*arrays):
+    """Return a stable SHA-256 fingerprint for typed NumPy arrays."""
+    digest = hashlib.sha256()
+    for value in arrays:
+        array = np.ascontiguousarray(value)
+        digest.update(array.dtype.str.encode('ascii'))
+        digest.update(str(array.shape).encode('ascii'))
+        digest.update(array.tobytes())
+    return digest.hexdigest()
+
+
+def _publish_without_overwrite(tmp_path, final_path):
+    """Atomically publish a staged file while preserving an existing result."""
+    tmp_path = Path(tmp_path)
+    final_path = Path(final_path)
+    try:
+        os.link(tmp_path, final_path)
+    except FileExistsError:
+        raise FileExistsError(
+            "refusing to overwrite concurrently published result: {}".format(
+                final_path))
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +229,9 @@ def main(agent_priors, modified_prior, k,
          A1_treatment=A1_treatment, A0_treatment=A0_treatment,
          plate_size=plate_size, draws=draws,
          parameter_descriptions=parameter_descriptions,
-         rng=rng):
+         sampler_settings=None, output_dir='./results/dim_runs', rng=rng,
+         observed_x=None, observation_rng=None, data_rng=None,
+         result_metadata=None):
     """
     Run one experiment trial with k-dimensional X.
 
@@ -135,70 +242,138 @@ def main(agent_priors, modified_prior, k,
         A1_treatment (float): Value of treatment 1.
         A0_treatment (float): Value of treatment 0.
         plate_size (int): Number of historical observations for the ML model.
-        draws (int): MCMC draw count (tuning uses the same number).
+        draws (int): posterior draw count per chain, also used for the
+            predictive and CATE sample summaries.
         parameter_descriptions (dict): Labels written to the result row.
-        rng: Seed or NumPy Generator for reproducibility.
+        sampler_settings (dict): ``draws``, ``tune``, ``chains`` and
+            ``target_accept`` passed to the sampler.
+        output_dir (str or Path): Directory for the per-run CSV file.
+        rng: Seed or NumPy Generator for the observed patient, sampler, and
+            predictive simulations.
+        observed_x (array-like or None): Optional observed feature vector.
+            When omitted, it is sampled from the true covariate distribution.
+        observation_rng: Optional independent seed or NumPy Generator used
+            only to generate ``X_o``.
+        data_rng: Optional independent seed or NumPy Generator for the
+            historical dataset.
+        result_metadata (dict or None): Additional provenance fields written
+            to the result row.
     """
     start_time = time.time()
+    if sampler_settings is None:
+        sampler_settings = {
+            'draws': draws,
+            'tune': N_TUNE,
+            'chains': N_CHAINS,
+            'target_accept': TARGET_ACCEPT,
+        }
+    else:
+        sampler_settings = sampler_settings.copy()
+    draws = sampler_settings['draws']
+    is_collapsed = AGENT_MODEL == 'collapsed_sign_marginalized'
+    seed_value = modified_prior.get('seed', 'NA')
+    scaling_tag = ('_sqrtk'
+                   if modified_prior.get('coef_sigma_scaling') == '1/sqrt(k)'
+                   else '')
+    run_file = 'results_{}_{:.6f}_k{}_seed{}{}.csv'.format(
+        modified_prior['modified_prior'],
+        modified_prior['modified_prior_value'],
+        k, seed_value, scaling_tag)
+    output_dir = Path(output_dir)
+    final_path = output_dir / run_file
+    if final_path.exists():
+        raise FileExistsError(
+            "refusing to overwrite existing result: {}".format(final_path))
 
     # 1. Data-generating SCM with true (fixed) parameters.
     data_scm = scm.MultivariateSCM(
         n_covariates=k,
-        alpha_mu_X=np.full(k, 80.0),
-        alpha_sigma_X=np.full(k, 10.0),
-        alpha_mu_A=2.0,
-        alpha_sigma_A=1.0,
-        alpha_mu_Y=12.0,
-        alpha_sigma_Y=0.1,
-        N_E=1.0,
-        N_b=np.full(k, _NB_MU_1D / k),
-        N_d=np.full(k, _ND_MU_1D / k),
+        alpha_mu_X=np.full(k, TRUE_SCM['alpha_mu_X']),
+        alpha_sigma_X=np.full(k, TRUE_SCM['alpha_sigma_X']),
+        alpha_mu_A=TRUE_SCM['alpha_mu_A'],
+        alpha_sigma_A=TRUE_SCM['alpha_sigma_A'],
+        alpha_mu_Y=TRUE_SCM['alpha_mu_Y'],
+        alpha_sigma_Y=TRUE_SCM['alpha_sigma_Y'],
+        N_E=TRUE_SCM['N_E'],
+        N_b=np.full(k, TRUE_SCM['N_b'] / k),
+        N_d=np.full(k, TRUE_SCM['N_d'] / k),
     )
 
-    # 2. Sample the observation X_o internally from the true covariate dist.
-    rng_obj = np.random.default_rng(rng) if isinstance(rng, int) else rng
-    X_o = rng_obj.normal(loc=80.0, scale=10.0, size=k)
+    # 2. Prepare the observed patient and historical-data random streams.
+    X_o, rng_obj, historical_data_rng = _prepare_run_randomness(
+        k, rng, observed_x=observed_x,
+        observation_rng=observation_rng, data_rng=data_rng)
 
     # 3. Generate historical data and train prediction model.
-    X, A, Y_historical, *_ = data_scm.sample(draws=plate_size, rng=rng_obj)
-    pred_model = LinearRegression(fit_intercept=True).fit(X, Y_historical)
+    X, A, Y_historical, *_ = data_scm.sample(
+        draws=plate_size, rng=historical_data_rng)
+    pred_model = LinearRegression(
+        fit_intercept=FIT_INTERCEPT).fit(X, Y_historical)
     pred_o = float(pred_model.predict(X_o.reshape(1, -1))[0])
+    historical_data_sha256 = _array_fingerprint(X, A, Y_historical)
 
-    # 4. Construct the agent model.
-    agent_model = am.AgentModelNormalPredictions(
-        n_covariates=k,
-        plate_size=plate_size,
-        prior_parameters=agent_priors,
-        fit_intercept=True,
-    )
+    # 4. Construct the selected agent model.
+    if is_collapsed:
+        agent_model = spcam.SinglePredictionCollapsedAgentModel(
+            n_covariates=k,
+            plate_size=plate_size,
+            prior_parameters=agent_priors,
+        )
+    else:
+        agent_model = am.AgentModelNormalPredictions(
+            n_covariates=k,
+            plate_size=plate_size,
+            prior_parameters=agent_priors,
+            fit_intercept=FIT_INTERCEPT,
+        )
 
     # 5. Prior CATE and treatment decision.
     prior_CATE_mu = agent_model.get_prior_CATE_mu(A1_treatment, A0_treatment)
-    prior_CATE_samples_, prior_CATE_mean, prior_CATE_std = \
-        agent_model.sample_prior_predictive_CATE(X_o, A1_treatment, A0_treatment)
+    if is_collapsed:
+        prior_CATE_samples_, prior_CATE_mean, prior_CATE_std = \
+            agent_model.sample_prior_predictive_CATE(A1_treatment, A0_treatment,
+                                                     draws=draws, rng=rng_obj)
+    else:
+        prior_CATE_samples_, prior_CATE_mean, prior_CATE_std = \
+            agent_model.sample_prior_predictive_CATE(X_o, A1_treatment, A0_treatment,
+                                                     rng=rng_obj)
     prior_treatment = A1_treatment if prior_CATE_mean > threshold else A0_treatment
     prior_predictive_summaries = agent_model.sample_prior_predictive_summaries(rng=rng_obj)
 
-    # 6. Posterior sampling.
-    agent_model.sample(X_o=X_o, pred_o=pred_o, draws=draws, rng=rng_obj)
+    # 6. Posterior sampling. All settings are explicit and recorded below.
+    agent_model.sample(X_o=X_o, pred_o=pred_o, rng=rng_obj,
+                       **sampler_settings)
 
-    rhat_values     = az.rhat(agent_model.trace)
-    ess_bulk_values = az.ess(agent_model.trace, method='bulk')
-    ess_tail_values = az.ess(agent_model.trace, method='tail')
-    trace_diagnostics = {
-        'max_rhat':      float(rhat_values.to_array().max().values),
-        'min_ess_bulk':  float(ess_bulk_values.to_array().min().values),
-        'min_ess_tail':  float(ess_tail_values.to_array().min().values),
-        'n_divergences': int(agent_model.trace.sample_stats['diverging'].sum()),
-    }
+    if is_collapsed:
+        trace_diagnostics = agent_model.trace_diagnostics()
+    else:
+        rhat_values = az.rhat(agent_model.trace)
+        ess_bulk_values = az.ess(agent_model.trace, method='bulk')
+        ess_tail_values = az.ess(agent_model.trace, method='tail')
+        trace_diagnostics = {
+            'max_rhat': float(rhat_values.to_array().max().values),
+            'min_ess_bulk': float(
+                ess_bulk_values.to_array().min().values),
+            'min_ess_tail': float(
+                ess_tail_values.to_array().min().values),
+            'n_divergences': int(
+                agent_model.trace.sample_stats['diverging'].sum()),
+        }
 
     # 7. Posterior CATE and treatment decision.
-    posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std = \
-        agent_model.sample_posterior_predictive_CATE(X_o, A1_treatment, A0_treatment,
-                                                     rng=rng_obj)
+    if is_collapsed:
+        posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std = \
+            agent_model.sample_posterior_predictive_CATE(A1_treatment, A0_treatment)
+    else:
+        posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std = \
+            agent_model.sample_posterior_predictive_CATE(X_o, A1_treatment, A0_treatment,
+                                                         rng=rng_obj)
     posterior_treatment = A1_treatment if posterior_CATE_mean > threshold else A0_treatment
     posterior_predictive_summaries  = agent_model.sample_posterior_predictive_summaries(rng=rng_obj)
-    posterior_parameter_summaries   = agent_model.posterior_parameter_summaries()
+    if is_collapsed:
+        posterior_parameter_summaries = agent_model.posterior_parameter_summaries(rng=rng_obj)
+    else:
+        posterior_parameter_summaries = agent_model.posterior_parameter_summaries()
 
     # 8. Ground truth CATE and potential outcomes.
     true_CATE_mu = data_scm.get_CATE_mu(A1_treatment, A0_treatment)
@@ -290,9 +465,13 @@ def main(agent_priors, modified_prior, k,
         'plate_size':          plate_size,
         'A1_treatment':        A1_treatment,
         'A0_treatment':        A0_treatment,
+        'historical_data_sha256': historical_data_sha256,
+        'prediction_model_intercept': float(pred_model.intercept_),
     }
     for i, val in enumerate(X_o):
         compiled_results['X_o_{}'.format(i)] = float(val)
+    for i, val in enumerate(np.ravel(pred_model.coef_)):
+        compiled_results['prediction_model_coef_{}'.format(i)] = float(val)
 
     compiled_results.update(outputs)
     compiled_results.update(parameter_descriptions)
@@ -304,32 +483,118 @@ def main(agent_priors, modified_prior, k,
     compiled_results['n_covariates'] = k
 
     compiled_results.update(modified_prior)
+    if result_metadata:
+        duplicate_metadata = set(result_metadata).intersection(
+            compiled_results)
+        if duplicate_metadata:
+            raise ValueError(
+                "result_metadata duplicates result fields: {}".format(
+                    sorted(duplicate_metadata)))
+        compiled_results.update(result_metadata)
     compiled_results.update(trace_diagnostics)
     compiled_results.update(prior_predictive_summaries)
     compiled_results.update(posterior_predictive_summaries)
     compiled_results.update(posterior_parameter_summaries)
     compiled_results.update(expected_outcomes)
 
+    # One atomic file per configuration avoids mixed per-k schemas. Publishing
+    # fails if a result with the same scientific key already exists.
+    compiled_results['agent_model'] = AGENT_MODEL
+    compiled_results['n_draws'] = sampler_settings['draws']
+    compiled_results['n_tune'] = sampler_settings['tune']
+    compiled_results['n_chains'] = sampler_settings['chains']
+    compiled_results['target_accept'] = sampler_settings['target_accept']
+    if is_collapsed:
+        compiled_results['posterior_negative_sign_probability'] = \
+            agent_model.posterior_negative_sign_probability()
+    tmp_file = '{}.tmp.{}.{}'.format(run_file, os.getpid(), uuid.uuid4().hex)
+    output_dir.mkdir(parents=True, exist_ok=True)
     utils.write_results_to_file(compiled_results,
-                                file_name='results_dimensionality.csv')
+                                file_name=tmp_file,
+                                path=str(output_dir) + os.sep)
+    tmp_path = output_dir / tmp_file
+    _publish_without_overwrite(tmp_path, final_path)
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
+def _positive_int(value):
+    """Parse a positive integer for argparse."""
+    value = int(value)
+    if value <= 0:
+        raise argparse.ArgumentTypeError("expected a positive integer")
+    return value
+
+
+def _nonnegative_int(value):
+    """Parse a non-negative integer for argparse."""
+    value = int(value)
+    if value < 0:
+        raise argparse.ArgumentTypeError("expected a non-negative integer")
+    return value
+
+
+def _target_accept(value):
+    """Parse a valid NUTS target acceptance probability."""
+    value = float(value)
+    if not 0.0 < value < 1.0:
+        raise argparse.ArgumentTypeError("expected a value strictly between 0 and 1")
+    return value
+
+
+def _parse_args():
+    """Parse the dimensionality experiment command line."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('param_name')
+    parser.add_argument('param_value', type=float)
+    parser.add_argument('n_covariates', type=_positive_int)
+    parser.add_argument(
+        'seed', nargs='?', type=_nonnegative_int, default=FIXED_RNG_SEED,
+        help='replicate identifier; used as the run seed unless '
+             '--fixed-rng-seed is supplied')
+    parser.add_argument(
+        'sigma_scaling', nargs='?', choices=tuple(SCALING_CHOICES),
+        default=DEFAULT_SCALING)
+    parser.add_argument(
+        'legacy_draws', nargs='?', type=_positive_int,
+        help=argparse.SUPPRESS)
+    parser.add_argument('--draws', type=_positive_int, default=None)
+    parser.add_argument('--tune', type=_positive_int, default=N_TUNE)
+    parser.add_argument('--chains', type=_positive_int, default=N_CHAINS)
+    parser.add_argument(
+        '--target-accept', type=_target_accept, default=TARGET_ACCEPT)
+    parser.add_argument('--output-dir', default='./results/dim_runs')
+    parser.add_argument(
+        '--fixed-rng-seed', type=_nonnegative_int,
+        help='base seed for historical data, observation and sampler streams')
+    parser.add_argument(
+        '--x-o', type=float,
+        help='externally supplied observation; supported only for k=1')
+    parser.add_argument(
+        '--source-row', type=_nonnegative_int,
+        help='source-row identifier for an externally supplied observation')
+    args = parser.parse_args()
+    if args.draws is not None and args.legacy_draws is not None:
+        parser.error("draws was supplied both positionally and with --draws")
+    if args.x_o is not None:
+        if args.n_covariates != 1:
+            parser.error("--x-o is supported only when n_covariates is 1")
+        if args.fixed_rng_seed is None or args.source_row is None:
+            parser.error(
+                "--x-o requires both --fixed-rng-seed and --source-row")
+    elif args.source_row is not None:
+        parser.error("--source-row requires --x-o")
+    args.draws = args.draws or args.legacy_draws or N_DRAWS
+    return args
+
 
 if __name__ == '__main__':
-    try:
-        param_name  = sys.argv[1]
-        param_value = float(sys.argv[2])
-        k           = int(sys.argv[3])
-    except (IndexError, ValueError):
-        raise ValueError(
-            "Usage: python experiment_dimensionality.py <param_name> <param_value> <n_covariates>\n"
-            "Example: python experiment_dimensionality.py N_E_mu 2.0 3"
-        )
+    args = _parse_args()
+    param_name = args.param_name
+    param_value = args.param_value
+    k = args.n_covariates
+    rng = args.seed
+    coef_sigma_scaling = SCALING_CHOICES[args.sigma_scaling]
 
-    agent_priors = _make_priors(k)
+    agent_priors = _make_priors(k, coef_sigma_scaling=coef_sigma_scaling)
 
     if param_name not in agent_priors:
         raise ValueError(
@@ -338,21 +603,81 @@ if __name__ == '__main__':
         )
 
     default_value = agent_priors[param_name]
-    _apply_prior_modification(agent_priors, param_name, param_value, k)
+    _apply_prior_modification(agent_priors, param_name, param_value, k,
+                              coef_sigma_scaling=coef_sigma_scaling)
 
     # Compare element-wise for vector params, directly for scalars.
     is_default = np.all(agent_priors[param_name] == default_value)
     parameter_descriptions['agent_priors'] = 'Default' if is_default else 'Modified'
 
     modified_prior = {
-        'modified_prior':       param_name,
+        'modified_prior': param_name,
         'modified_prior_value': param_value,
+        'seed': rng,
+        'coef_sigma_scaling': coef_sigma_scaling,
     }
+    observed_x = None
+    result_metadata = None
+    observation_rng = None
+    data_rng = None
+    run_rng = np.random.default_rng(args.seed)
+    if args.fixed_rng_seed is not None:
+        data_rng = np.random.default_rng(args.fixed_rng_seed)
+        if args.x_o is None:
+            sampler_key = run_stream_key(
+                'sampler', param_name, param_value, args.n_covariates,
+                args.seed, args.sigma_scaling)
+        else:
+            sampler_key = (2, args.n_covariates, args.source_row)
+        sampler_sequence = np.random.SeedSequence(
+            args.fixed_rng_seed, spawn_key=sampler_key)
+        run_rng = np.random.default_rng(sampler_sequence)
+        result_metadata = {
+            'result_schema_version': RESULT_SCHEMA_VERSION,
+            'replicate_id': args.seed,
+            'data_seed': args.fixed_rng_seed,
+            'sampler_seed': args.fixed_rng_seed,
+            'sampler_stream_key': format_stream_key(sampler_key),
+            'fit_intercept': FIT_INTERCEPT,
+            'experimental_unit': 'patient_observation',
+        }
+        if args.x_o is None:
+            observation_key = run_stream_key(
+                'observation', param_name, param_value, args.n_covariates,
+                args.seed, args.sigma_scaling)
+            observation_seed = np.random.SeedSequence(
+                args.fixed_rng_seed, spawn_key=observation_key)
+            observation_rng = np.random.default_rng(observation_seed)
+            result_metadata.update({
+                'experiment_design': DIMENSIONALITY_EXPERIMENT_DESIGN,
+                'observation_seed_scheme': OBSERVATION_SEED_SCHEME,
+                'patient_id': format_stream_key(observation_key),
+            })
+        else:
+            observed_x = np.asarray([args.x_o])
+            result_metadata.update({
+                'experiment_design': 'univariate_intercept_wide',
+                'observation_seed_scheme': 'archived_observation',
+                'patient_id': args.source_row,
+                'source_row': args.source_row,
+            })
 
     print("Running experiment: param={}, value={}, k={}".format(
         param_name, param_value, k))
 
-    rng_obj = np.random.default_rng(rng)
+    sampler_settings = {
+        'draws': args.draws,
+        'tune': args.tune,
+        'chains': args.chains,
+        'target_accept': args.target_accept,
+    }
     main(agent_priors, modified_prior, k,
          parameter_descriptions=parameter_descriptions,
-         rng=rng_obj)
+         draws=args.draws,
+         sampler_settings=sampler_settings,
+         output_dir=args.output_dir,
+         rng=run_rng,
+         observed_x=observed_x,
+         observation_rng=observation_rng,
+         data_rng=data_rng,
+         result_metadata=result_metadata)
