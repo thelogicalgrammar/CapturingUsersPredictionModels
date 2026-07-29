@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import seaborn as sns
 
+from dimensionality_config import SCAN_CENTERS
+
 
 # Single source of truth for the results schema: (dict key, display header)
 # pairs, in column order. Both the CSV header row and the row-writing key
@@ -223,7 +225,42 @@ def load_results(file_name='./results/results.csv'):
     }
 
 
-def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name, x_lim, y_lim, scan):
+def _mixture_moments(df, group_col, mean_col, std_col):
+    """Return moments of an equally weighted empirical mixture.
+
+    Each row represents one observed patient and stores the mean and standard
+    deviation of that patient's predictive distribution.  The aggregate
+    variance follows the law of total variance,
+
+    ``E[Var(Y | patient)] + Var(E[Y | patient])``.
+    """
+    rows = []
+    for value, group in df.groupby(group_col, sort=True):
+        means = pd.to_numeric(group[mean_col], errors='coerce').to_numpy(
+            dtype=float)
+        stds = pd.to_numeric(group[std_col], errors='coerce').to_numpy(
+            dtype=float)
+        if (not np.isfinite(means).all() or
+                not np.isfinite(stds).all() or (stds < 0).any()):
+            raise ValueError(
+                'non-finite mean or invalid standard deviation for {}'
+                .format(value))
+        mean = means.mean()
+        variance = np.mean(stds ** 2 + means ** 2) - mean ** 2
+        # Floating-point cancellation can make an exact zero slightly
+        # negative; a materially negative variance is a data error.
+        tolerance = np.finfo(float).eps * max(
+            1.0, np.mean(stds ** 2 + means ** 2)) * 16
+        if variance < -tolerance:
+            raise ValueError(
+                'negative mixture variance for {}'.format(value))
+        rows.append((value, mean, np.sqrt(max(variance, 0.0))))
+    return pd.DataFrame(
+        rows, columns=[group_col, 'mean', 'std']).set_index(group_col)
+
+
+def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name,
+                      x_lim, y_lim, scan):
     """
     Args:
         var (str): Name of modified prior variable.
@@ -235,31 +272,39 @@ def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name, x_lim, y_lim
         x_lim ((float, float)): +-Limits of horizontal axis.
         y_lim ((float, float)): +-Limits of vertical axis.
     """
-    fields = ['Prior CATE (sample mean)',
-              'Posterior CATE (sample mean)',
-              'True CATE (sample mean)']
+    fields = [
+        ('Prior CATE (sample mean)',
+         'Prior CATE Standard Deviation (sample estimate)'),
+        ('Posterior CATE (sample mean)',
+         'Posterior CATE Standard Deviation (sample estimate)'),
+        ('True CATE (sample mean)',
+         'True CATE Standard Deviation (sample estimate)'),
+    ]
     label_names = ['Without ML-DS', 'With ML-DS', 'True value']
     threshold = 5
-    n_observations = 4000
 
     df = load_results(file_name)[var]
-    summary = df.groupby('New value of modified prior')[fields].agg(['mean', 'std'])
+    summaries = [
+        _mixture_moments(
+            df, 'New value of modified prior', mean_col, std_col)
+        for mean_col, std_col in fields
+    ]
 
     if std_of_x is not None:
-        x = (summary.index.values - mean_of_x) / std_of_x
+        x = (summaries[0].index.values - mean_of_x) / std_of_x
     else:
-        x = summary.index.values
+        x = summaries[0].index.values
 
     fig, ax = plt.subplots()
-    for field, label_name in zip(fields, label_names):
-        y = summary[(field, 'mean')].values
-        # Std of means * sqrt(n) converts to std of observations.
-        yerr = np.sqrt(n_observations) * summary[(field, 'std')].values
+    for (mean_col, _std_col), summary, label_name in zip(
+            fields, summaries, label_names):
+        y = summary['mean'].values
+        yerr = summary['std'].values
         ax.plot(x, y)
         ax.fill_between(x, y + yerr, y - yerr, alpha=0.2, label=label_name)
-        if field == 'Posterior CATE (sample mean)':
+        if mean_col == 'Posterior CATE (sample mean)':
             y_post, yerr_post = y, yerr
-        elif field == 'True CATE (sample mean)':
+        elif mean_col == 'True CATE (sample mean)':
             y_true = y
 
     mask = (y_true > y_post - yerr_post) & (y_true < y_post + yerr_post)
@@ -400,21 +445,30 @@ def _box_style(color):
     )
 
 
-def _draw_cate_panel(ax, df, param_col, colors, threshold, n_observations,
+def _draw_cate_panel(ax, df, param_col, colors, threshold,
                      y_lim_cate=None):
     """Draw the CATE line plot onto ax. Returns x_all (sorted unique x values)."""
-    cate_fields = ['Prior CATE (sample mean)', 'Posterior CATE (sample mean)']
+    cate_fields = [
+        ('Prior CATE (sample mean)',
+         'Prior CATE Standard Deviation (sample estimate)'),
+        ('Posterior CATE (sample mean)',
+         'Posterior CATE Standard Deviation (sample estimate)'),
+    ]
     cate_labels = ['Without ML-DS', 'With ML-DS']
-    summary = df.groupby(param_col)[cate_fields].agg(['mean', 'std'])
-    x_all = summary.index.values
+    summaries = [
+        _mixture_moments(df, param_col, mean_col, std_col)
+        for mean_col, std_col in cate_fields
+    ]
+    x_all = summaries[0].index.values
     y_post = yerr_post = None
 
-    for i, (field, label) in enumerate(zip(cate_fields, cate_labels)):
-        y = summary[(field, 'mean')].values
-        yerr = np.sqrt(n_observations) * summary[(field, 'std')].values
+    for i, ((mean_col, _std_col), summary, label) in enumerate(
+            zip(cate_fields, summaries, cate_labels)):
+        y = summary['mean'].values
+        yerr = summary['std'].values
         ax.plot(x_all, y, color=colors[i], label=label)
         ax.fill_between(x_all, y - yerr, y + yerr, alpha=0.2, color=colors[i])
-        if field == 'Posterior CATE (sample mean)':
+        if mean_col == 'Posterior CATE (sample mean)':
             y_post, yerr_post = y, yerr
 
     true_cate_mean = df['True CATE (sample mean)'].mean()
@@ -433,21 +487,38 @@ def _draw_cate_panel(ax, df, param_col, colors, threshold, n_observations,
 
 def _draw_outcome_panel(ax, df, param_col, x_all, colors):
     """Draw the E[Y|do(A)] line plot onto ax."""
+    treatments = {}
+    for key, column in (('A0', 'A0_treatment'), ('A1', 'A1_treatment')):
+        values = pd.to_numeric(df[column], errors='coerce')
+        unique_values = values[np.isfinite(values)].unique()
+        if len(unique_values) != 1 or len(unique_values) != len(values.unique()):
+            raise ValueError(
+                '{} must contain one finite treatment value'.format(column))
+        treatments[key] = '{:g}'.format(unique_values[0])
     outcome_series = [
-        ('expected_prior_outcome_A0_mean',     'expected_prior_outcome_A0_std',     colors[0], '-',  'Without ML-DS (A=0)'),
-        ('expected_posterior_outcome_A0_mean', 'expected_posterior_outcome_A0_std', colors[1], '-',  'With ML-DS (A=0)'),
-        ('expected_prior_outcome_A1_mean',     'expected_prior_outcome_A1_std',     colors[0], '--', 'Without ML-DS (A=1)'),
-        ('expected_posterior_outcome_A1_mean', 'expected_posterior_outcome_A1_std', colors[1], '--', 'With ML-DS (A=1)'),
+        ('expected_prior_outcome_A0_mean', 'expected_prior_outcome_A0_std',
+         colors[0], '-', 'Without ML-DS (A={})'.format(treatments['A0'])),
+        ('expected_posterior_outcome_A0_mean', 'expected_posterior_outcome_A0_std',
+         colors[1], '-', 'With ML-DS (A={})'.format(treatments['A0'])),
+        ('expected_prior_outcome_A1_mean', 'expected_prior_outcome_A1_std',
+         colors[0], '--', 'Without ML-DS (A={})'.format(treatments['A1'])),
+        ('expected_posterior_outcome_A1_mean', 'expected_posterior_outcome_A1_std',
+         colors[1], '--', 'With ML-DS (A={})'.format(treatments['A1'])),
     ]
     for mean_col, std_col, color, ls, label in outcome_series:
-        y = df.groupby(param_col)[mean_col].mean().values
-        yerr = df.groupby(param_col)[std_col].mean().values
+        summary = _mixture_moments(df, param_col, mean_col, std_col)
+        y = summary['mean'].values
+        yerr = summary['std'].values
         ax.plot(x_all, y, color=color, linestyle=ls, label=label)
         ax.fill_between(x_all, y - yerr, y + yerr, alpha=0.2, color=color)
     true_a0_mean = df['potential_outcome_A0_mean'].mean()
     true_a1_mean = df['potential_outcome_A1_mean'].mean()
-    ax.axhline(y=true_a0_mean, color='black', linestyle=(0, (8, 12)), label='True value (A=0)')
-    ax.axhline(y=true_a1_mean, color='black', linestyle=(0, (4, 6)),  label='True value (A=1)')
+    ax.axhline(
+        y=true_a0_mean, color='black', linestyle=(0, (8, 12)),
+        label='True value (A={})'.format(treatments['A0']))
+    ax.axhline(
+        y=true_a1_mean, color='black', linestyle=(0, (4, 6)),
+        label='True value (A={})'.format(treatments['A1']))
 
 
 def _draw_boxplot_panel(ax, df, param_col, max_boxes, prior_color, posterior_color,
@@ -480,7 +551,7 @@ def _draw_boxplot_panel(ax, df, param_col, max_boxes, prior_color, posterior_col
 
 def plot_combined_for_var(df, variable_name, mean_x, std_x, x_label,
                           x_lim=None, y_lim_cate=None, max_boxes=30,
-                          threshold=5, scan='', n_observations=4000):
+                          threshold=5, scan=''):
     """
     Combined CATE line plot (top), E[Y|do(A)] line plot (middle), and Y outcome
     boxplot (bottom) with a shared continuous x-axis.
@@ -499,8 +570,11 @@ def plot_combined_for_var(df, variable_name, mean_x, std_x, x_label,
         max_boxes (int): Maximum number of x-positions in the boxplot.
         threshold (float): CATE threshold line drawn in the CATE panel.
         scan (str): Scan label used in the output file name.
-        n_observations (int): Multiplier converting std-of-means to
-            std-of-observations for the CATE uncertainty band.
+
+    Notes:
+        The uncertainty bands are empirical-mixture standard deviations,
+        combining the stored within-patient variance with variation between
+        observed patients.
     """
     param_col = 'New value of modified prior'
     df = df.copy()
@@ -523,8 +597,8 @@ def plot_combined_for_var(df, variable_name, mean_x, std_x, x_label,
         gridspec_kw={'height_ratios': [1, 1, 1]})
     fig.subplots_adjust(hspace=0.05)
 
-    x_all = _draw_cate_panel(ax_mid, df, param_col, colors, threshold,
-                              n_observations, y_lim_cate)
+    x_all = _draw_cate_panel(
+        ax_mid, df, param_col, colors, threshold, y_lim_cate)
     ax_mid.set_ylabel('CATE')
     ax_mid.legend(loc='best')
 
@@ -550,7 +624,8 @@ def plot_combined_for_var(df, variable_name, mean_x, std_x, x_label,
 
 
 def plot_combined_grid(file_name='./results/results_18_2.csv', scan='wide',
-                       threshold=5, n_observations=4000, max_boxes=30):
+                       threshold=5, max_boxes=30, scan_centers=None,
+                       scan_deviations=None):
     """
     Create a 3×3 grid figure for mu_X, mu_A, and N_E.
 
@@ -562,12 +637,31 @@ def plot_combined_grid(file_name='./results/results_18_2.csv', scan='wide',
         file_name (str): Path to the results CSV file.
         scan (str): 'wide' or 'focused'; selects x-axis limits.
         threshold (float): CATE threshold line value.
-        n_observations (int): Multiplier for CATE uncertainty band.
         max_boxes (int): Maximum number of x-positions in the boxplot.
+        scan_centers (dict or None): Optional mapping from prior name to
+            ``(center, step)``. The historical no-intercept values are used
+            when omitted.
+        scan_deviations (sequence or None): Optional scan offsets used for
+            x-axis limits.
     """
     var_names  = ['mu_X', 'mu_A', 'N_E_mu']
-    mean_of_vars = [80.0,  2.0,   None]
-    std_of_vars  = [10.0,  1.0,   None]
+    historical_centers = {
+        'mu_X': (80.0, 10.0),
+        'mu_A': (2.0, 1.0),
+        'N_E_mu': (1.0, 0.05),
+    }
+    centers = historical_centers if scan_centers is None else {
+        **historical_centers, **scan_centers}
+    # N_E is shown on its original scale; the remaining prior means are
+    # normalized to registered scan units.
+    mean_of_vars = [
+        None if var == 'N_E_mu' else centers[var][0]
+        for var in var_names
+    ]
+    std_of_vars = [
+        None if var == 'N_E_mu' else centers[var][1]
+        for var in var_names
+    ]
     x_lims_by_scan = {
         'wide':    [(-30, 30), (-30, 30), (-0.5, 2.5)],
         'focused': [(-3, 3),   (-3, 3),   None],
@@ -583,7 +677,17 @@ def plot_combined_grid(file_name='./results/results_18_2.csv', scan='wide',
         r'Prior belief on $N_E$',
     ]
 
-    x_lims = x_lims_by_scan.get(scan, x_lims_by_scan['wide'])
+    if scan_deviations is None:
+        x_lims = x_lims_by_scan.get(scan, x_lims_by_scan['wide'])
+    else:
+        lower, upper = min(scan_deviations), max(scan_deviations)
+        n_e_center, n_e_step = centers['N_E_mu']
+        x_lims = [
+            (lower, upper),
+            (lower, upper),
+            (n_e_center + lower * n_e_step,
+             n_e_center + upper * n_e_step),
+        ]
     param_col = 'New value of modified prior'
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
     prior_color, posterior_color = colors[0], colors[1]
@@ -613,8 +717,8 @@ def plot_combined_grid(file_name='./results/results_18_2.csv', scan='wide',
             margin = (x_max - x_min) * 0.03
             effective_xlim = (x_min - margin, x_max + margin)
 
-        x_all = _draw_cate_panel(ax_cate, df, param_col, colors, threshold,
-                                  n_observations)
+        x_all = _draw_cate_panel(
+            ax_cate, df, param_col, colors, threshold)
         if show_legend:
             ax_cate.legend(loc='best', fontsize='small')
 
@@ -643,7 +747,8 @@ def plot_combined_grid(file_name='./results/results_18_2.csv', scan='wide',
     plt.clf()
 
 
-def plot_all_combined(file_name='./results/results_18_2.csv', scan='wide'):
+def plot_all_combined(file_name='./results/results_18_2.csv', scan='wide',
+                      scan_centers=None, scan_deviations=None):
     """
     Create combined figures for all modified priors for one scan type.
 
@@ -652,8 +757,22 @@ def plot_all_combined(file_name='./results/results_18_2.csv', scan='wide'):
         scan (str): 'wide' (default) or 'focused'.
     """
     var_names = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
-    mean_of_vars = [80.0, None, 0.0, 2.0]
-    std_of_vars = [10.0, None, 0.1, 1.0]
+    historical_centers = {
+        'mu_X': (80.0, 10.0),
+        'N_E_mu': (1.0, 0.05),
+        'mu_Y': (0.0, 0.1),
+        'mu_A': (2.0, 1.0),
+    }
+    centers = historical_centers if scan_centers is None else {
+        **historical_centers, **scan_centers}
+    mean_of_vars = [
+        None if var == 'N_E_mu' else centers[var][0]
+        for var in var_names
+    ]
+    std_of_vars = [
+        None if var == 'N_E_mu' else centers[var][1]
+        for var in var_names
+    ]
     x_lims_by_scan = {
         'wide':    [(-30, 30), (-0.5, 2.5), (-30, 30), (-30, 30)],
         'focused': [(-3, 3),   None,  (-3, 3),   (-3, 3)],
@@ -666,7 +785,17 @@ def plot_all_combined(file_name='./results/results_18_2.csv', scan='wide'):
         r'Deviation of prior belief $\alpha_{\mu_A}$ from $\mu_A$ in units of SD ($\alpha_{\sigma_A}$)',
     ]
 
-    x_lims = x_lims_by_scan.get(scan, x_lims_by_scan['wide'])
+    if scan_deviations is None:
+        x_lims = x_lims_by_scan.get(scan, x_lims_by_scan['wide'])
+    else:
+        lower, upper = min(scan_deviations), max(scan_deviations)
+        x_lims = [
+            (lower, upper),
+            (centers['N_E_mu'][0] + lower * centers['N_E_mu'][1],
+             centers['N_E_mu'][0] + upper * centers['N_E_mu'][1]),
+            (lower, upper),
+            (lower, upper),
+        ]
     results = load_results(file_name)
     for var, mean_x, std_x, x_lim, y_lim_cate, x_label in zip(
             var_names, mean_of_vars, std_of_vars,
@@ -857,26 +986,19 @@ def _parse_dimensionality(x_o_value):
     return len(parsed) if isinstance(parsed, list) else 1
 
 
-_PRIOR_REFERENCE = {
-    'mu_A':   (2.0,  1.0),
-    'mu_X':   (80.0, 10.0),
-    'mu_Y':   (0.0,  0.1),
-    'N_E_mu': (1.0,  0.05),
-}
-
-
-def _to_std_label(prior_name, value):
-    ref, sigma = _PRIOR_REFERENCE.get(prior_name, (0.0, 1.0))
-    n_std = round((value - ref) / sigma)
-    return '{:+d}σ'.format(n_std)
+def _to_scan_label(prior_name, value, scan_centers=None):
+    centers = SCAN_CENTERS if scan_centers is None else scan_centers
+    ref, step = centers.get(prior_name, (0.0, 1.0))
+    scan_offset = round((value - ref) / step)
+    return '{:+d} scan units'.format(scan_offset)
 
 
 _MARKERS_BY_ABS_RANK = ['o', 's', '^', 'D', 'X']
 
 
-def _line_emphasis(abs_n_std, sorted_unique_abs):
-    """Return (linewidth, alpha, zorder) based on rank of abs_n_std (smallest = most emphasis)."""
-    rank  = sorted_unique_abs.index(abs_n_std)
+def _line_emphasis(abs_scan_offset, sorted_unique_abs):
+    """Return line emphasis by absolute scan-offset rank."""
+    rank  = sorted_unique_abs.index(abs_scan_offset)
     n     = max(len(sorted_unique_abs) - 1, 1)
     t     = rank / n                        # 0 = most central, 1 = most extreme
     lw    = 2.5 - 1.8 * t                  # 2.5 → 0.7
@@ -884,7 +1006,16 @@ def _line_emphasis(abs_n_std, sorted_unique_abs):
     return lw, alpha, n - rank
 
 
-def plot_dimensionality(file_name='./results/results_dimensionality.csv'):
+def plot_dimensionality(file_name='./results/results_dimensionality.csv',
+                        scan_centers=None):
+    """
+    Plot mean posterior CATE against covariate dimensionality.
+
+    Args:
+        file_name (str): Consolidated dimensionality-results CSV.
+        scan_centers (dict or None): Optional mapping from prior name to
+            ``(center, step)`` used to label scan offsets.
+    """
     prior_col   = 'Modified prior'
     value_col   = 'New value of modified prior'
     outcome_col = 'Posterior CATE (sample mean)'
@@ -902,25 +1033,27 @@ def plot_dimensionality(file_name='./results/results_dimensionality.csv'):
         dim_values   = sorted(agg_mean.index.tolist())
         prior_values = sorted(agg_mean.columns.tolist())
 
-        ref, sigma = _PRIOR_REFERENCE.get(prior_name, (0.0, 1.0))
-        abs_stds   = sorted({abs(round((v - ref) / sigma)) for v in prior_values})
+        centers = SCAN_CENTERS if scan_centers is None else scan_centers
+        ref, step = centers.get(prior_name, (0.0, 1.0))
+        abs_offsets = sorted({abs(round((v - ref) / step)) for v in prior_values})
 
         fig, ax = plt.subplots()
         for pval in prior_values:
-            if abs(round((pval - ref) / sigma)) == 30:
-                continue
-            n_std     = round((pval - ref) / sigma)
-            abs_n_std = abs(n_std)
-            abs_rank  = abs_stds.index(abs_n_std)
+            scan_offset = round((pval - ref) / step)
+            abs_offset = abs(scan_offset)
+            abs_rank = abs_offsets.index(abs_offset)
 
-            color  = 'black' if n_std == 0 else ('#D6604D' if n_std > 0 else '#2166AC')
+            color = ('black' if scan_offset == 0 else
+                     ('#D6604D' if scan_offset > 0 else '#2166AC'))
             marker = _MARKERS_BY_ABS_RANK[abs_rank % len(_MARKERS_BY_ABS_RANK)]
-            lw, alpha, zo = _line_emphasis(abs_n_std, abs_stds)
+            lw, alpha, zo = _line_emphasis(abs_offset, abs_offsets)
 
             y    = agg_mean[pval].values
             ax.plot(dim_values, y,
                     color=color, marker=marker, linewidth=lw,
-                    alpha=alpha, zorder=zo, label=_to_std_label(prior_name, pval))
+                    alpha=alpha, zorder=zo,
+                    label=_to_scan_label(
+                        prior_name, pval, scan_centers=centers))
 
         ax.axhline(true_cate, color='gray', linewidth=0.8,
                    linestyle=(0, (6, 6)), label='True CATE')
@@ -930,13 +1063,26 @@ def plot_dimensionality(file_name='./results/results_dimensionality.csv'):
         ax.set_xlabel('X dimensionality (k)')
         ax.set_ylabel('Posterior CATE (sample mean)')
         ax.set_title('Effect of dimensionality on posterior CATE — {}'.format(prior_name))
-        ax.legend(title='Misalignment of prior mean', loc='best')
+        ax.legend(title='Misalignment of prior mean', loc='center left',
+                  bbox_to_anchor=(1.02, 0.5), borderaxespad=0)
 
         plt.savefig('./fig/dim_{}.pdf'.format(prior_name), bbox_inches='tight')
         plt.clf()
 
 
-def plot_dimensionality_improvement(file_name='./results/results_dimensionality.csv'):
+def plot_dimensionality_improvement(
+        file_name='./results/results_dimensionality.csv',
+        scan_centers=None):
+    """
+    Plot prior and posterior CATE against covariate dimensionality.
+
+    One panel is produced for every scanned value of each prior family.
+
+    Args:
+        file_name (str): Consolidated dimensionality-results CSV.
+        scan_centers (dict or None): Optional mapping from prior name to
+            ``(center, step)`` used to label scan offsets.
+    """
     prior_col = 'Modified prior'
     value_col = 'New value of modified prior'
     dim_col   = 'dimensionality'
@@ -948,7 +1094,8 @@ def plot_dimensionality_improvement(file_name='./results/results_dimensionality.
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
     for prior_name, prior_df in df.groupby(prior_col):
-        ref, sigma = _PRIOR_REFERENCE.get(prior_name, (0.0, 1.0))
+        centers = SCAN_CENTERS if scan_centers is None else scan_centers
+        ref, step = centers.get(prior_name, (0.0, 1.0))
 
         grouped      = prior_df.groupby([dim_col, value_col])
         agg_prior    = grouped['Prior CATE (sample mean)'].mean().unstack(level=value_col)
@@ -956,9 +1103,7 @@ def plot_dimensionality_improvement(file_name='./results/results_dimensionality.
 
         dim_values   = sorted(agg_prior.index.tolist())
         prior_values = sorted(
-            [v for v in agg_prior.columns if abs(round((v - ref) / sigma)) != 30],
-            key=lambda v: round((v - ref) / sigma)
-        )
+            agg_prior.columns, key=lambda v: round((v - ref) / step))
 
         n_plots = len(prior_values)
         ncols   = 2
@@ -968,7 +1113,8 @@ def plot_dimensionality_improvement(file_name='./results/results_dimensionality.
 
         for idx, pval in enumerate(prior_values):
             ax    = axes.flat[idx]
-            label = _to_std_label(prior_name, pval)
+            label = _to_scan_label(
+                prior_name, pval, scan_centers=centers)
 
             ax.plot(dim_values, agg_prior[pval].values,
                     color=colors[0], linestyle='--', marker='o',
@@ -987,6 +1133,7 @@ def plot_dimensionality_improvement(file_name='./results/results_dimensionality.
         for idx in range(n_plots, nrows * ncols):
             axes.flat[idx].set_visible(False)
 
+        axes = np.asarray(axes).reshape(nrows, ncols)
         for ax in axes[:, 0]:
             ax.set_ylabel('CATE (sample mean)')
         for ax in axes[-1, :]:
