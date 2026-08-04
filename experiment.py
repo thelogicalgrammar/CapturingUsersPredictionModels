@@ -38,7 +38,7 @@ from sklearn.linear_model import LinearRegression
 # Project specific:
 import scm
 import utils
-import agent_model as am
+import single_prediction_no_intercept_agent_model as spniam
 from experiment_randomness import (
     NO_INTERCEPT_SCAN_CENTERS,
     RESULT_SCHEMA_VERSION,
@@ -58,8 +58,6 @@ scm_noise_parameters = {'alpha_mu_X': 80, 'alpha_sigma_X': 10,
                         'alpha_mu_Y': 0.0, 'alpha_sigma_Y': 0.1,
                         'N_E': 1.0}
 
-# Set scm agent priors to the same
-predictive_var_names = list(scm_noise_parameters)
 scm_constants = {'a': 12.0, 'b': -0.1, 'd': 0.125}
 draws = 1000  # Number of draws for trace. Warmup is set to 1000.
 # Default values of agent priors. One value is overwritten in main().
@@ -185,16 +183,16 @@ def main(X_o, agent_priors, modified_prior,
 
     # 5. Define the agent model.
     #    Using same _constants_ for agent's internal SCM as for data generating SCM.
-    agent_model = am.ScalarAgentModel(prior_parameters=agent_priors,
-                                       scm_constants=scm_constants,
-                                       predictive_var_names=predictive_var_names,
-                                       plate_size=plate_size)
+    agent_model = spniam.SinglePredictionNoInterceptAgentModel(
+        prior_parameters=agent_priors,
+        scm_constants=scm_constants,
+        plate_size=plate_size)
 
     # 6. Predictive estimates and treatment decision under prior beliefs
     prior_CATE_mu = agent_model.get_prior_CATE_mu(A1_treatment, A0_treatment)
     prior_CATE_samples_, prior_CATE_mean, prior_CATE_std = \
         agent_model.sample_prior_predictive_CATE(
-            X_o, A1_treatment, A0_treatment, rng=rng)
+            A1_treatment, A0_treatment, rng=rng)
     prior_high_treatment = prior_CATE_mu > threshold
     prior_treatment = (
         A1_treatment if prior_high_treatment else A0_treatment)
@@ -209,8 +207,9 @@ def main(X_o, agent_priors, modified_prior,
     trace_diagnostics = agent_model.trace_diagnostics()
 
     # Using updated agent beliefs to come to a decision on what is the best treatment
-    posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std =\
-        agent_model.sample_posterior_predictive_CATE(X_o, A1_treatment, A0_treatment, rng=rng)
+    posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std = \
+        agent_model.sample_posterior_predictive_CATE(
+            A1_treatment, A0_treatment)
     posterior_high_treatment = posterior_CATE_mean > threshold
     posterior_treatment = (
         A1_treatment if posterior_high_treatment else A0_treatment)
@@ -362,7 +361,9 @@ def main(X_o, agent_priors, modified_prior,
                 'result_metadata duplicates result fields: {}'.format(
                     sorted(duplicate_metadata)))
         compiled_results.update(result_metadata)
-    compiled_results['agent_model'] = 'scalar'
+    compiled_results['agent_model'] = 'scalar_sign_marginalized'
+    compiled_results['posterior_negative_sign_probability'] = \
+        agent_model.posterior_negative_sign_probability()
     compiled_results['fit_intercept'] = False
     compiled_results['n_covariates'] = 1
     compiled_results['n_draws'] = sampler_settings['draws']
@@ -389,8 +390,6 @@ def main(X_o, agent_priors, modified_prior,
     # Save model to disk:
     # agent_model.save_agent_model(experiment_id)
 
-    # Testing that loading works.
-    # tmp = am.ScalarAgentModel.load_agent_model()
     # What is the posterior distribution of the agent's belief about N_E?
     # az.plot_posterior(agent_model.trace, var_names=['N_E', 'alpha_mu_A'])
     # plt.title(r"Posterior distribution of correlation between $mu_A$ and $N_E$")

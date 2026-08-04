@@ -5,7 +5,7 @@ import numpy as np
 BASE_SEED = 6
 SCHEME = 'seedsequence_semantic_run_v1'
 STREAM_VERSION = 1
-RESULT_SCHEMA_VERSION = 7
+RESULT_SCHEMA_VERSION = 9
 
 EXPERIMENT_CODES = {
     'univariate_no_intercept': 1,

@@ -135,13 +135,9 @@ observes a single observed feature vector <code class="docutils literal notransl
 prediction <code class="docutils literal notranslate"><span class="pre">pred_o</span></code> produced for it.</p>
 <p>Instead of representing the historical plate of training patients explicitly,
 the model uses the low-dimensional sufficient-statistic reduction of the plate.
-The reduced auxiliary variables are:</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">(s,</span> <span class="pre">W,</span> <span class="pre">g,</span> <span class="pre">h)</span></code> for the OLS model with intercept, and</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">(s,</span> <span class="pre">W,</span> <span class="pre">g)</span></code> for the OLS model without intercept.</p></li>
-</ul>
-<p>These reproduce the OLS coefficients (and intercept) of the external predictive
-model without sampling the n historical observations one by one.</p>
+The observed prediction has an exact conditional Normal distribution given
+the reduced covariate statistics, so the OLS outcome-noise projection is
+integrated analytically.</p>
 <p><a class="reference internal" href="#agent_model.ScalarAgentModel" title="agent_model.ScalarAgentModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ScalarAgentModel</span></code></a> is the scalar concrete implementation, where the
 regression coefficients are fixed constants rather than learned parameters.</p>
 <dl class="py class">
@@ -486,12 +482,9 @@ instantiation of the plate, and the coefficient vectors N_b and N_d are
 likewise drawn once per instantiation. The structural intercept is carried
 by alpha_mu_Y.</p>
 <p>Rather than modeling the plate of plate_size patients explicitly, the model
-reduces it to low-dimensional auxiliary variables. With intercept these are
-(s, W, g, h); without intercept they are (s, W, g). From these the OLS slope
-vector <code class="docutils literal notranslate"><span class="pre">phi</span></code> (and, with intercept, the OLS intercept <code class="docutils literal notranslate"><span class="pre">alpha</span></code>) of the
-external predictive model are reconstructed, and the observed prediction is
-linked to the model through <code class="docutils literal notranslate"><span class="pre">alpha</span> <span class="pre">+</span> <span class="pre">X_o</span> <span class="pre">.</span> <span class="pre">phi</span></code> (with intercept) or
-<code class="docutils literal notranslate"><span class="pre">X_o</span> <span class="pre">.</span> <span class="pre">phi</span></code> (without intercept).</p>
+reduces it to the covariate sufficient statistics <code class="docutils literal notranslate"><span class="pre">(s,</span> <span class="pre">W)</span></code>. Conditional
+on these variables, the observed prediction has an exact Normal
+distribution obtained by integrating the OLS outcome-noise projection.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -503,9 +496,9 @@ distributions. If None, defaults are used. Vector-valued entries
 accept a scalar (broadcast to length k) or an array of length k.</p></li>
 <li><p><strong>predictive_var_names</strong> (<em>list</em>) – Names of the variables sampled for
 predictive calculations. If None, defaults are used.</p></li>
-<li><p><strong>fit_intercept</strong> (<em>bool</em>) – If True, the predictive model is an OLS with
-intercept and the reduced variables (s, W, g, h) are used. If
-False, the predictive model is slope-only and (s, W, g) are used.</p></li>
+<li><p><strong>fit_intercept</strong> (<em>bool</em>) – Whether the predictive model is an OLS with an
+intercept. Both variants use the reduced covariate statistics
+<code class="docutils literal notranslate"><span class="pre">(s,</span> <span class="pre">W)</span></code>.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -584,8 +577,8 @@ Stores the latest trace in self.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>X_o</strong> (<em>np.ndarray</em>) – Vector of observed features.</p></li>
-<li><p><strong>pred_o</strong> (<em>np.ndarray</em>) – Vector of observed predictions.</p></li>
+<li><p><strong>X_o</strong> (<em>float</em>) – Observed scalar feature value.</p></li>
+<li><p><strong>pred_o</strong> (<em>float</em>) – Observed scalar prediction.</p></li>
 <li><p><strong>draws</strong> (<em>int</em>) – Size of sample to draw from the posterior.</p></li>
 <li><p><strong>tune</strong> (<em>int</em>) – Number of tuning (warmup) iterations.</p></li>
 <li><p><strong>target_accept</strong> (<em>float</em>) – Target acceptance probability for NUTS.</p></li>

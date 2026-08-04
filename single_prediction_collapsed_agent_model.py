@@ -1097,11 +1097,19 @@ class SinglePredictionCollapsedAgentModel:
 
         def moment_dict(values, key_prefix):
             values = np.asarray(values).reshape(-1)
+            standard_deviation = np.std(values)
+            if np.ptp(values) == 0.0:
+                standard_deviation = 0.0
+                skewness = np.nan
+                excess_kurtosis = np.nan
+            else:
+                skewness = skew(values)
+                excess_kurtosis = kurtosis(values)
             return {
                 '{}_mean'.format(key_prefix): np.mean(values),
-                '{}_std'.format(key_prefix): np.std(values),
-                '{}_skew'.format(key_prefix): skew(values),
-                '{}_kurtosis'.format(key_prefix): kurtosis(values),
+                '{}_std'.format(key_prefix): standard_deviation,
+                '{}_skew'.format(key_prefix): skewness,
+                '{}_kurtosis'.format(key_prefix): excess_kurtosis,
             }
 
         def vector_summaries(values, name):
@@ -1249,6 +1257,14 @@ class SinglePredictionCollapsedAgentModel:
 
         print(f"Complete agent model saved to {file_path}.joblib")
 
+    def _reload_kwargs(self):
+        """Return constructor arguments used when loading a saved model."""
+        return {
+            'n_covariates': self.n_covariates,
+            'plate_size': self.plate_size,
+            'prior_parameters': self.prior_parameters,
+        }
+
     @classmethod
     def load_agent_model(cls, file_name='single_prediction_collapsed_agent_model',
                          folder='./saved_models/'):
@@ -1277,11 +1293,7 @@ class SinglePredictionCollapsedAgentModel:
         X_o = agent.X_o
         pred_o = agent.pred_o
 
-        agent.__init__(
-            n_covariates=agent.n_covariates,
-            plate_size=agent.plate_size,
-            prior_parameters=agent.prior_parameters,
-        )
+        agent.__init__(**agent._reload_kwargs())
 
         agent.posterior_draws = posterior_draws
         agent.prior_draws = prior_draws

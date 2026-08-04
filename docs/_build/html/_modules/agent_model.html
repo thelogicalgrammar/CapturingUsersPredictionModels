@@ -105,11 +105,9 @@
 
 <span class="sd">Instead of representing the historical plate of training patients explicitly,</span>
 <span class="sd">the model uses the low-dimensional sufficient-statistic reduction of the plate.</span>
-<span class="sd">The reduced auxiliary variables are: \n</span>
-<span class="sd">- ``(s, W, g, h)`` for the OLS model with intercept, and \n</span>
-<span class="sd">- ``(s, W, g)`` for the OLS model without intercept. \n</span>
-<span class="sd">These reproduce the OLS coefficients (and intercept) of the external predictive</span>
-<span class="sd">model without sampling the n historical observations one by one.</span>
+<span class="sd">The observed prediction has an exact conditional Normal distribution given</span>
+<span class="sd">the reduced covariate statistics, so the OLS outcome-noise projection is</span>
+<span class="sd">integrated analytically.</span>
 
 <span class="sd">:class:`ScalarAgentModel` is the scalar concrete implementation, where the</span>
 <span class="sd">regression coefficients are fixed constants rather than learned parameters.</span>
@@ -916,12 +914,9 @@
 <span class="sd">    by alpha_mu_Y.</span>
 
 <span class="sd">    Rather than modeling the plate of plate_size patients explicitly, the model</span>
-<span class="sd">    reduces it to low-dimensional auxiliary variables. With intercept these are</span>
-<span class="sd">    (s, W, g, h); without intercept they are (s, W, g). From these the OLS slope</span>
-<span class="sd">    vector ``phi`` (and, with intercept, the OLS intercept ``alpha``) of the</span>
-<span class="sd">    external predictive model are reconstructed, and the observed prediction is</span>
-<span class="sd">    linked to the model through ``alpha + X_o . phi`` (with intercept) or</span>
-<span class="sd">    ``X_o . phi`` (without intercept).</span>
+<span class="sd">    reduces it to the covariate sufficient statistics ``(s, W)``. Conditional</span>
+<span class="sd">    on these variables, the observed prediction has an exact Normal</span>
+<span class="sd">    distribution obtained by integrating the OLS outcome-noise projection.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        n_covariates (int): Number of covariates k (dimension of X).</span>
@@ -932,9 +927,9 @@
 <span class="sd">            accept a scalar (broadcast to length k) or an array of length k.</span>
 <span class="sd">        predictive_var_names (list): Names of the variables sampled for</span>
 <span class="sd">            predictive calculations. If None, defaults are used.</span>
-<span class="sd">        fit_intercept (bool): If True, the predictive model is an OLS with</span>
-<span class="sd">            intercept and the reduced variables (s, W, g, h) are used. If</span>
-<span class="sd">            False, the predictive model is slope-only and (s, W, g) are used.</span>
+<span class="sd">        fit_intercept (bool): Whether the predictive model is an OLS with an</span>
+<span class="sd">            intercept. Both variants use the reduced covariate statistics</span>
+<span class="sd">            ``(s, W)``.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        None</span>
@@ -1098,17 +1093,11 @@
 <span class="sd">        The observed feature vector ``X_o`` and the observed prediction</span>
 <span class="sd">        ``pred_o`` enter as :class:`pm.Data` placeholders, updated at sampling</span>
 <span class="sd">        time. The plate of plate_size patients is replaced by the reduced</span>
-<span class="sd">        auxiliary variables ``s`` (sum of covariate noises), ``W_chol``</span>
-<span class="sd">        (Cholesky factor of the Wishart dispersion), ``g`` (centered A/Y</span>
-<span class="sd">        noise), and, with intercept, ``h`` (mean A/Y noise).</span>
-
-<span class="sd">        With intercept, the OLS slope vector ``phi`` and intercept ``alpha``</span>
-<span class="sd">        are reconstructed from (s, W, g, h) and the observed prediction is</span>
-<span class="sd">        modeled as ``alpha + X_o . phi``. Without intercept, ``X^T X`` is</span>
-<span class="sd">        rebuilt from ``S_x`` and ``W``, the slope-only ``phi`` is reconstructed</span>
-<span class="sd">        from (s, W, g), and the prediction is modeled as ``X_o . phi``. In both</span>
-<span class="sd">        cases ``X_o`` is also given the covariate likelihood</span>
-<span class="sd">        ``N(alpha_mu_X, alpha_sigma_X)``.</span>
+<span class="sd">        auxiliary variables ``s`` (sum of covariate noises) and ``W_chol``</span>
+<span class="sd">        (Cholesky factor of the Wishart dispersion). The outcome-noise terms</span>
+<span class="sd">        are integrated analytically, giving the exact conditional mean and</span>
+<span class="sd">        variance of the observed prediction. In both cases ``X_o`` is also</span>
+<span class="sd">        given the covariate likelihood ``N(alpha_mu_X, alpha_sigma_X)``.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            pm.Model: The constructed PyMC model.</span>
@@ -1136,8 +1125,6 @@
                 <span class="n">S</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">),</span>
                 <span class="n">nu</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span>
                 <span class="n">return_cholesky</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-            <span class="n">g</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">)</span>
-
             <span class="n">beta</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;beta&#39;</span><span class="p">,</span> <span class="n">N_b</span> <span class="o">+</span> <span class="n">N_E</span> <span class="o">*</span> <span class="n">N_d</span><span class="p">)</span>
             <span class="n">c</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;c&#39;</span><span class="p">,</span> <span class="n">alpha_mu_Y</span> <span class="o">+</span> <span class="n">N_E</span> <span class="o">*</span> <span class="n">alpha_mu_A</span><span class="p">)</span>
             <span class="n">tau</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
@@ -1145,19 +1132,15 @@
                 <span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">N_E</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">alpha_sigma_A</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">alpha_sigma_Y</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
 
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">fit_intercept</span><span class="p">:</span>
-                <span class="n">h</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;h&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-                <span class="n">W_minus_half_g</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">slinalg</span><span class="o">.</span><span class="n">solve_triangular</span><span class="p">(</span>
-                    <span class="n">W_chol</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-                <span class="n">phi</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
-                    <span class="s1">&#39;phi&#39;</span><span class="p">,</span>
-                    <span class="n">beta</span> <span class="o">+</span> <span class="n">tau</span> <span class="o">*</span> <span class="n">W_minus_half_g</span> <span class="o">/</span> <span class="n">alpha_sigma_X</span><span class="p">)</span>
-                <span class="n">alpha</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
-                    <span class="s1">&#39;alpha&#39;</span><span class="p">,</span>
-                    <span class="n">c</span> <span class="o">+</span> <span class="n">tau</span> <span class="o">*</span> <span class="n">h</span> <span class="o">/</span> <span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">)</span> <span class="o">-</span>
-                    <span class="n">tau</span> <span class="o">*</span> <span class="n">pt</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">alpha_mu_X</span> <span class="o">/</span> <span class="n">alpha_sigma_X</span> <span class="o">+</span>
-                                 <span class="n">s</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">,</span>
-                                 <span class="n">W_minus_half_g</span><span class="p">))</span>
-                <span class="n">pred_reconstructed</span> <span class="o">=</span> <span class="n">alpha</span> <span class="o">+</span> <span class="n">pt</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X_o_</span><span class="p">,</span> <span class="n">phi</span><span class="p">)</span>
+                <span class="n">prediction_mu</span> <span class="o">=</span> <span class="n">c</span> <span class="o">+</span> <span class="n">pt</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X_o_</span><span class="p">,</span> <span class="n">beta</span><span class="p">)</span>
+                <span class="n">centered_X_o</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="p">(</span><span class="n">X_o_</span> <span class="o">-</span> <span class="n">alpha_mu_X</span><span class="p">)</span> <span class="o">/</span> <span class="n">alpha_sigma_X</span> <span class="o">-</span>
+                    <span class="n">s</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">)</span>
+                <span class="n">whitened_X_o</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">slinalg</span><span class="o">.</span><span class="n">solve_triangular</span><span class="p">(</span>
+                    <span class="n">W_chol</span><span class="p">,</span> <span class="n">centered_X_o</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">prediction_variance</span> <span class="o">=</span> <span class="n">tau</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="p">(</span>
+                    <span class="mf">1.0</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">+</span>
+                    <span class="n">pt</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">whitened_X_o</span><span class="p">,</span> <span class="n">whitened_X_o</span><span class="p">))</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">W</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">W_chol</span><span class="p">,</span> <span class="n">W_chol</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
                 <span class="n">S_x</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
@@ -1169,15 +1152,23 @@
                     <span class="n">alpha_sigma_X</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">W</span> <span class="o">*</span> <span class="n">alpha_sigma_X</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:])</span>
                 <span class="n">XTX_chol</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span><span class="n">XTX</span><span class="p">)</span>
                 <span class="n">mean_term</span> <span class="o">=</span> <span class="n">c</span> <span class="o">*</span> <span class="n">pt</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">XTX</span><span class="p">,</span> <span class="n">S_x</span><span class="p">)</span>
-                <span class="n">noise_term</span> <span class="o">=</span> <span class="n">tau</span> <span class="o">*</span> <span class="n">pt</span><span class="o">.</span><span class="n">slinalg</span><span class="o">.</span><span class="n">solve_triangular</span><span class="p">(</span>
-                    <span class="n">XTX_chol</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-                <span class="n">phi</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;phi&#39;</span><span class="p">,</span> <span class="n">beta</span> <span class="o">+</span> <span class="n">mean_term</span> <span class="o">+</span> <span class="n">noise_term</span><span class="p">)</span>
-                <span class="n">pred_reconstructed</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X_o_</span><span class="p">,</span> <span class="n">phi</span><span class="p">)</span>
+                <span class="n">phi_mean</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;phi_mean&#39;</span><span class="p">,</span> <span class="n">beta</span> <span class="o">+</span> <span class="n">mean_term</span><span class="p">)</span>
+                <span class="n">prediction_mu</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">X_o_</span><span class="p">,</span> <span class="n">phi_mean</span><span class="p">)</span>
+                <span class="n">whitened_X_o</span> <span class="o">=</span> <span class="n">pt</span><span class="o">.</span><span class="n">slinalg</span><span class="o">.</span><span class="n">solve_triangular</span><span class="p">(</span>
+                    <span class="n">XTX_chol</span><span class="p">,</span> <span class="n">X_o_</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">prediction_variance</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">tau</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">pt</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">whitened_X_o</span><span class="p">,</span> <span class="n">whitened_X_o</span><span class="p">))</span>
+
+            <span class="n">prediction_mu</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;prediction_mu&#39;</span><span class="p">,</span> <span class="n">prediction_mu</span><span class="p">)</span>
+            <span class="n">prediction_variance</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;prediction_variance&#39;</span><span class="p">,</span> <span class="n">prediction_variance</span><span class="p">)</span>
 
             <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;X_o&#39;</span><span class="p">,</span> <span class="n">alpha_mu_X</span><span class="p">,</span> <span class="n">alpha_sigma_X</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="n">X_o_</span><span class="p">,</span>
                       <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">)</span>
-            <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;prediction_obs&#39;</span><span class="p">,</span> <span class="n">pred_reconstructed</span><span class="p">,</span> <span class="mf">1e-3</span><span class="p">,</span>
-                      <span class="n">observed</span><span class="o">=</span><span class="n">pred_o_</span><span class="p">)</span>
+            <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span>
+                <span class="s1">&#39;prediction_obs&#39;</span><span class="p">,</span> <span class="n">prediction_mu</span><span class="p">,</span>
+                <span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">prediction_variance</span><span class="p">),</span> <span class="n">observed</span><span class="o">=</span><span class="n">pred_o_</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">model</span>
 
 <div class="viewcode-block" id="MultivariateAgentModel.sample">
@@ -1204,8 +1195,13 @@
 <span class="sd">            None</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">X_o</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_flatten_vector_parameter</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="s1">&#39;X_o&#39;</span><span class="p">)</span>
+        <span class="n">pred_o</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">pred_o</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pred_o</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="p">()</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">pred_o</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;pred_o must be one finite scalar prediction.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">X_o</span><span class="p">))</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">X_o</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;X_o must be finite and nonzero.&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span> <span class="o">=</span> <span class="n">draws</span>
-        <span class="n">pm</span><span class="o">.</span><span class="n">set_data</span><span class="p">({</span><span class="s1">&#39;X_o_&#39;</span><span class="p">:</span> <span class="n">X_o</span><span class="p">,</span> <span class="s1">&#39;pred_o_&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">pred_o</span><span class="p">)},</span>
+        <span class="n">pm</span><span class="o">.</span><span class="n">set_data</span><span class="p">({</span><span class="s1">&#39;X_o_&#39;</span><span class="p">:</span> <span class="n">X_o</span><span class="p">,</span> <span class="s1">&#39;pred_o_&#39;</span><span class="p">:</span> <span class="n">pred_o</span><span class="p">},</span>
                     <span class="n">model</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">)</span>
         <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">:</span>
             <span class="n">trace</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">draws</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span><span class="p">,</span>
@@ -1396,19 +1392,19 @@
 <span class="sd">        The observed feature ``X_o`` and the observed prediction ``pred_o``</span>
 <span class="sd">        enter as :class:`pm.Data` placeholders, updated at sampling time. The</span>
 <span class="sd">        plate of plate_size patients is replaced by the exact no-intercept</span>
-<span class="sd">        reduction ``(s, W, g)``. These variables reconstruct the uncentered</span>
-<span class="sd">        covariate sum and sum of squares, conditional on which the OLS</span>
-<span class="sd">        numerator noise is Gaussian. The observed prediction is modeled as</span>
-<span class="sd">        ``pred_o = phi * X_o``, and ``X_o`` is also given the covariate</span>
-<span class="sd">        likelihood ``N(alpha_mu_X, alpha_sigma_X)``.</span>
+<span class="sd">        reduction ``(s, W)``. These variables reconstruct the uncentered</span>
+<span class="sd">        covariate sum and sum of squares. The OLS outcome-noise projection is</span>
+<span class="sd">        integrated analytically, yielding the exact conditional Normal</span>
+<span class="sd">        likelihood for the single observed prediction. ``X_o`` is also given</span>
+<span class="sd">        the covariate likelihood ``N(alpha_mu_X, alpha_sigma_X)``.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            pm.Model: The constructed PyMC model.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">model</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Model</span><span class="p">()</span>
         <span class="k">with</span> <span class="n">model</span><span class="p">:</span>
-            <span class="n">X_o_</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s1">&#39;X_o_&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="n">pred_o_</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s1">&#39;pred_o_&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="n">X_o_</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s1">&#39;X_o_&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="mf">1.0</span><span class="p">))</span>
+            <span class="n">pred_o_</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Data</span><span class="p">(</span><span class="s1">&#39;pred_o_&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span>
 
             <span class="n">parameters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_population_parameters</span><span class="p">()</span>
             <span class="n">alpha_mu_X</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_mu_X&#39;</span><span class="p">]</span>
@@ -1421,7 +1417,6 @@
 
             <span class="n">s</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;s&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span>
             <span class="n">W</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;W&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
-            <span class="n">g</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 
             <span class="n">beta</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
                 <span class="s1">&#39;beta&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span><span class="p">[</span><span class="s1">&#39;b&#39;</span><span class="p">]</span> <span class="o">+</span>
@@ -1438,14 +1433,18 @@
             <span class="n">XTX</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
                 <span class="s1">&#39;XTX&#39;</span><span class="p">,</span>
                 <span class="n">S_x</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">+</span> <span class="n">alpha_sigma_X</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">W</span><span class="p">)</span>
-            <span class="n">phi</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
-                <span class="s1">&#39;phi&#39;</span><span class="p">,</span>
-                <span class="n">beta</span> <span class="o">+</span> <span class="n">c</span> <span class="o">*</span> <span class="n">S_x</span> <span class="o">/</span> <span class="n">XTX</span> <span class="o">+</span> <span class="n">tau</span> <span class="o">*</span> <span class="n">g</span> <span class="o">/</span> <span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">XTX</span><span class="p">))</span>
+            <span class="n">phi_mean</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;phi_mean&#39;</span><span class="p">,</span> <span class="n">beta</span> <span class="o">+</span> <span class="n">c</span> <span class="o">*</span> <span class="n">S_x</span> <span class="o">/</span> <span class="n">XTX</span><span class="p">)</span>
+            <span class="n">prediction_mu</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;prediction_mu&#39;</span><span class="p">,</span> <span class="n">phi_mean</span> <span class="o">*</span> <span class="n">X_o_</span><span class="p">)</span>
+            <span class="n">prediction_variance</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;prediction_variance&#39;</span><span class="p">,</span> <span class="n">tau</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">X_o_</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="n">XTX</span><span class="p">)</span>
 
             <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;X_o&#39;</span><span class="p">,</span> <span class="n">alpha_mu_X</span><span class="p">,</span> <span class="n">alpha_sigma_X</span><span class="p">,</span>
                       <span class="n">observed</span><span class="o">=</span><span class="n">X_o_</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">X_o_</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-            <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;prediction_obs&#39;</span><span class="p">,</span> <span class="n">phi</span> <span class="o">*</span> <span class="n">X_o_</span><span class="p">,</span> <span class="mf">1e-3</span><span class="p">,</span>
-                      <span class="n">observed</span><span class="o">=</span><span class="n">pred_o_</span><span class="p">)</span>
+            <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span>
+                <span class="s1">&#39;prediction_obs&#39;</span><span class="p">,</span> <span class="n">prediction_mu</span><span class="p">,</span>
+                <span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">prediction_variance</span><span class="p">),</span> <span class="n">observed</span><span class="o">=</span><span class="n">pred_o_</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">model</span>
 
 <div class="viewcode-block" id="ScalarAgentModel.sample">
@@ -1458,8 +1457,8 @@
 <span class="sd">        Stores the latest trace in self.</span>
 
 <span class="sd">        Args:</span>
-<span class="sd">            X_o (np.ndarray): Vector of observed features.</span>
-<span class="sd">            pred_o (np.ndarray): Vector of observed predictions.</span>
+<span class="sd">            X_o (float): Observed scalar feature value.</span>
+<span class="sd">            pred_o (float): Observed scalar prediction.</span>
 <span class="sd">            draws (int): Size of sample to draw from the posterior.</span>
 <span class="sd">            tune (int): Number of tuning (warmup) iterations.</span>
 <span class="sd">            target_accept (float): Target acceptance probability for NUTS.</span>
@@ -1472,6 +1471,12 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            None</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">X_o</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">pred_o</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">pred_o</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">X_o</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="p">()</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">X_o</span><span class="p">)</span> <span class="ow">or</span> <span class="n">X_o</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;X_o must be one finite nonzero scalar.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pred_o</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="p">()</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">pred_o</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;pred_o must be one finite scalar prediction.&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span> <span class="o">=</span> <span class="n">draws</span>
         <span class="n">pm</span><span class="o">.</span><span class="n">set_data</span><span class="p">({</span><span class="s1">&#39;X_o_&#39;</span><span class="p">:</span> <span class="n">X_o</span><span class="p">,</span> <span class="s1">&#39;pred_o_&#39;</span><span class="p">:</span> <span class="n">pred_o</span><span class="p">},</span> <span class="n">model</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">)</span>
         <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">:</span>

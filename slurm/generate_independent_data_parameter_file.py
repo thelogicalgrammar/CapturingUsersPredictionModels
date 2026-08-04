@@ -35,7 +35,7 @@ from slurm.generate_parameter_file_dimensionality import (  # noqa: E402
 
 DESIGNS = {
     'univariate_no_intercept': {
-        'agent_model': 'scalar',
+        'agent_model': 'scalar_sign_marginalized',
         'centers': NO_INTERCEPT_SCAN_CENTERS,
         'deviations': tuple(range(-30, 31)),
         'n_covariates': (1,),

@@ -1,7 +1,7 @@
 """
 Manual Monte Carlo validation of ScalarAgentModel's low-dimensional
 auxiliary-variable reduction, by statistical comparison against a standalone
-full-plate reference model (no reduction, plate modeled explicitly).
+reference that samples the full historical covariate plate explicitly.
 
 This script has no pytest-collected ``test_*`` functions; it is meant to be
 run directly (``python -m tests.validate_agent_model``), analogous to
@@ -63,7 +63,7 @@ import warnings
 
 # The similarity checks are based on the variables
 # defined here.
-PRIOR_PREDICTIVE_VAR_NAMES = ['phi']
+PRIOR_PREDICTIVE_VAR_NAMES = ['prediction_obs']
 POSTERIOR_PREDICTIVE_VAR_NAMES = ['prediction_obs', 'X_o']
 POSTERIOR_VAR_NAMES = ['alpha_mu_X', 'N_E', 'alpha_sigma_X']
 SAMPLE_SIZE = 10000
@@ -71,15 +71,14 @@ SAMPLE_SIZE = 10000
 
 class FullPlateReferenceModel:
     """
-    Standalone full-plate model (the historical plate of plate_size patients
-    is modeled explicitly, with no sufficient-statistic reduction).
+    Standalone full-covariate-plate model.
 
     This exists only as a Monte Carlo ground truth to validate
     :class:`agent_model.ScalarAgentModel`'s low-dimensional
-    auxiliary-variable reduction by direct statistical comparison. It is not
-    part of the ``AgentModel`` hierarchy and is far slower than the reduced
-    model (cost scales with ``plate_size``), so it is not meant for
-    production inference.
+    auxiliary-variable reduction by direct statistical comparison. Outcome
+    noise is integrated in both formulations. This class is not part of the
+    ``AgentModel`` hierarchy and is far slower than the reduced model because
+    its cost scales with ``plate_size``.
 
     Args:
         plate_size (int): Size of the plate (number of i.i.d. samples).
@@ -87,12 +86,8 @@ class FullPlateReferenceModel:
             :meth:`ScalarAgentModel._default_prior_parameters`.
         scm_constants (dict): Fixed structural coefficients ``a``, ``b``,
             ``d``.
-        n_observations (int): Number of observed (X_o, pred_o) data points
-            the model is set up to take. Larger values make the posterior
-            shift more clearly for validation purposes.
     """
-    def __init__(self, plate_size, prior_parameters, scm_constants,
-                 n_observations=100):
+    def __init__(self, plate_size, prior_parameters, scm_constants):
         self.plate_size = plate_size
         self.prior_parameters = prior_parameters
         self.scm_constants = scm_constants
@@ -100,8 +95,8 @@ class FullPlateReferenceModel:
 
         self.model = pm.Model()
         with self.model:
-            X_o_ = pm.Data('X_o_', np.zeros(n_observations))
-            pred_o_ = pm.Data('pred_o_', np.zeros(n_observations))
+            X_o_ = pm.Data('X_o_', np.asarray(1.0))
+            pred_o_ = pm.Data('pred_o_', np.asarray(0.0))
 
             alpha_mu_X = pm.Normal('alpha_mu_X', prior_parameters['mu_X'],
                                    prior_parameters['sigma_X'])
@@ -122,21 +117,31 @@ class FullPlateReferenceModel:
                             prior_parameters['N_E_sigma'])
 
             X = pm.Normal('X', alpha_mu_X, alpha_sigma_X, shape=plate_size)
-            A = pm.Normal('A', scm_constants['d'] * X + alpha_mu_A,
-                          alpha_sigma_A, shape=plate_size)
-            Y = pm.Normal('Y', scm_constants['a'] + scm_constants['b'] * X +
-                          N_E * A + alpha_mu_Y, alpha_sigma_Y, shape=plate_size)
-
-            phi = pm.Deterministic('phi', pm.math.sum(X * Y) / pm.math.sum(X**2))
+            beta = scm_constants['b'] + scm_constants['d'] * N_E
+            c = scm_constants['a'] + alpha_mu_Y + N_E * alpha_mu_A
+            tau = pm.math.sqrt(
+                N_E**2 * alpha_sigma_A**2 + alpha_sigma_Y**2)
+            S_x = pm.math.sum(X)
+            XTX = pm.math.sum(X**2)
+            phi_mean = beta + c * S_x / XTX
+            prediction_mu = phi_mean * X_o_
+            prediction_variance = tau**2 * X_o_**2 / XTX
             pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
             pm.Normal(
-                'prediction_obs', phi * X_o_, 1e-3, observed=pred_o_)
+                'prediction_obs', prediction_mu,
+                pm.math.sqrt(prediction_variance), observed=pred_o_)
 
     def sample(self, X_o, pred_o, draws=1000, rng=None):
         """
         Sample from the posterior given observed data. Stores the latest
         trace in self.trace.
         """
+        X_o = np.asarray(X_o, dtype=float)
+        pred_o = np.asarray(pred_o, dtype=float)
+        if X_o.shape != () or not np.isfinite(X_o) or X_o == 0:
+            raise ValueError("X_o must be one finite nonzero scalar.")
+        if pred_o.shape != () or not np.isfinite(pred_o):
+            raise ValueError("pred_o must be one finite scalar prediction.")
         pm.set_data({'X_o_': X_o, 'pred_o_': pred_o}, model=self.model)
         with self.model:
             trace = pm.sample(draws=draws, tune=1000, target_accept=.85,
@@ -285,7 +290,6 @@ if __name__ == '__main__':
     # Test similarity between full plate and low-dim models
     PLATE_SIZE = 5
     sample_size = 10000  # What should this number be?
-    N_OBSERVATIONS = 100
     prior_parameters = {'mu_X': 80, 'sigma_X': 1, 'mu_sigma_X': 10, 'sigma_sigma_X': 1,
                     'mu_A': 10, 'sigma_A': 1, 'mu_sigma_A': 10, 'sigma_sigma_A': 1,
                     'mu_Y': 0, 'sigma_Y': 1, 'mu_sigma_Y': 1, 'sigma_sigma_Y': 1,
@@ -297,20 +301,17 @@ if __name__ == '__main__':
         scm_constants=scm_constants)
     agent_model_full_plate = FullPlateReferenceModel(
         plate_size=PLATE_SIZE, prior_parameters=prior_parameters,
-        scm_constants=scm_constants, n_observations=N_OBSERVATIONS)
+        scm_constants=scm_constants)
 
     # Prior predictive check
     import tests.validate_agent_model as vam
     tmp1 = vam.prior_predictive_check_for_similarity(agent_model_low_dim,
                                                 agent_model_full_plate)
     # Posterior checks
-    # Use 100 observed variables centered around alpha_X_mu with prediction that corresponds
-    # to model parameters generated from SCM plus some noise
-    X_o = np.asarray(N_OBSERVATIONS * [80.0])  # A person that would weight 80 kg.
-    X_o += np.random.normal(0, 10, size=X_o.shape)
+    # Use one observed patient and a prediction near the prior expectation.
+    X_o = np.asarray(80.0)
     phi = 5.0059035
-    pred_o = np.asarray(N_OBSERVATIONS * [80.0 * phi])  # Observed prediction
-    pred_o += np.random.normal(0, 10, size=pred_o.shape)
+    pred_o = np.asarray(80.0 * phi)
 
     print("Sampling low-dimensional auxiliary variable model... This can take a while.")
     agent_model_low_dim.sample(X_o=np.asarray(X_o), pred_o=np.asarray(pred_o), draws=1000)

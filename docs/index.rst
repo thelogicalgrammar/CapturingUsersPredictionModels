@@ -14,6 +14,7 @@ CapturingUsersPredictionModels
    modules/dimensionality_config
    modules/experiment_dimensionality
    modules/single_prediction_collapsed_agent_model
+   modules/single_prediction_no_intercept_agent_model
    modules/experiment_collapsed
    modules/utils
 

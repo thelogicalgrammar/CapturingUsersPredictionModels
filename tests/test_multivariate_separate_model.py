@@ -95,12 +95,9 @@ def test_single_covariate_batch_keeps_batch_shape():
 
 
 def test_scalar_experiment_propagates_treatment_scale_uncertainty():
-    assert set(experiment.predictive_var_names) == set(
-        experiment.scm_noise_parameters)
-
     model = am.ScalarAgentModel(
         plate_size=8,
-        predictive_var_names=experiment.predictive_var_names)
+        predictive_var_names=list(experiment.scm_noise_parameters))
     model.sample_prior_predictive(draws=3, rng=4)
     parameter_draws = model._parameter_draws(model.prior_samples.prior)
 
@@ -171,17 +168,22 @@ def test_multivariate_agent_prior_predictive_without_intercept():
     assert samples[0][0].shape == (1, 2)
 
 
-def test_scalar_no_intercept_reduction_uses_exact_joint_ols_law():
+def test_scalar_no_intercept_reduction_uses_exact_prediction_law():
     model = am.ScalarAgentModel(plate_size=8)
 
     old_auxiliaries = {
         'S_X', 'S_Y', 'S_A', 'Z_XX',
         'U_XY', 'V_XY', 'U_XA', 'V_XA',
     }
-    assert {'s', 'W', 'g'}.issubset(model.model.named_vars)
+    assert {'s', 'W'}.issubset(model.model.named_vars)
+    assert {'g', 'phi'}.isdisjoint(model.model.named_vars)
     assert old_auxiliaries.isdisjoint(model.model.named_vars)
 
     with model.model:
+        pm.set_data({
+            'X_o_': np.asarray(80.0),
+            'pred_o_': np.asarray(0.0),
+        })
         prior = pm.sample_prior_predictive(
             draws=20, random_seed=4)
     samples = prior.prior
@@ -203,16 +205,19 @@ def test_scalar_no_intercept_reduction_uses_exact_joint_ols_law():
     tau = np.sqrt(
         samples['N_E']**2 * samples['alpha_sigma_A']**2 +
         samples['alpha_sigma_Y']**2)
-    expected_phi = (
-        beta + c * S_x / XTX +
-        tau * samples['g'] / np.sqrt(XTX))
+    expected_phi_mean = beta + c * S_x / XTX
+    expected_prediction_mu = 80.0 * expected_phi_mean
+    expected_prediction_variance = tau**2 * 80.0**2 / XTX
 
     assert np.allclose(samples['S_x'], S_x)
     assert np.allclose(samples['XTX'], XTX)
-    assert np.allclose(samples['phi'], expected_phi)
+    assert np.allclose(samples['phi_mean'], expected_phi_mean)
+    assert np.allclose(samples['prediction_mu'], expected_prediction_mu)
+    assert np.allclose(
+        samples['prediction_variance'], expected_prediction_variance)
 
 
-def test_scalar_no_intercept_reduction_matches_explicit_plate():
+def test_scalar_no_intercept_prediction_variance_matches_explicit_plate():
     n = 8
     rng = np.random.default_rng(4)
     alpha_mu_X = 80.0
@@ -227,29 +232,25 @@ def test_scalar_no_intercept_reduction_matches_explicit_plate():
     d = 0.125
 
     epsilon_X = rng.normal(size=n)
-    epsilon_A = rng.normal(size=n)
-    epsilon_Y = rng.normal(size=n)
     X = alpha_mu_X + alpha_sigma_X * epsilon_X
-    A = d * X + alpha_mu_A + alpha_sigma_A * epsilon_A
-    Y = a + b * X + N_E * A + alpha_mu_Y + alpha_sigma_Y * epsilon_Y
-    explicit_phi = np.dot(X, Y) / np.dot(X, X)
-
-    residual = (
-        N_E * alpha_sigma_A * epsilon_A +
-        alpha_sigma_Y * epsilon_Y)
     tau = np.sqrt(
         N_E**2 * alpha_sigma_A**2 + alpha_sigma_Y**2)
     S_x = X.sum()
     XTX = np.dot(X, X)
-    g = np.dot(X, residual) / (tau * np.sqrt(XTX))
     beta = b + d * N_E
     c = a + alpha_mu_Y + N_E * alpha_mu_A
-    reduced_phi = beta + c * S_x / XTX + tau * g / np.sqrt(XTX)
+    X_o = 75.0
 
-    assert np.allclose(reduced_phi, explicit_phi)
+    explicit_mean = X_o * (beta + c * S_x / XTX)
+    residual_weights = X_o * X / XTX
+    explicit_variance = tau**2 * np.dot(residual_weights, residual_weights)
+    reduced_variance = tau**2 * X_o**2 / XTX
+
+    assert np.allclose(explicit_mean, X_o * (beta + c * S_x / XTX))
+    assert np.allclose(reduced_variance, explicit_variance)
 
 
-def test_scalar_prediction_tolerance_uses_prediction_scale():
+def test_scalar_prediction_likelihood_uses_exact_training_variance():
     model = am.ScalarAgentModel(plate_size=8)
     with model.model:
         pm.set_data({
@@ -257,27 +258,83 @@ def test_scalar_prediction_tolerance_uses_prediction_scale():
             'pred_o_': np.asarray(0.0),
         })
         point = model.model.initial_point()
-        phi_value, = model.model.replace_rvs_by_values(
-            [model.model['phi']])
-        phi_fn = model.model.compile_fn(phi_value)
+        values = model.model.replace_rvs_by_values([
+            model.model['prediction_mu'],
+            model.model['prediction_variance'],
+        ])
+        moment_fn = model.model.compile_fn(values)
         logp_fn = model.model.compile_logp(
             vars=[model.model['prediction_obs']])
-    phi = np.asarray(phi_fn(point)).item()
-    residual = 2e-3
-    logps = []
+    observed = []
     for X_o in (40.0, 120.0):
         with model.model:
             pm.set_data({
                 'X_o_': np.asarray(X_o),
-                'pred_o_': np.asarray(X_o * phi + residual),
+                'pred_o_': np.asarray(0.0),
             })
-        logps.append(float(logp_fn(point)))
+        prediction_mu, prediction_variance = moment_fn(point)
+        prediction_mu = float(prediction_mu)
+        prediction_variance = float(prediction_variance)
+        prediction_sigma = np.sqrt(prediction_variance)
+        pred_o = prediction_mu + 2.0 * prediction_sigma
+        with model.model:
+            pm.set_data({'pred_o_': np.asarray(pred_o)})
+        observed.append((float(logp_fn(point)), prediction_variance))
 
-    sigma = 1e-3
-    expected = (
-        -0.5 * (residual / sigma)**2 -
-        np.log(sigma) - 0.5 * np.log(2 * np.pi))
-    assert np.allclose(logps, [expected, expected], rtol=0, atol=1e-10)
+    expected = [
+        -0.5 * 2.0**2 - 0.5 * np.log(2 * np.pi * variance)
+        for _, variance in observed
+    ]
+    assert np.allclose(
+        [logp for logp, _ in observed], expected, rtol=0, atol=1e-10)
+    assert np.isclose(observed[1][1] / observed[0][1], 9.0)
+
+
+@pytest.mark.parametrize('fit_intercept', [False, True])
+def test_multivariate_prediction_likelihood_integrates_ols_noise(
+        fit_intercept):
+    model = am.MultivariateAgentModel(
+        n_covariates=2,
+        plate_size=8,
+        fit_intercept=fit_intercept)
+
+    assert {'g', 'h', 'phi', 'alpha'}.isdisjoint(model.model.named_vars)
+    assert {'prediction_mu', 'prediction_variance'}.issubset(
+        model.model.named_vars)
+
+    with model.model:
+        pm.set_data({
+            'X_o_': np.asarray([80.0, 120.0]),
+            'pred_o_': np.asarray(0.0),
+        })
+        point = model.model.initial_point()
+        values = model.model.replace_rvs_by_values([
+            model.model['prediction_mu'],
+            model.model['prediction_variance'],
+        ])
+        moment_fn = model.model.compile_fn(values)
+        logp_fn = model.model.compile_logp(
+            vars=[model.model['prediction_obs']])
+    prediction_mu, prediction_variance = moment_fn(point)
+    prediction_mu = float(prediction_mu)
+    prediction_variance = float(prediction_variance)
+    assert prediction_variance > 0
+
+    pred_o = prediction_mu - np.sqrt(prediction_variance)
+    with model.model:
+        pm.set_data({'pred_o_': np.asarray(pred_o)})
+    expected = -0.5 - 0.5 * np.log(2 * np.pi * prediction_variance)
+    assert np.isclose(float(logp_fn(point)), expected)
+
+
+def test_scalar_prediction_likelihood_rejects_degenerate_observations():
+    model = am.ScalarAgentModel(plate_size=8)
+
+    with pytest.raises(ValueError, match="finite nonzero scalar"):
+        model.sample(X_o=np.asarray(0.0), pred_o=np.asarray(1.0), draws=1)
+    with pytest.raises(ValueError, match="one finite scalar prediction"):
+        model.sample(
+            X_o=np.asarray(80.0), pred_o=np.asarray([1.0]), draws=1)
 
 
 def test_single_prediction_likelihood_keeps_prediction_scalar():

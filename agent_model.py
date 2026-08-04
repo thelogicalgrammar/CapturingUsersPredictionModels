@@ -16,11 +16,9 @@ prediction ``pred_o`` produced for it.
 
 Instead of representing the historical plate of training patients explicitly,
 the model uses the low-dimensional sufficient-statistic reduction of the plate.
-The reduced auxiliary variables are: \n
-- ``(s, W, g, h)`` for the OLS model with intercept, and \n
-- ``(s, W, g)`` for the OLS model without intercept. \n
-These reproduce the OLS coefficients (and intercept) of the external predictive
-model without sampling the n historical observations one by one.
+The observed prediction has an exact conditional Normal distribution given
+the reduced covariate statistics, so the OLS outcome-noise projection is
+integrated analytically.
 
 :class:`ScalarAgentModel` is the scalar concrete implementation, where the
 regression coefficients are fixed constants rather than learned parameters.
@@ -777,12 +775,9 @@ class MultivariateAgentModel(AgentModel):
     by alpha_mu_Y.
 
     Rather than modeling the plate of plate_size patients explicitly, the model
-    reduces it to low-dimensional auxiliary variables. With intercept these are
-    (s, W, g, h); without intercept they are (s, W, g). From these the OLS slope
-    vector ``phi`` (and, with intercept, the OLS intercept ``alpha``) of the
-    external predictive model are reconstructed, and the observed prediction is
-    linked to the model through ``alpha + X_o . phi`` (with intercept) or
-    ``X_o . phi`` (without intercept).
+    reduces it to the covariate sufficient statistics ``(s, W)``. Conditional
+    on these variables, the observed prediction has an exact Normal
+    distribution obtained by integrating the OLS outcome-noise projection.
 
     Args:
         n_covariates (int): Number of covariates k (dimension of X).
@@ -793,9 +788,9 @@ class MultivariateAgentModel(AgentModel):
             accept a scalar (broadcast to length k) or an array of length k.
         predictive_var_names (list): Names of the variables sampled for
             predictive calculations. If None, defaults are used.
-        fit_intercept (bool): If True, the predictive model is an OLS with
-            intercept and the reduced variables (s, W, g, h) are used. If
-            False, the predictive model is slope-only and (s, W, g) are used.
+        fit_intercept (bool): Whether the predictive model is an OLS with an
+            intercept. Both variants use the reduced covariate statistics
+            ``(s, W)``.
 
     Returns:
         None
@@ -959,17 +954,11 @@ class MultivariateAgentModel(AgentModel):
         The observed feature vector ``X_o`` and the observed prediction
         ``pred_o`` enter as :class:`pm.Data` placeholders, updated at sampling
         time. The plate of plate_size patients is replaced by the reduced
-        auxiliary variables ``s`` (sum of covariate noises), ``W_chol``
-        (Cholesky factor of the Wishart dispersion), ``g`` (centered A/Y
-        noise), and, with intercept, ``h`` (mean A/Y noise).
-
-        With intercept, the OLS slope vector ``phi`` and intercept ``alpha``
-        are reconstructed from (s, W, g, h) and the observed prediction is
-        modeled as ``alpha + X_o . phi``. Without intercept, ``X^T X`` is
-        rebuilt from ``S_x`` and ``W``, the slope-only ``phi`` is reconstructed
-        from (s, W, g), and the prediction is modeled as ``X_o . phi``. In both
-        cases ``X_o`` is also given the covariate likelihood
-        ``N(alpha_mu_X, alpha_sigma_X)``.
+        auxiliary variables ``s`` (sum of covariate noises) and ``W_chol``
+        (Cholesky factor of the Wishart dispersion). The outcome-noise terms
+        are integrated analytically, giving the exact conditional mean and
+        variance of the observed prediction. In both cases ``X_o`` is also
+        given the covariate likelihood ``N(alpha_mu_X, alpha_sigma_X)``.
 
         Returns:
             pm.Model: The constructed PyMC model.
@@ -997,8 +986,6 @@ class MultivariateAgentModel(AgentModel):
                 S=np.eye(self.n_covariates),
                 nu=self.plate_size - 1,
                 return_cholesky=True)
-            g = pm.Normal('g', mu=0, sigma=1, shape=self.n_covariates)
-
             beta = pm.Deterministic('beta', N_b + N_E * N_d)
             c = pm.Deterministic('c', alpha_mu_Y + N_E * alpha_mu_A)
             tau = pm.Deterministic(
@@ -1006,19 +993,15 @@ class MultivariateAgentModel(AgentModel):
                 pt.sqrt(N_E**2 * alpha_sigma_A**2 + alpha_sigma_Y**2))
 
             if self.fit_intercept:
-                h = pm.Normal('h', mu=0, sigma=1)
-                W_minus_half_g = pt.slinalg.solve_triangular(
-                    W_chol.T, g, lower=False)
-                phi = pm.Deterministic(
-                    'phi',
-                    beta + tau * W_minus_half_g / alpha_sigma_X)
-                alpha = pm.Deterministic(
-                    'alpha',
-                    c + tau * h / pt.sqrt(self.plate_size) -
-                    tau * pt.dot(alpha_mu_X / alpha_sigma_X +
-                                 s / self.plate_size,
-                                 W_minus_half_g))
-                pred_reconstructed = alpha + pt.dot(X_o_, phi)
+                prediction_mu = c + pt.dot(X_o_, beta)
+                centered_X_o = (
+                    (X_o_ - alpha_mu_X) / alpha_sigma_X -
+                    s / self.plate_size)
+                whitened_X_o = pt.slinalg.solve_triangular(
+                    W_chol, centered_X_o, lower=True)
+                prediction_variance = tau**2 * (
+                    1.0 / self.plate_size +
+                    pt.dot(whitened_X_o, whitened_X_o))
             else:
                 W = pt.dot(W_chol, W_chol.T)
                 S_x = pm.Deterministic(
@@ -1030,15 +1013,23 @@ class MultivariateAgentModel(AgentModel):
                     alpha_sigma_X[:, None] * W * alpha_sigma_X[None, :])
                 XTX_chol = pt.linalg.cholesky(XTX)
                 mean_term = c * pt.linalg.solve(XTX, S_x)
-                noise_term = tau * pt.slinalg.solve_triangular(
-                    XTX_chol.T, g, lower=False)
-                phi = pm.Deterministic('phi', beta + mean_term + noise_term)
-                pred_reconstructed = pt.dot(X_o_, phi)
+                phi_mean = pm.Deterministic('phi_mean', beta + mean_term)
+                prediction_mu = pt.dot(X_o_, phi_mean)
+                whitened_X_o = pt.slinalg.solve_triangular(
+                    XTX_chol, X_o_, lower=True)
+                prediction_variance = (
+                    tau**2 * pt.dot(whitened_X_o, whitened_X_o))
+
+            prediction_mu = pm.Deterministic(
+                'prediction_mu', prediction_mu)
+            prediction_variance = pm.Deterministic(
+                'prediction_variance', prediction_variance)
 
             pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_,
                       shape=self.n_covariates)
-            pm.Normal('prediction_obs', pred_reconstructed, 1e-3,
-                      observed=pred_o_)
+            pm.Normal(
+                'prediction_obs', prediction_mu,
+                pt.sqrt(prediction_variance), observed=pred_o_)
         return model
 
     def sample(self, X_o, pred_o, draws=1000, tune=1000, target_accept=.85,
@@ -1063,8 +1054,13 @@ class MultivariateAgentModel(AgentModel):
             None
         """
         X_o = self._flatten_vector_parameter(X_o, 'X_o')
+        pred_o = np.asarray(pred_o, dtype=float)
+        if pred_o.shape != () or not np.isfinite(pred_o):
+            raise ValueError("pred_o must be one finite scalar prediction.")
+        if not np.all(np.isfinite(X_o)) or not np.any(X_o != 0):
+            raise ValueError("X_o must be finite and nonzero.")
         self.posterior_draws = draws
-        pm.set_data({'X_o_': X_o, 'pred_o_': np.asarray(pred_o)},
+        pm.set_data({'X_o_': X_o, 'pred_o_': pred_o},
                     model=self.model)
         with self.model:
             trace = pm.sample(draws=self.posterior_draws,
@@ -1251,19 +1247,19 @@ class ScalarAgentModel(AgentModel):
         The observed feature ``X_o`` and the observed prediction ``pred_o``
         enter as :class:`pm.Data` placeholders, updated at sampling time. The
         plate of plate_size patients is replaced by the exact no-intercept
-        reduction ``(s, W, g)``. These variables reconstruct the uncentered
-        covariate sum and sum of squares, conditional on which the OLS
-        numerator noise is Gaussian. The observed prediction is modeled as
-        ``pred_o = phi * X_o``, and ``X_o`` is also given the covariate
-        likelihood ``N(alpha_mu_X, alpha_sigma_X)``.
+        reduction ``(s, W)``. These variables reconstruct the uncentered
+        covariate sum and sum of squares. The OLS outcome-noise projection is
+        integrated analytically, yielding the exact conditional Normal
+        likelihood for the single observed prediction. ``X_o`` is also given
+        the covariate likelihood ``N(alpha_mu_X, alpha_sigma_X)``.
 
         Returns:
             pm.Model: The constructed PyMC model.
         """
         model = pm.Model()
         with model:
-            X_o_ = pm.Data('X_o_', None)
-            pred_o_ = pm.Data('pred_o_', None)
+            X_o_ = pm.Data('X_o_', np.asarray(1.0))
+            pred_o_ = pm.Data('pred_o_', np.asarray(0.0))
 
             parameters = self._build_population_parameters()
             alpha_mu_X = parameters['alpha_mu_X']
@@ -1276,7 +1272,6 @@ class ScalarAgentModel(AgentModel):
 
             s = pm.Normal('s', mu=0, sigma=pt.sqrt(self.plate_size))
             W = pm.ChiSquared('W', self.plate_size - 1)
-            g = pm.Normal('g', mu=0, sigma=1)
 
             beta = pm.Deterministic(
                 'beta', self.scm_constants['b'] +
@@ -1293,14 +1288,18 @@ class ScalarAgentModel(AgentModel):
             XTX = pm.Deterministic(
                 'XTX',
                 S_x**2 / self.plate_size + alpha_sigma_X**2 * W)
-            phi = pm.Deterministic(
-                'phi',
-                beta + c * S_x / XTX + tau * g / pt.sqrt(XTX))
+            phi_mean = pm.Deterministic(
+                'phi_mean', beta + c * S_x / XTX)
+            prediction_mu = pm.Deterministic(
+                'prediction_mu', phi_mean * X_o_)
+            prediction_variance = pm.Deterministic(
+                'prediction_variance', tau**2 * X_o_**2 / XTX)
 
             pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
                       observed=X_o_, shape=X_o_.shape)
-            pm.Normal('prediction_obs', phi * X_o_, 1e-3,
-                      observed=pred_o_)
+            pm.Normal(
+                'prediction_obs', prediction_mu,
+                pt.sqrt(prediction_variance), observed=pred_o_)
         return model
 
     def sample(self, X_o, pred_o, draws=1000, tune=1000,
@@ -1311,8 +1310,8 @@ class ScalarAgentModel(AgentModel):
         Stores the latest trace in self.
 
         Args:
-            X_o (np.ndarray): Vector of observed features.
-            pred_o (np.ndarray): Vector of observed predictions.
+            X_o (float): Observed scalar feature value.
+            pred_o (float): Observed scalar prediction.
             draws (int): Size of sample to draw from the posterior.
             tune (int): Number of tuning (warmup) iterations.
             target_accept (float): Target acceptance probability for NUTS.
@@ -1325,6 +1324,12 @@ class ScalarAgentModel(AgentModel):
         Returns:
             None
         """
+        X_o = np.asarray(X_o, dtype=float)
+        pred_o = np.asarray(pred_o, dtype=float)
+        if X_o.shape != () or not np.isfinite(X_o) or X_o == 0:
+            raise ValueError("X_o must be one finite nonzero scalar.")
+        if pred_o.shape != () or not np.isfinite(pred_o):
+            raise ValueError("pred_o must be one finite scalar prediction.")
         self.posterior_draws = draws
         pm.set_data({'X_o_': X_o, 'pred_o_': pred_o}, model=self.model)
         with self.model:
