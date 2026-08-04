@@ -10,7 +10,7 @@
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
 
-  
+
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="../_static/documentation_options.js?v=f2a433a1"></script>
@@ -21,17 +21,17 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Custom Distributions" href="distributions.html" />
-    <link rel="prev" title="Agent Model" href="agent_model.html" /> 
+    <link rel="prev" title="Agent Model" href="agent_model.html" />
 </head>
 
-<body class="wy-body-for-nav"> 
+<body class="wy-body-for-nav">
   <div class="wy-grid-for-nav">
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
 
-          
-          
+
+
           <a href="../index.html" class="icon icon-home">
             CapturingUsersPredictionModels
           </a>
@@ -88,6 +88,7 @@
 <li class="toctree-l1"><a class="reference internal" href="distributions.html">Custom Distributions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_randomness.html">Experiment Randomness</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dimensionality_config.html">Dimensionality Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
@@ -99,6 +100,7 @@
 <li class="toctree-l1"><a class="reference internal" href="completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="generate_parameter_file.html">Generate Parameter File</a></li>
 <li class="toctree-l1"><a class="reference internal" href="generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generate_independent_data_parameter_file.html">Generate Independent-Data Manifest</a></li>
 <li class="toctree-l1"><a class="reference internal" href="generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
@@ -125,7 +127,7 @@
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-             
+
   <section id="module-scm">
 <span id="structural-causal-model"></span><h1>Structural Causal Model<a class="headerlink" href="#module-scm" title="Link to this heading"></a></h1>
 <p>Structural causal model (SCM) for
@@ -296,10 +298,10 @@ You need to overwrite __init__() and sample() in your subclass.</p>
 <dd><p>This method returns the mean of the CATE-distribution given
 A1_treatment and A0_treatment. Due to how the SCM is defined, this
 value is equivalent to (A1_treatment - A0_treatment) * self.N_E.</p>
-<p>The SCM in this class is defined so that Y given A and X is normally
-distributed and its parameters are deterministically determined by the
-values of A and X. This results in the CATE-distribution also being
-normal and allows for deterministic calculation of the mean as:</p>
+<p>The SCM in this class is defined so that the conditional expectation
+of Y is linear in A. Outcome noise is averaged out in the two
+interventional expectations, which allows deterministic calculation
+of their contrast as:</p>
 <p>CATE_mu(X) = E(Y| X, do(A=A1)) - E(Y| X, do(A=A0))</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -319,9 +321,12 @@ normal and allows for deterministic calculation of the mean as:</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="scm.SCM.sample_CATE">
 <span class="sig-name descname"><span class="pre">sample_CATE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_treatment</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/scm.html#SCM.sample_CATE"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#scm.SCM.sample_CATE" title="Link to this definition"></a></dt>
-<dd><p>This method samples the CATE-distribution using treatment 1 (higher dosage)
-instead of treatment 0.
-Given X and two treatment options A1_treatment and A0_treatment</p>
+<dd><p>Sample the conditional mean contrast between two treatments.</p>
+<p>Within one SCM, the outcome noise is averaged out in each
+interventional expectation. The contrast is therefore
+<code class="docutils literal notranslate"><span class="pre">(A1_treatment</span> <span class="pre">-</span> <span class="pre">A0_treatment)</span> <span class="pre">*</span> <span class="pre">N_E</span></code> for every draw. Uncertainty
+over CATE is introduced by sampling different SCM parameters in the
+agent model, not by independently sampling realized outcomes here.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -329,7 +334,9 @@ Given X and two treatment options A1_treatment and A0_treatment</p>
 <li><p><strong>A1_treatment</strong> (<em>float</em>) – Dosage value of higher dose treatment</p></li>
 <li><p><strong>A0_treatment</strong> (<em>float</em>) – Dosage value of lower dose treatment</p></li>
 <li><p><strong>draws</strong> (<em>int</em>) – Size of sample to generate</p></li>
-<li><p><strong>rng</strong> – seed or initialized random number generator for reproducibility</p></li>
+<li><p><strong>rng</strong> – Accepted for API compatibility. The conditional mean
+contrast is deterministic within one SCM, so the random
+stream is not consumed.</p></li>
 </ul>
 </dd>
 </dl>
@@ -501,7 +508,7 @@ used).</p>
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
     <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
     provided by <a href="https://readthedocs.org">Read the Docs</a>.
-   
+
 
 </footer>
         </div>
@@ -512,7 +519,7 @@ used).</p>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script> 
+  </script>
 
 </body>
 </html>

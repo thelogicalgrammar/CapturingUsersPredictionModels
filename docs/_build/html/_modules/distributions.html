@@ -46,6 +46,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../modules/distributions.html">Custom Distributions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_randomness.html">Experiment Randomness</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/dimensionality_config.html">Dimensionality Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
@@ -57,6 +58,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../modules/completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file.html">Generate Parameter File</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_independent_data_parameter_file.html">Generate Independent-Data Manifest</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
@@ -109,11 +111,10 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">scipy</span><span class="w"> </span><span class="kn">import</span> <span class="n">stats</span> <span class="k">as</span> <span class="n">st</span>
 
 
-<span class="c1"># Below this non-centrality the density is indistinguishable from a central</span>
-<span class="c1"># chi-squared (they differ by O(lam)), and the log-density has a removable</span>
-<span class="c1"># lam -&gt; 0 singularity that evaluates to a NaN at exactly lam = 0. Because the</span>
-<span class="c1"># collapsed model feeds lam = n * Delta_X^2 and Delta_X can pass through 0</span>
-<span class="c1"># during warmup, we switch to the central branch below this threshold.</span>
+<span class="c1"># Below this non-centrality we use the central chi-squared limit. This is a</span>
+<span class="c1"># controlled numerical approximation for positive lam: the omitted Poisson</span>
+<span class="c1"># mixture weight is less than 5e-9. It avoids a removable lam -&gt; 0 singularity</span>
+<span class="c1"># that otherwise evaluates to NaN when Delta_X passes through zero.</span>
 <span class="n">LAM_EPS</span> <span class="o">=</span> <span class="mf">1e-8</span>
 <span class="n">LARGE_BESSEL_ARGUMENT</span> <span class="o">=</span> <span class="mf">1e6</span>
 <span class="n">ASYMPTOTIC_COEFFICIENTS</span> <span class="o">=</span> <span class="mi">6</span>
@@ -179,7 +180,9 @@
 <span class="sd">    Log density of a non-central chi-squared distribution.</span>
 
 <span class="sd">    Matches ``scipy.stats.ncx2(df=nu, nc=lam).logpdf`` to machine precision</span>
-<span class="sd">    where SciPy remains finite. The density is \n</span>
+<span class="sd">    where SciPy remains finite and ``lam &gt;= LAM_EPS``. For smaller positive</span>
+<span class="sd">    non-centralities it uses the central chi-squared limit with omitted</span>
+<span class="sd">    Poisson mixture weight below ``5e-9``. The density is \n</span>
 <span class="sd">    :math:`f(x) = \\tfrac12 e^{-(x+\\lambda)/2} (x/\\lambda)^{\\nu/4 - 1/2}</span>
 <span class="sd">    I_{\\nu/2 - 1}(\\sqrt{\\lambda x})` \n</span>
 <span class="sd">    for :math:`x &gt; 0`. The cancelling exponential terms are combined before</span>

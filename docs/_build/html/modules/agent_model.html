@@ -10,7 +10,7 @@
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
 
-  
+
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="../_static/documentation_options.js?v=f2a433a1"></script>
@@ -21,17 +21,17 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Structural Causal Model" href="scm.html" />
-    <link rel="prev" title="CapturingUsersPredictionModels" href="../index.html" /> 
+    <link rel="prev" title="CapturingUsersPredictionModels" href="../index.html" />
 </head>
 
-<body class="wy-body-for-nav"> 
+<body class="wy-body-for-nav">
   <div class="wy-grid-for-nav">
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
 
-          
-          
+
+
           <a href="../index.html" class="icon icon-home">
             CapturingUsersPredictionModels
           </a>
@@ -79,6 +79,7 @@
 <li class="toctree-l1"><a class="reference internal" href="distributions.html">Custom Distributions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_randomness.html">Experiment Randomness</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dimensionality_config.html">Dimensionality Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
@@ -90,6 +91,7 @@
 <li class="toctree-l1"><a class="reference internal" href="completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="generate_parameter_file.html">Generate Parameter File</a></li>
 <li class="toctree-l1"><a class="reference internal" href="generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generate_independent_data_parameter_file.html">Generate Independent-Data Manifest</a></li>
 <li class="toctree-l1"><a class="reference internal" href="generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
@@ -116,7 +118,7 @@
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-             
+
   <section id="module-agent_model">
 <span id="agent-model"></span><h1>Agent Model<a class="headerlink" href="#module-agent_model" title="Link to this heading"></a></h1>
 <p>Bayesian agent models.</p>
@@ -443,6 +445,9 @@ before pickling and restored afterwards.</p>
 <dt class="sig sig-object py" id="agent_model.AgentModel.trace_diagnostics">
 <span class="sig-name descname"><span class="pre">trace_diagnostics</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/agent_model.html#AgentModel.trace_diagnostics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agent_model.AgentModel.trace_diagnostics" title="Link to this definition"></a></dt>
 <dd><p>Return basic sampler diagnostics for the current posterior trace.</p>
+<p>A component that is exactly constant is omitted because its R-hat and
+ESS are undefined but it has no Monte Carlo error. Any other undefined
+diagnostic raises an error instead of being skipped by xarray.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">max_rhat</span></code>, <code class="docutils literal notranslate"><span class="pre">min_ess_bulk</span></code>, <code class="docutils literal notranslate"><span class="pre">min_ess_tail</span></code> (computed
@@ -549,10 +554,11 @@ instantiation of the plate. Unlike <a class="reference internal" href="#agent_mo
 regression coefficients <code class="docutils literal notranslate"><span class="pre">a</span></code>, <code class="docutils literal notranslate"><span class="pre">b</span></code>, and <code class="docutils literal notranslate"><span class="pre">d</span></code> are fixed constants, not
 learned parameters with their own priors.</p>
 <p>Rather than modeling the plate of plate_size patients explicitly, the
-model reduces it to low-dimensional auxiliary variables (<code class="docutils literal notranslate"><span class="pre">S_X</span></code>, <code class="docutils literal notranslate"><span class="pre">S_Y</span></code>,
-<code class="docutils literal notranslate"><span class="pre">S_A</span></code>, <code class="docutils literal notranslate"><span class="pre">Z_XX</span></code>, <code class="docutils literal notranslate"><span class="pre">U_XY</span></code>, <code class="docutils literal notranslate"><span class="pre">V_XY</span></code>, <code class="docutils literal notranslate"><span class="pre">U_XA</span></code>, <code class="docutils literal notranslate"><span class="pre">V_XA</span></code>), from which the
-OLS slope coefficient <code class="docutils literal notranslate"><span class="pre">phi</span></code> of the external predictive model (a
-no-intercept regression of <code class="docutils literal notranslate"><span class="pre">Y</span></code> on <code class="docutils literal notranslate"><span class="pre">X</span></code>) is reconstructed analytically.</p>
+model reduces it to three auxiliary variables: <code class="docutils literal notranslate"><span class="pre">s</span></code> (the sum of
+covariate noises), <code class="docutils literal notranslate"><span class="pre">W</span></code> (the centered covariate dispersion), and <code class="docutils literal notranslate"><span class="pre">g</span></code>
+(the outcome-noise projection). From these, the OLS slope coefficient
+<code class="docutils literal notranslate"><span class="pre">phi</span></code> of the external predictive model (a no-intercept regression of
+<code class="docutils literal notranslate"><span class="pre">Y</span></code> on <code class="docutils literal notranslate"><span class="pre">X</span></code>) is reconstructed analytically.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -572,7 +578,7 @@ predictive calculations. If None, defaults are used.</p></li>
 </dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="agent_model.ScalarAgentModel.sample">
-<span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/agent_model.html#ScalarAgentModel.sample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agent_model.ScalarAgentModel.sample" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tune</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_accept</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.85</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chains</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_treedepth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'jitter+adapt_diag'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/agent_model.html#ScalarAgentModel.sample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#agent_model.ScalarAgentModel.sample" title="Link to this definition"></a></dt>
 <dd><p>Sample from the posterior given observed data.
 Stores the latest trace in self.</p>
 <dl class="field-list simple">
@@ -581,6 +587,11 @@ Stores the latest trace in self.</p>
 <li><p><strong>X_o</strong> (<em>np.ndarray</em>) – Vector of observed features.</p></li>
 <li><p><strong>pred_o</strong> (<em>np.ndarray</em>) – Vector of observed predictions.</p></li>
 <li><p><strong>draws</strong> (<em>int</em>) – Size of sample to draw from the posterior.</p></li>
+<li><p><strong>tune</strong> (<em>int</em>) – Number of tuning (warmup) iterations.</p></li>
+<li><p><strong>target_accept</strong> (<em>float</em>) – Target acceptance probability for NUTS.</p></li>
+<li><p><strong>chains</strong> (<em>int</em>) – Number of chains to sample.</p></li>
+<li><p><strong>max_treedepth</strong> (<em>int</em>) – Maximum tree depth for NUTS.</p></li>
+<li><p><strong>init</strong> (<em>str</em>) – Initialization method passed to pm.sample.</p></li>
 <li><p><strong>rng</strong> – Seed or initialized random number generator for
 reproducibility.</p></li>
 </ul>
@@ -618,7 +629,7 @@ reproducibility.</p></li>
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
     <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
     provided by <a href="https://readthedocs.org">Read the Docs</a>.
-   
+
 
 </footer>
         </div>
@@ -629,7 +640,7 @@ reproducibility.</p></li>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script> 
+  </script>
 
 </body>
 </html>

@@ -10,6 +10,7 @@ CapturingUsersPredictionModels
    modules/distributions
    modules/experiment
    modules/experiment_series
+   modules/experiment_randomness
    modules/dimensionality_config
    modules/experiment_dimensionality
    modules/single_prediction_collapsed_agent_model
@@ -23,4 +24,5 @@ CapturingUsersPredictionModels
    modules/completion_check
    modules/generate_parameter_file
    modules/generate_parameter_file_dimensionality
+   modules/generate_independent_data_parameter_file
    modules/generate_parameter_file_univariate_intercept

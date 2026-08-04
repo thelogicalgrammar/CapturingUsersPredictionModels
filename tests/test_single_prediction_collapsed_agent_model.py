@@ -13,6 +13,7 @@ from scipy.stats import ks_2samp, ncx2, norm
 import single_prediction_collapsed_agent_model as spcam
 from distributions import (
     FoldedNormal,
+    LAM_EPS,
     NoncentralChiSquared,
     folded_normal_logp,
     ncx2_logp,
@@ -303,6 +304,27 @@ def test_noncentral_chi_squared_logp_matches_scipy():
                 assert np.isclose(logp(x, nu, lam),
                                   ncx2.logpdf(x, df=nu, nc=lam),
                                   atol=1e-8)
+
+
+def test_noncentral_chi_squared_small_lambda_approximation_is_bounded():
+    value = at.dscalar('small_lambda_value')
+    nu_ = at.dscalar('small_lambda_nu')
+    lam_ = at.dscalar('small_lambda')
+    logp = pm.pytensorf.compile(
+        [value, nu_, lam_], ncx2_logp(value, nu_, lam_))
+    quantiles = np.asarray(
+        (1e-6, 1e-4, 0.01, 0.5, 0.99, 0.9999, 1.0 - 1e-6))
+    small_lambdas = (0.0, 1e-12, 1e-10, 1e-9,
+                     np.nextafter(LAM_EPS, 0.0))
+
+    for nu in (2.0, 4.0, 8.0, 16.0, 32.0):
+        points = ncx2.ppf(quantiles, df=nu, nc=0.0)
+        for lam in small_lambdas:
+            actual = np.asarray([logp(point, nu, lam)
+                                 for point in points])
+            expected = ncx2.logpdf(points, df=nu, nc=lam)
+            np.testing.assert_allclose(
+                actual, expected, rtol=0.0, atol=1.5e-7)
 
 
 def test_noncentral_chi_squared_logp_is_stable_at_large_arguments():

@@ -9,7 +9,7 @@
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
 
-  
+
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="../_static/documentation_options.js?v=f2a433a1"></script>
@@ -17,17 +17,17 @@
       <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" /> 
+    <link rel="search" title="Search" href="../search.html" />
 </head>
 
-<body class="wy-body-for-nav"> 
+<body class="wy-body-for-nav">
   <div class="wy-grid-for-nav">
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
 
-          
-          
+
+
           <a href="../index.html" class="icon icon-home">
             CapturingUsersPredictionModels
           </a>
@@ -46,6 +46,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../modules/distributions.html">Custom Distributions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_randomness.html">Experiment Randomness</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/dimensionality_config.html">Dimensionality Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
@@ -57,6 +58,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../modules/completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file.html">Generate Parameter File</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_independent_data_parameter_file.html">Generate Independent-Data Manifest</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
@@ -83,7 +85,7 @@
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-             
+
   <h1>Source code for agent_model</h1><div class="highlight"><pre>
 <span></span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">Bayesian agent models.</span>
@@ -123,7 +125,6 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">pytensor.tensor</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pt</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">scipy.stats</span><span class="w"> </span><span class="kn">import</span> <span class="n">kurtosis</span><span class="p">,</span> <span class="n">skew</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">scm</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">distributions</span><span class="w"> </span><span class="kn">import</span> <span class="n">NoncentralChiSquared</span>
@@ -350,6 +351,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            tuple: ``(do_A_samples, do_A_mean, do_A_std)``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_prior_samples</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
         <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_flatten_vector_parameter</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="s1">&#39;X&#39;</span><span class="p">)</span>
         <span class="n">do_A_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_draws</span><span class="p">,))</span>
@@ -379,6 +381,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            list: One ``[X, A, Y]`` triple per draw.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
         <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">:</span>
             <span class="n">tmp</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">sample_prior_predictive</span><span class="p">(</span>
                 <span class="n">draws</span><span class="o">=</span><span class="n">draws</span><span class="p">,</span>
@@ -484,6 +487,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            tuple: ``(CATE_samples, CATE_mean, CATE_std)``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_prior_samples</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
         <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_flatten_vector_parameter</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="s1">&#39;X&#39;</span><span class="p">)</span>
         <span class="n">CATE_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_draws</span><span class="p">,))</span>
@@ -513,6 +517,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            list: One ``(X, A, Y, mu_Y_cond, std_Y_cond)`` sample per draw.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
         <span class="n">parameter_draws</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parameter_draws</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span><span class="p">)</span>  <span class="c1"># BUG or inconsistency? Does not check for existence and replaces old samples?</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">parameter_draws</span><span class="p">)</span>
         <span class="n">samples</span> <span class="o">=</span> <span class="p">[]</span>
@@ -541,6 +546,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            tuple: ``(CATE_samples, CATE_mean, CATE_std)``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
         <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_flatten_vector_parameter</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="s1">&#39;X&#39;</span><span class="p">)</span>
         <span class="n">parameter_draws</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parameter_draws</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span><span class="p">)</span>
         <span class="n">CATE_samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">parameter_draws</span><span class="p">),))</span>
@@ -571,6 +577,7 @@
 <span class="sd">        Returns:</span>
 <span class="sd">            tuple: ``(potential_outcomes, do_A_mean, do_A_std)``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
         <span class="n">X</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_flatten_vector_parameter</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="s1">&#39;X&#39;</span><span class="p">)</span>
         <span class="n">parameter_draws</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parameter_draws</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span><span class="p">)</span>
         <span class="n">potential_outcomes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">parameter_draws</span><span class="p">),))</span>
@@ -585,7 +592,7 @@
 
 <div class="viewcode-block" id="AgentModel.get_prior_CATE_mu">
 <a class="viewcode-back" href="../modules/agent_model.html#agent_model.AgentModel.get_prior_CATE_mu">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">get_prior_CATE_mu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">):</span>  <span class="c1"># REMOVE? This has the potential to break something with a different model.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_prior_CATE_mu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return the prior mean of the CATE-distribution. The current SCM is such</span>
 <span class="sd">        that N_E is not dependent on X and the treatment effect only depends on</span>
@@ -595,7 +602,6 @@
 <span class="sd">            A1_treatment (float): Dosage value of higher dose treatment.</span>
 <span class="sd">            A0_treatment (float): Dosage value of lower dose treatment.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;This method will be deprecated soon.&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="p">(</span><span class="n">A1_treatment</span> <span class="o">-</span> <span class="n">A0_treatment</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">prior_parameters</span><span class="p">[</span><span class="s1">&#39;N_E_mu&#39;</span><span class="p">]</span></div>
 
 
@@ -605,17 +611,54 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return basic sampler diagnostics for the current posterior trace.</span>
 
+<span class="sd">        A component that is exactly constant is omitted because its R-hat and</span>
+<span class="sd">        ESS are undefined but it has no Monte Carlo error. Any other undefined</span>
+<span class="sd">        diagnostic raises an error instead of being skipped by xarray.</span>
+
 <span class="sd">        Returns:</span>
 <span class="sd">            dict: ``max_rhat``, ``min_ess_bulk``, ``min_ess_tail`` (computed</span>
 <span class="sd">            with ArviZ), and ``n_divergences``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">rhat_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">rhat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="p">)</span>
-        <span class="n">ess_bulk_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">ess</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;bulk&#39;</span><span class="p">)</span>
-        <span class="n">ess_tail_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">ess</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;tail&#39;</span><span class="p">)</span>
+        <span class="n">diagnostic_var_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span><span class="o">.</span><span class="n">data_vars</span><span class="p">)</span>
+        <span class="n">rhat_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">rhat</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">var_names</span><span class="o">=</span><span class="n">diagnostic_var_names</span><span class="p">)</span>
+        <span class="n">ess_bulk_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">ess</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">var_names</span><span class="o">=</span><span class="n">diagnostic_var_names</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;bulk&#39;</span><span class="p">)</span>
+        <span class="n">ess_tail_values</span> <span class="o">=</span> <span class="n">az</span><span class="o">.</span><span class="n">ess</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">var_names</span><span class="o">=</span><span class="n">diagnostic_var_names</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;tail&#39;</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">finite_statistics</span><span class="p">(</span><span class="n">dataset</span><span class="p">):</span>
+            <span class="n">statistics</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">diagnostic_var_names</span><span class="p">:</span>
+                <span class="n">samples</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">posterior</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">)</span>
+                <span class="n">components</span> <span class="o">=</span> <span class="n">samples</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+                    <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">dataset</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="n">components</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;Diagnostic shape mismatch for </span><span class="si">{!r}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">component</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                        <span class="n">np</span><span class="o">.</span><span class="n">moveaxis</span><span class="p">(</span><span class="n">components</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">values</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+                        <span class="n">statistics</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+                    <span class="k">elif</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">component</span><span class="p">))</span>
+                          <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">ptp</span><span class="p">(</span><span class="n">component</span><span class="p">)</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">):</span>
+                        <span class="k">continue</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                            <span class="s2">&quot;Undefined diagnostic for non-constant </span><span class="si">{!r}</span><span class="s2">.&quot;</span>
+                            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">statistics</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No non-constant variables to diagnose.&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">statistics</span>
+
+        <span class="n">rhat_statistics</span> <span class="o">=</span> <span class="n">finite_statistics</span><span class="p">(</span><span class="n">rhat_values</span><span class="p">)</span>
+        <span class="n">ess_bulk_statistics</span> <span class="o">=</span> <span class="n">finite_statistics</span><span class="p">(</span><span class="n">ess_bulk_values</span><span class="p">)</span>
+        <span class="n">ess_tail_statistics</span> <span class="o">=</span> <span class="n">finite_statistics</span><span class="p">(</span><span class="n">ess_tail_values</span><span class="p">)</span>
         <span class="k">return</span> <span class="p">{</span>
-            <span class="s1">&#39;max_rhat&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">rhat_values</span><span class="o">.</span><span class="n">to_array</span><span class="p">()</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
-            <span class="s1">&#39;min_ess_bulk&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">ess_bulk_values</span><span class="o">.</span><span class="n">to_array</span><span class="p">()</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
-            <span class="s1">&#39;min_ess_tail&#39;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">ess_tail_values</span><span class="o">.</span><span class="n">to_array</span><span class="p">()</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">),</span>
+            <span class="s1">&#39;max_rhat&#39;</span><span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="n">rhat_statistics</span><span class="p">),</span>
+            <span class="s1">&#39;min_ess_bulk&#39;</span><span class="p">:</span> <span class="nb">min</span><span class="p">(</span><span class="n">ess_bulk_statistics</span><span class="p">),</span>
+            <span class="s1">&#39;min_ess_tail&#39;</span><span class="p">:</span> <span class="nb">min</span><span class="p">(</span><span class="n">ess_tail_statistics</span><span class="p">),</span>
             <span class="s1">&#39;n_divergences&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">sample_stats</span><span class="p">[</span><span class="s1">&#39;diverging&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
         <span class="p">}</span></div>
 
@@ -1199,10 +1242,11 @@
 <span class="sd">    learned parameters with their own priors.</span>
 
 <span class="sd">    Rather than modeling the plate of plate_size patients explicitly, the</span>
-<span class="sd">    model reduces it to low-dimensional auxiliary variables (``S_X``, ``S_Y``,</span>
-<span class="sd">    ``S_A``, ``Z_XX``, ``U_XY``, ``V_XY``, ``U_XA``, ``V_XA``), from which the</span>
-<span class="sd">    OLS slope coefficient ``phi`` of the external predictive model (a</span>
-<span class="sd">    no-intercept regression of ``Y`` on ``X``) is reconstructed analytically.</span>
+<span class="sd">    model reduces it to three auxiliary variables: ``s`` (the sum of</span>
+<span class="sd">    covariate noises), ``W`` (the centered covariate dispersion), and ``g``</span>
+<span class="sd">    (the outcome-noise projection). From these, the OLS slope coefficient</span>
+<span class="sd">    ``phi`` of the external predictive model (a no-intercept regression of</span>
+<span class="sd">    ``Y`` on ``X``) is reconstructed analytically.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        plate_size (int): Size of the plate (number of i.i.d. samples used to</span>
@@ -1351,12 +1395,10 @@
 
 <span class="sd">        The observed feature ``X_o`` and the observed prediction ``pred_o``</span>
 <span class="sd">        enter as :class:`pm.Data` placeholders, updated at sampling time. The</span>
-<span class="sd">        plate of plate_size patients is replaced by the low-dimensional</span>
-<span class="sd">        auxiliary variables ``S_X``, ``S_Y``, ``S_A`` (sums of noise terms)</span>
-<span class="sd">        and ``Z_XX``, ``U_XY``, ``V_XY``, ``U_XA``, ``V_XA`` (sums of squares,</span>
-<span class="sd">        as chi-squared variables), from which the sufficient statistics</span>
-<span class="sd">        ``S_4``...``S_123`` are reconstructed and combined into the</span>
-<span class="sd">        no-intercept OLS slope ``phi``. The observed prediction is modeled as</span>
+<span class="sd">        plate of plate_size patients is replaced by the exact no-intercept</span>
+<span class="sd">        reduction ``(s, W, g)``. These variables reconstruct the uncentered</span>
+<span class="sd">        covariate sum and sum of squares, conditional on which the OLS</span>
+<span class="sd">        numerator noise is Gaussian. The observed prediction is modeled as</span>
 <span class="sd">        ``pred_o = phi * X_o``, and ``X_o`` is also given the covariate</span>
 <span class="sd">        likelihood ``N(alpha_mu_X, alpha_sigma_X)``.</span>
 
@@ -1377,43 +1419,40 @@
             <span class="n">alpha_sigma_Y</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;alpha_sigma_Y&#39;</span><span class="p">]</span>
             <span class="n">N_E</span> <span class="o">=</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;N_E&#39;</span><span class="p">]</span>
 
-            <span class="n">S_X</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;S_X&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span>
-            <span class="n">S_Y</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;S_Y&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span>
-            <span class="n">S_A</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;S_A&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span>
-            <span class="n">Z_XX</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;Z_XX&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
-            <span class="n">U_XY</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;U_XY&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
-            <span class="n">V_XY</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;V_XY&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
-            <span class="n">U_XA</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;U_XA&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
-            <span class="n">V_XA</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;V_XA&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;s&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">))</span>
+            <span class="n">W</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">ChiSquared</span><span class="p">(</span><span class="s1">&#39;W&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">g</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 
-            <span class="n">S_9</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;S_9&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">S_X</span> <span class="o">*</span> <span class="n">S_A</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">+</span>
-                                        <span class="p">(</span><span class="n">U_XA</span> <span class="o">-</span> <span class="n">V_XA</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">))</span>
-            <span class="n">S_8</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;S_8&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">S_X</span> <span class="o">*</span> <span class="n">S_Y</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">+</span>
-                                        <span class="p">(</span><span class="n">U_XY</span> <span class="o">-</span> <span class="n">V_XY</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">))</span>
-            <span class="n">S_7</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;S_7&#39;</span><span class="p">,</span> <span class="n">Z_XX</span> <span class="o">+</span> <span class="n">S_X</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span><span class="p">)</span>
-            <span class="n">S_6</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;S_6&#39;</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">*</span> <span class="n">alpha_mu_X</span> <span class="o">*</span> <span class="n">alpha_mu_Y</span> <span class="o">+</span>
-                                        <span class="n">alpha_mu_X</span> <span class="o">*</span> <span class="n">alpha_sigma_Y</span> <span class="o">*</span> <span class="n">S_Y</span> <span class="o">+</span>
-                                        <span class="n">alpha_mu_Y</span> <span class="o">*</span> <span class="n">alpha_sigma_X</span> <span class="o">*</span> <span class="n">S_X</span> <span class="o">+</span>
-                                        <span class="n">alpha_sigma_X</span> <span class="o">*</span> <span class="n">alpha_sigma_Y</span> <span class="o">*</span> <span class="n">S_8</span><span class="p">))</span>
-            <span class="n">S_5</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;S_5&#39;</span><span class="p">,</span> <span class="n">N_E</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">*</span> <span class="n">alpha_mu_X</span> <span class="o">*</span> <span class="n">alpha_mu_A</span> <span class="o">+</span>
-                                        <span class="n">alpha_mu_X</span> <span class="o">*</span> <span class="n">alpha_sigma_A</span> <span class="o">*</span> <span class="n">S_A</span> <span class="o">+</span>
-                                        <span class="n">alpha_mu_A</span> <span class="o">*</span> <span class="n">alpha_sigma_X</span> <span class="o">*</span> <span class="n">S_X</span> <span class="o">+</span>
-                                        <span class="n">alpha_sigma_X</span> <span class="o">*</span> <span class="n">alpha_sigma_A</span> <span class="o">*</span> <span class="n">S_9</span><span class="p">))</span>
-            <span class="n">S_4</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;S_4&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">*</span> <span class="n">alpha_mu_X</span> <span class="o">+</span> <span class="n">alpha_sigma_X</span> <span class="o">*</span> <span class="n">S_X</span><span class="p">))</span>
-            <span class="n">S_123</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;S_123&#39;</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">*</span> <span class="n">alpha_mu_X</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span>
-                                             <span class="mi">2</span> <span class="o">*</span> <span class="n">alpha_mu_X</span> <span class="o">*</span> <span class="n">alpha_sigma_X</span> <span class="o">*</span> <span class="n">S_X</span> <span class="o">+</span>
-                                             <span class="n">alpha_sigma_X</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">S_7</span><span class="p">))</span>
-            <span class="n">phi</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;phi&#39;</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span><span class="p">[</span><span class="s1">&#39;b&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span><span class="p">[</span><span class="s1">&#39;d&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">N_E</span> <span class="o">+</span>
-                                    <span class="p">(</span><span class="n">S_4</span> <span class="o">+</span> <span class="n">S_5</span> <span class="o">+</span> <span class="n">S_6</span><span class="p">)</span> <span class="o">/</span> <span class="n">S_123</span><span class="p">))</span>
+            <span class="n">beta</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;beta&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span><span class="p">[</span><span class="s1">&#39;b&#39;</span><span class="p">]</span> <span class="o">+</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span><span class="p">[</span><span class="s1">&#39;d&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">N_E</span><span class="p">)</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;c&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scm_constants</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">alpha_mu_Y</span> <span class="o">+</span>
+                <span class="n">N_E</span> <span class="o">*</span> <span class="n">alpha_mu_A</span><span class="p">)</span>
+            <span class="n">tau</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;tau&#39;</span><span class="p">,</span>
+                <span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">N_E</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">alpha_sigma_A</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">alpha_sigma_Y</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+            <span class="n">S_x</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;S_x&#39;</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">*</span> <span class="n">alpha_mu_X</span> <span class="o">+</span> <span class="n">alpha_sigma_X</span> <span class="o">*</span> <span class="n">s</span><span class="p">)</span>
+            <span class="n">XTX</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;XTX&#39;</span><span class="p">,</span>
+                <span class="n">S_x</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">plate_size</span> <span class="o">+</span> <span class="n">alpha_sigma_X</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">W</span><span class="p">)</span>
+            <span class="n">phi</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span>
+                <span class="s1">&#39;phi&#39;</span><span class="p">,</span>
+                <span class="n">beta</span> <span class="o">+</span> <span class="n">c</span> <span class="o">*</span> <span class="n">S_x</span> <span class="o">/</span> <span class="n">XTX</span> <span class="o">+</span> <span class="n">tau</span> <span class="o">*</span> <span class="n">g</span> <span class="o">/</span> <span class="n">pt</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">XTX</span><span class="p">))</span>
 
-            <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;X_o&#39;</span><span class="p">,</span> <span class="n">alpha_mu_X</span><span class="p">,</span> <span class="n">alpha_sigma_X</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="n">X_o_</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">X_o_</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-            <span class="n">phi_hat</span> <span class="o">=</span> <span class="n">pred_o_</span> <span class="o">/</span> <span class="n">X_o_</span>
-            <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;phi_obs&#39;</span><span class="p">,</span> <span class="n">phi</span><span class="p">,</span> <span class="mf">1e-3</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="n">phi_hat</span><span class="p">)</span>
+            <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;X_o&#39;</span><span class="p">,</span> <span class="n">alpha_mu_X</span><span class="p">,</span> <span class="n">alpha_sigma_X</span><span class="p">,</span>
+                      <span class="n">observed</span><span class="o">=</span><span class="n">X_o_</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">X_o_</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;prediction_obs&#39;</span><span class="p">,</span> <span class="n">phi</span> <span class="o">*</span> <span class="n">X_o_</span><span class="p">,</span> <span class="mf">1e-3</span><span class="p">,</span>
+                      <span class="n">observed</span><span class="o">=</span><span class="n">pred_o_</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">model</span>
 
 <div class="viewcode-block" id="ScalarAgentModel.sample">
 <a class="viewcode-back" href="../modules/agent_model.html#agent_model.ScalarAgentModel.sample">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X_o</span><span class="p">,</span> <span class="n">pred_o</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X_o</span><span class="p">,</span> <span class="n">pred_o</span><span class="p">,</span> <span class="n">draws</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">tune</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+               <span class="n">target_accept</span><span class="o">=</span><span class="mf">.85</span><span class="p">,</span> <span class="n">chains</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">max_treedepth</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span>
+               <span class="n">init</span><span class="o">=</span><span class="s2">&quot;jitter+adapt_diag&quot;</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Sample from the posterior given observed data.</span>
 <span class="sd">        Stores the latest trace in self.</span>
@@ -1422,6 +1461,11 @@
 <span class="sd">            X_o (np.ndarray): Vector of observed features.</span>
 <span class="sd">            pred_o (np.ndarray): Vector of observed predictions.</span>
 <span class="sd">            draws (int): Size of sample to draw from the posterior.</span>
+<span class="sd">            tune (int): Number of tuning (warmup) iterations.</span>
+<span class="sd">            target_accept (float): Target acceptance probability for NUTS.</span>
+<span class="sd">            chains (int): Number of chains to sample.</span>
+<span class="sd">            max_treedepth (int): Maximum tree depth for NUTS.</span>
+<span class="sd">            init (str): Initialization method passed to pm.sample.</span>
 <span class="sd">            rng: Seed or initialized random number generator for</span>
 <span class="sd">                reproducibility.</span>
 
@@ -1432,12 +1476,12 @@
         <span class="n">pm</span><span class="o">.</span><span class="n">set_data</span><span class="p">({</span><span class="s1">&#39;X_o_&#39;</span><span class="p">:</span> <span class="n">X_o</span><span class="p">,</span> <span class="s1">&#39;pred_o_&#39;</span><span class="p">:</span> <span class="n">pred_o</span><span class="p">},</span> <span class="n">model</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">)</span>
         <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">:</span>
             <span class="n">trace</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">draws</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">posterior_draws</span><span class="p">,</span>
-                              <span class="n">tune</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
-                              <span class="n">target_accept</span><span class="o">=</span><span class="mf">.85</span><span class="p">,</span>
-                              <span class="n">chains</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+                              <span class="n">tune</span><span class="o">=</span><span class="n">tune</span><span class="p">,</span>
+                              <span class="n">target_accept</span><span class="o">=</span><span class="n">target_accept</span><span class="p">,</span>
+                              <span class="n">chains</span><span class="o">=</span><span class="n">chains</span><span class="p">,</span>
                               <span class="n">random_seed</span><span class="o">=</span><span class="n">rng</span><span class="p">,</span>
-                              <span class="n">max_treedepth</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span>
-                              <span class="n">init</span><span class="o">=</span><span class="s2">&quot;jitter+adapt_diag&quot;</span><span class="p">,</span>
+                              <span class="n">max_treedepth</span><span class="o">=</span><span class="n">max_treedepth</span><span class="p">,</span>
+                              <span class="n">init</span><span class="o">=</span><span class="n">init</span><span class="p">,</span>
                               <span class="n">callback</span><span class="o">=</span><span class="n">printing_callback</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">trace</span> <span class="o">=</span> <span class="n">trace</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">X_o</span> <span class="o">=</span> <span class="n">X_o</span>
@@ -1556,7 +1600,7 @@
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
     <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
     provided by <a href="https://readthedocs.org">Read the Docs</a>.
-   
+
 
 </footer>
         </div>
@@ -1567,7 +1611,7 @@
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script> 
+  </script>
 
 </body>
 </html>

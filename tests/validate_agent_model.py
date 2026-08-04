@@ -64,7 +64,7 @@ import warnings
 # The similarity checks are based on the variables
 # defined here.
 PRIOR_PREDICTIVE_VAR_NAMES = ['phi']
-POSTERIOR_PREDICTIVE_VAR_NAMES = ['phi_obs', 'X_o']
+POSTERIOR_PREDICTIVE_VAR_NAMES = ['prediction_obs', 'X_o']
 POSTERIOR_VAR_NAMES = ['alpha_mu_X', 'N_E', 'alpha_sigma_X']
 SAMPLE_SIZE = 10000
 
@@ -129,8 +129,8 @@ class FullPlateReferenceModel:
 
             phi = pm.Deterministic('phi', pm.math.sum(X * Y) / pm.math.sum(X**2))
             pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_)
-            phi_hat = pred_o_ / X_o_
-            pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
+            pm.Normal(
+                'prediction_obs', phi * X_o_, 1e-3, observed=pred_o_)
 
     def sample(self, X_o, pred_o, draws=1000, rng=None):
         """

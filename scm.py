@@ -81,7 +81,7 @@ class SCM(ABC):
         X_array = np.asarray(X, dtype=float)
         if self.n_covariates == 1:
             X_matrix = X_array.reshape(-1, 1)
-            single_observation = X_array.shape == ()
+            single_observation = X_array.shape in ((), (1,))
             return X_array, X_matrix, single_observation
 
         if X_array.shape == (self.n_covariates,):
@@ -131,23 +131,29 @@ class SCM(ABC):
 
     def sample_CATE(self, X, A1_treatment, A0_treatment, draws=1, rng=None):
         """
-        This method samples the CATE-distribution using treatment 1 (higher dosage)
-        instead of treatment 0.
-        Given X and two treatment options A1_treatment and A0_treatment
+        Sample the conditional mean contrast between two treatments.
+
+        Within one SCM, the outcome noise is averaged out in each
+        interventional expectation. The contrast is therefore
+        ``(A1_treatment - A0_treatment) * N_E`` for every draw. Uncertainty
+        over CATE is introduced by sampling different SCM parameters in the
+        agent model, not by independently sampling realized outcomes here.
 
         Args:
             X (float): Feature to condition on
             A1_treatment (float): Dosage value of higher dose treatment
             A0_treatment (float): Dosage value of lower dose treatment
             draws (int): Size of sample to generate
-            rng: seed or initialized random number generator for reproducibility
+            rng: Accepted for API compatibility. The conditional mean
+                contrast is deterministic within one SCM, so the random
+                stream is not consumed.
         """
-        # Sample an outcome with treatment 1:
-        Y_do1, *_ = self.sample_do_A(A1_treatment, X, draws, rng=rng)
-        # Sample an outcome with treatment 0:
-        Y_do0, *_ = self.sample_do_A(A0_treatment, X, draws, rng=rng)
-        # The sample drawn from the CATE-distribution:
-        CATE_samples = Y_do1 - Y_do0
+        _X, X_matrix, single_observation = self._coerce_X(X)
+        sample_size = draws if single_observation else X_matrix.shape[0]
+        CATE_samples = np.full(
+            sample_size,
+            self.get_CATE_mu(A1_treatment, A0_treatment),
+            dtype=float)
         if draws > 2:
             # Estimate mean and standard deviation from sample
             CATE_mean = np.mean(CATE_samples)
@@ -163,10 +169,10 @@ class SCM(ABC):
         A1_treatment and A0_treatment. Due to how the SCM is defined, this
         value is equivalent to (A1_treatment - A0_treatment) * self.N_E.
 
-        The SCM in this class is defined so that Y given A and X is normally
-        distributed and its parameters are deterministically determined by the
-        values of A and X. This results in the CATE-distribution also being
-        normal and allows for deterministic calculation of the mean as: \n
+        The SCM in this class is defined so that the conditional expectation
+        of Y is linear in A. Outcome noise is averaged out in the two
+        interventional expectations, which allows deterministic calculation
+        of their contrast as: \n
         CATE_mu(X) = E(Y| X, do(A=A1)) - E(Y| X, do(A=A0))
 
         Args:

@@ -22,11 +22,10 @@ from pymc.distributions.shape_utils import rv_size_is_none
 from scipy import stats as st
 
 
-# Below this non-centrality the density is indistinguishable from a central
-# chi-squared (they differ by O(lam)), and the log-density has a removable
-# lam -> 0 singularity that evaluates to a NaN at exactly lam = 0. Because the
-# collapsed model feeds lam = n * Delta_X^2 and Delta_X can pass through 0
-# during warmup, we switch to the central branch below this threshold.
+# Below this non-centrality we use the central chi-squared limit. This is a
+# controlled numerical approximation for positive lam: the omitted Poisson
+# mixture weight is less than 5e-9. It avoids a removable lam -> 0 singularity
+# that otherwise evaluates to NaN when Delta_X passes through zero.
 LAM_EPS = 1e-8
 LARGE_BESSEL_ARGUMENT = 1e6
 ASYMPTOTIC_COEFFICIENTS = 6
@@ -90,7 +89,9 @@ def ncx2_logp(value, nu, lam):
     Log density of a non-central chi-squared distribution.
 
     Matches ``scipy.stats.ncx2(df=nu, nc=lam).logpdf`` to machine precision
-    where SciPy remains finite. The density is \n
+    where SciPy remains finite and ``lam >= LAM_EPS``. For smaller positive
+    non-centralities it uses the central chi-squared limit with omitted
+    Poisson mixture weight below ``5e-9``. The density is \n
     :math:`f(x) = \\tfrac12 e^{-(x+\\lambda)/2} (x/\\lambda)^{\\nu/4 - 1/2}
     I_{\\nu/2 - 1}(\\sqrt{\\lambda x})` \n
     for :math:`x > 0`. The cancelling exponential terms are combined before

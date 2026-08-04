@@ -46,6 +46,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../modules/distributions.html">Custom Distributions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_randomness.html">Experiment Randomness</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/dimensionality_config.html">Dimensionality Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
@@ -57,6 +58,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../modules/completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file.html">Generate Parameter File</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_independent_data_parameter_file.html">Generate Independent-Data Manifest</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
@@ -114,6 +116,13 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">scm</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">single_prediction_collapsed_agent_model</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">spcam</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">utils</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">experiment_randomness</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">RESULT_SCHEMA_VERSION</span> <span class="k">as</span> <span class="n">INDEPENDENT_RESULT_SCHEMA_VERSION</span><span class="p">,</span>
+    <span class="n">SCHEME</span> <span class="k">as</span> <span class="n">INDEPENDENT_DATA_SEED_SCHEME</span><span class="p">,</span>
+    <span class="n">format_stream_key</span> <span class="k">as</span> <span class="n">format_independent_stream_key</span><span class="p">,</span>
+    <span class="n">run_rng</span> <span class="k">as</span> <span class="n">independent_run_rng</span><span class="p">,</span>
+    <span class="n">run_stream_key</span> <span class="k">as</span> <span class="n">independent_run_stream_key</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dimensionality_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">AGENT_MODEL</span> <span class="k">as</span> <span class="n">DEFAULT_AGENT_MODEL</span><span class="p">,</span>
     <span class="n">A0_TREATMENT</span><span class="p">,</span>
@@ -131,6 +140,7 @@
     <span class="n">PLATE_SIZE</span><span class="p">,</span>
     <span class="n">RESULT_SCHEMA_VERSION</span><span class="p">,</span>
     <span class="n">SCALING_CHOICES</span><span class="p">,</span>
+    <span class="n">SCAN_CENTERS</span><span class="p">,</span>
     <span class="n">TARGET_ACCEPT</span><span class="p">,</span>
     <span class="n">TRUE_SCM</span><span class="p">,</span>
     <span class="n">format_stream_key</span><span class="p">,</span>
@@ -426,7 +436,9 @@
         <span class="n">prior_CATE_samples_</span><span class="p">,</span> <span class="n">prior_CATE_mean</span><span class="p">,</span> <span class="n">prior_CATE_std</span> <span class="o">=</span> \
             <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_prior_predictive_CATE</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span>
                                                      <span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
-    <span class="n">prior_treatment</span> <span class="o">=</span> <span class="n">A1_treatment</span> <span class="k">if</span> <span class="n">prior_CATE_mean</span> <span class="o">&gt;</span> <span class="n">threshold</span> <span class="k">else</span> <span class="n">A0_treatment</span>
+    <span class="n">prior_high_treatment</span> <span class="o">=</span> <span class="n">prior_CATE_mu</span> <span class="o">&gt;</span> <span class="n">threshold</span>
+    <span class="n">prior_treatment</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">A1_treatment</span> <span class="k">if</span> <span class="n">prior_high_treatment</span> <span class="k">else</span> <span class="n">A0_treatment</span><span class="p">)</span>
     <span class="n">prior_predictive_summaries</span> <span class="o">=</span> <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_prior_predictive_summaries</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
 
     <span class="c1"># 6. Posterior sampling. All settings are explicit and recorded below.</span>
@@ -457,7 +469,9 @@
         <span class="n">posterior_CATE_samples_</span><span class="p">,</span> <span class="n">posterior_CATE_mean</span><span class="p">,</span> <span class="n">posterior_CATE_std</span> <span class="o">=</span> \
             <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_posterior_predictive_CATE</span><span class="p">(</span><span class="n">X_o</span><span class="p">,</span> <span class="n">A1_treatment</span><span class="p">,</span> <span class="n">A0_treatment</span><span class="p">,</span>
                                                          <span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
-    <span class="n">posterior_treatment</span> <span class="o">=</span> <span class="n">A1_treatment</span> <span class="k">if</span> <span class="n">posterior_CATE_mean</span> <span class="o">&gt;</span> <span class="n">threshold</span> <span class="k">else</span> <span class="n">A0_treatment</span>
+    <span class="n">posterior_high_treatment</span> <span class="o">=</span> <span class="n">posterior_CATE_mean</span> <span class="o">&gt;</span> <span class="n">threshold</span>
+    <span class="n">posterior_treatment</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">A1_treatment</span> <span class="k">if</span> <span class="n">posterior_high_treatment</span> <span class="k">else</span> <span class="n">A0_treatment</span><span class="p">)</span>
     <span class="n">posterior_predictive_summaries</span>  <span class="o">=</span> <span class="n">agent_model</span><span class="o">.</span><span class="n">sample_posterior_predictive_summaries</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">is_collapsed</span><span class="p">:</span>
         <span class="n">posterior_parameter_summaries</span> <span class="o">=</span> <span class="n">agent_model</span><span class="o">.</span><span class="n">posterior_parameter_summaries</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">rng_obj</span><span class="p">)</span>
@@ -494,22 +508,36 @@
     <span class="p">}</span>
 
     <span class="c1"># 10. Decision correctness and outcome quality.</span>
-    <span class="n">prior_decision_correct</span>     <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">prior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span>
-    <span class="n">posterior_decision_correct</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span>
-    <span class="n">true_best_treatment</span>        <span class="o">=</span> <span class="n">A1_treatment</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">A0_treatment</span>
+    <span class="n">true_high_treatment</span> <span class="o">=</span> <span class="n">true_CATE_mu</span> <span class="o">&gt;</span> <span class="n">threshold</span>
+    <span class="n">true_sample_high_treatment</span> <span class="o">=</span> <span class="n">true_CATE_samples_</span> <span class="o">&gt;</span> <span class="n">threshold</span>
+    <span class="n">prior_decision_correct</span> <span class="o">=</span> <span class="n">prior_high_treatment</span> <span class="o">==</span> <span class="n">true_high_treatment</span>
+    <span class="n">posterior_decision_correct</span> <span class="o">=</span> \
+        <span class="n">posterior_high_treatment</span> <span class="o">==</span> <span class="n">true_high_treatment</span>
+    <span class="n">true_best_treatment</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">A1_treatment</span> <span class="k">if</span> <span class="n">true_high_treatment</span> <span class="k">else</span> <span class="n">A0_treatment</span><span class="p">)</span>
 
-    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">prior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">!=</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">):</span>
-        <span class="n">decision_changed</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="k">if</span> <span class="n">prior_high_treatment</span> <span class="o">!=</span> <span class="n">posterior_high_treatment</span><span class="p">:</span>
+        <span class="n">decision_changed</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="mi">1</span> <span class="k">if</span> <span class="n">posterior_high_treatment</span> <span class="o">==</span> <span class="n">true_high_treatment</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">decision_changed</span> <span class="o">=</span> <span class="mi">0</span>
 
-    <span class="n">frac_correct_prior_decision</span>     <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_samples_</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">prior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">))</span>
-    <span class="n">frac_correct_posterior_decision</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_samples_</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">))</span>
-    <span class="n">frac_correct_true_best_treatment</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_samples_</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">))</span>
+    <span class="n">frac_correct_prior_decision</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span>
+        <span class="n">true_sample_high_treatment</span> <span class="o">==</span> <span class="n">prior_high_treatment</span><span class="p">)</span>
+    <span class="n">frac_correct_posterior_decision</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span>
+        <span class="n">true_sample_high_treatment</span> <span class="o">==</span> <span class="n">posterior_high_treatment</span><span class="p">)</span>
+    <span class="n">frac_correct_true_best_treatment</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span>
+        <span class="n">true_sample_high_treatment</span> <span class="o">==</span> <span class="n">true_high_treatment</span><span class="p">)</span>
 
-    <span class="n">Y_mean_prior_treatment</span>     <span class="o">=</span> <span class="n">potential_outcome_A1_mean</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">prior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">potential_outcome_A0_mean</span>
-    <span class="n">Y_mean_posterior_treatment</span> <span class="o">=</span> <span class="n">potential_outcome_A1_mean</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">posterior_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">potential_outcome_A0_mean</span>
-    <span class="n">Y_mean_true_best_treatment</span> <span class="o">=</span> <span class="n">potential_outcome_A1_mean</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">true_CATE_mean</span> <span class="o">-</span> <span class="n">threshold</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">potential_outcome_A0_mean</span>
+    <span class="n">Y_mean_prior_treatment</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">potential_outcome_A1_mean</span>
+        <span class="k">if</span> <span class="n">prior_high_treatment</span> <span class="k">else</span> <span class="n">potential_outcome_A0_mean</span><span class="p">)</span>
+    <span class="n">Y_mean_posterior_treatment</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">potential_outcome_A1_mean</span>
+        <span class="k">if</span> <span class="n">posterior_high_treatment</span> <span class="k">else</span> <span class="n">potential_outcome_A0_mean</span><span class="p">)</span>
+    <span class="n">Y_mean_true_best_treatment</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">potential_outcome_A1_mean</span>
+        <span class="k">if</span> <span class="n">true_high_treatment</span> <span class="k">else</span> <span class="n">potential_outcome_A0_mean</span><span class="p">)</span>
 
     <span class="n">outputs</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s1">&#39;pred_o&#39;</span><span class="p">:</span>                            <span class="n">pred_o</span><span class="p">,</span>
@@ -533,8 +561,7 @@
     <span class="p">}</span>
 
     <span class="c1"># 11. Assemble results.</span>
-    <span class="n">current_time</span>  <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y%m</span><span class="si">%d</span><span class="s2">%H%M%S&quot;</span><span class="p">)</span>
-    <span class="n">experiment_id</span> <span class="o">=</span> <span class="n">current_time</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="mi">9999</span><span class="p">))</span>
+    <span class="n">experiment_id</span> <span class="o">=</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span>
 
     <span class="c1"># X_o: store as scalar for k=1, as bracketed list for k&gt;1.</span>
     <span class="c1"># Individual components are always written as extra columns X_o_0, X_o_1, …</span>
@@ -656,6 +683,12 @@
         <span class="s1">&#39;--fixed-rng-seed&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">_nonnegative_int</span><span class="p">,</span>
         <span class="n">help</span><span class="o">=</span><span class="s1">&#39;base seed for historical data, observation and sampler streams&#39;</span><span class="p">)</span>
     <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s1">&#39;--experiment-design&#39;</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;univariate_intercept&#39;</span><span class="p">,</span> <span class="s1">&#39;multivariate_intercept&#39;</span><span class="p">),</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;independent-data design for a registered scientific row&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--base-seed&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="n">_nonnegative_int</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--scan-deviation&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
         <span class="s1">&#39;--x-o&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
         <span class="n">help</span><span class="o">=</span><span class="s1">&#39;externally supplied observation; supported only for k=1&#39;</span><span class="p">)</span>
     <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
@@ -672,6 +705,26 @@
                 <span class="s2">&quot;--x-o requires both --fixed-rng-seed and --source-row&quot;</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">source_row</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;--source-row requires --x-o&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">experiment_design</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">base_seed</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">args</span><span class="o">.</span><span class="n">scan_deviation</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                <span class="s2">&quot;--experiment-design requires --base-seed and &quot;</span>
+                <span class="s2">&quot;--scan-deviation&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">fixed_rng_seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">args</span><span class="o">.</span><span class="n">x_o</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                <span class="s2">&quot;--experiment-design cannot be combined with &quot;</span>
+                <span class="s2">&quot;--fixed-rng-seed or --x-o&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">experiment_design</span> <span class="o">==</span> <span class="s1">&#39;univariate_intercept&#39;</span> <span class="ow">and</span>
+                <span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">n_covariates</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">args</span><span class="o">.</span><span class="n">sigma_scaling</span> <span class="o">!=</span> <span class="s1">&#39;1k&#39;</span><span class="p">)):</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                <span class="s2">&quot;univariate_intercept requires n_covariates=1 and &quot;</span>
+                <span class="s2">&quot;sigma_scaling=1k&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">experiment_design</span> <span class="o">==</span> <span class="s1">&#39;multivariate_intercept&#39;</span> <span class="ow">and</span>
+                <span class="n">args</span><span class="o">.</span><span class="n">sigma_scaling</span> <span class="o">!=</span> <span class="s1">&#39;sqrtk&#39;</span><span class="p">):</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;multivariate_intercept requires sqrtk scaling&quot;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">base_seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">args</span><span class="o">.</span><span class="n">scan_deviation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+            <span class="s2">&quot;--base-seed and --scan-deviation require --experiment-design&quot;</span><span class="p">)</span>
     <span class="n">args</span><span class="o">.</span><span class="n">draws</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">draws</span> <span class="ow">or</span> <span class="n">args</span><span class="o">.</span><span class="n">legacy_draws</span> <span class="ow">or</span> <span class="n">N_DRAWS</span>
     <span class="k">return</span> <span class="n">args</span>
 
@@ -711,7 +764,49 @@
     <span class="n">observation_rng</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">data_rng</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">run_rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">seed</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">fixed_rng_seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">experiment_design</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">center</span><span class="p">,</span> <span class="n">step</span> <span class="o">=</span> <span class="n">SCAN_CENTERS</span><span class="p">[</span><span class="n">param_name</span><span class="p">]</span>
+        <span class="n">expected_value</span> <span class="o">=</span> <span class="n">center</span> <span class="o">+</span> <span class="n">args</span><span class="o">.</span><span class="n">scan_deviation</span> <span class="o">*</span> <span class="n">step</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span>
+                <span class="n">param_value</span><span class="p">,</span> <span class="n">expected_value</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-7</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> value </span><span class="si">{}</span><span class="s1"> does not match scan deviation </span><span class="si">{:+d}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">param_name</span><span class="p">,</span> <span class="n">param_value</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">scan_deviation</span><span class="p">))</span>
+        <span class="n">key_args</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">experiment_design</span><span class="p">,</span>
+            <span class="n">param_name</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">scan_deviation</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">seed</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">sigma_scaling</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">data_key</span> <span class="o">=</span> <span class="n">independent_run_stream_key</span><span class="p">(</span>
+            <span class="s1">&#39;historical_data&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">key_args</span><span class="p">)</span>
+        <span class="n">observation_key</span> <span class="o">=</span> <span class="n">independent_run_stream_key</span><span class="p">(</span>
+            <span class="s1">&#39;observation&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">key_args</span><span class="p">)</span>
+        <span class="n">sampler_key</span> <span class="o">=</span> <span class="n">independent_run_stream_key</span><span class="p">(</span><span class="s1">&#39;sampler&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">key_args</span><span class="p">)</span>
+        <span class="n">data_rng</span> <span class="o">=</span> <span class="n">independent_run_rng</span><span class="p">(</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">base_seed</span><span class="p">,</span> <span class="s1">&#39;historical_data&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">key_args</span><span class="p">)</span>
+        <span class="n">observation_rng</span> <span class="o">=</span> <span class="n">independent_run_rng</span><span class="p">(</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">base_seed</span><span class="p">,</span> <span class="s1">&#39;observation&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">key_args</span><span class="p">)</span>
+        <span class="n">run_rng</span> <span class="o">=</span> <span class="n">independent_run_rng</span><span class="p">(</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">base_seed</span><span class="p">,</span> <span class="s1">&#39;sampler&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">key_args</span><span class="p">)</span>
+        <span class="n">result_metadata</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;result_schema_version&#39;</span><span class="p">:</span> <span class="n">INDEPENDENT_RESULT_SCHEMA_VERSION</span><span class="p">,</span>
+            <span class="s1">&#39;experiment_design&#39;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">experiment_design</span><span class="p">,</span>
+            <span class="s1">&#39;experimental_unit&#39;</span><span class="p">:</span> <span class="s1">&#39;historical_dataset_and_patient&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;replicate_id&#39;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">seed</span><span class="p">,</span>
+            <span class="s1">&#39;patient_id&#39;</span><span class="p">:</span> <span class="n">format_independent_stream_key</span><span class="p">(</span><span class="n">observation_key</span><span class="p">),</span>
+            <span class="s1">&#39;data_seed&#39;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">base_seed</span><span class="p">,</span>
+            <span class="s1">&#39;historical_data_stream_key&#39;</span><span class="p">:</span>
+                <span class="n">format_independent_stream_key</span><span class="p">(</span><span class="n">data_key</span><span class="p">),</span>
+            <span class="s1">&#39;sampler_seed&#39;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">base_seed</span><span class="p">,</span>
+            <span class="s1">&#39;sampler_stream_key&#39;</span><span class="p">:</span>
+                <span class="n">format_independent_stream_key</span><span class="p">(</span><span class="n">sampler_key</span><span class="p">),</span>
+            <span class="s1">&#39;observation_seed_scheme&#39;</span><span class="p">:</span> <span class="n">INDEPENDENT_DATA_SEED_SCHEME</span><span class="p">,</span>
+            <span class="s1">&#39;fit_intercept&#39;</span><span class="p">:</span> <span class="n">FIT_INTERCEPT</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">fixed_rng_seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">data_rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">fixed_rng_seed</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">x_o</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">sampler_key</span> <span class="o">=</span> <span class="n">run_stream_key</span><span class="p">(</span>

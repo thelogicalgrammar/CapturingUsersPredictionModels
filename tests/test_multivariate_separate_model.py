@@ -7,9 +7,11 @@ import warnings
 import arviz as az
 import numpy as np
 import pymc as pm
+import pytest
 from sklearn.linear_model import LinearRegression
 
 import agent_model as am
+import experiment
 import scm
 
 
@@ -53,7 +55,98 @@ def test_multivariate_scm_shapes():
     assert np.isfinite(Y_do_mean)
     assert np.isfinite(Y_do_std)
     assert np.isfinite(CATE_mean)
-    assert np.isfinite(CATE_std)
+    assert np.all(CATE_samples == 10.0)
+    assert CATE_std == 0
+
+
+def test_single_covariate_observation_uses_requested_draws():
+    models = (
+        scm.SCM_WithConstants(),
+        scm.MultivariateSCM(n_covariates=1),
+    )
+    X_o = np.array([80.0])
+
+    for model in models:
+        Y_do, _, Y_do_std = model.sample_do_A(
+            20, X_o, draws=5, rng=4)
+        scalar_Y_do, _, _ = model.sample_do_A(
+            20, 80.0, draws=5, rng=4)
+        CATE_samples, _, CATE_std = model.sample_CATE(
+            X_o, 20, 10, draws=5, rng=4)
+        scalar_CATE_samples, _, _ = model.sample_CATE(
+            80.0, 20, 10, draws=5, rng=4)
+
+        assert Y_do.shape == (5,)
+        assert CATE_samples.shape == (5,)
+        assert np.array_equal(Y_do, scalar_Y_do)
+        assert np.array_equal(CATE_samples, scalar_CATE_samples)
+        assert Y_do_std > 0
+        assert np.all(CATE_samples == 10.0)
+        assert CATE_std == 0
+
+
+def test_single_covariate_batch_keeps_batch_shape():
+    model = scm.MultivariateSCM(n_covariates=1)
+
+    Y_do, _, _ = model.sample_do_A(
+        20, np.array([[80.0]]), draws=5, rng=4)
+
+    assert Y_do.shape == (1,)
+
+
+def test_scalar_experiment_propagates_treatment_scale_uncertainty():
+    assert set(experiment.predictive_var_names) == set(
+        experiment.scm_noise_parameters)
+
+    model = am.ScalarAgentModel(
+        plate_size=8,
+        predictive_var_names=experiment.predictive_var_names)
+    model.sample_prior_predictive(draws=3, rng=4)
+    parameter_draws = model._parameter_draws(model.prior_samples.prior)
+
+    assert 'alpha_sigma_A' in model.prior_samples.prior
+    assert np.isclose(
+        model.predictive_scm.alpha_sigma_A,
+        parameter_draws[-1]['alpha_sigma_A'])
+
+
+def test_trace_diagnostics_skip_only_exactly_constant_components():
+    rng = np.random.default_rng(4)
+    draws = 40
+    trace = az.from_dict(
+        posterior={
+            'theta': rng.normal(size=(4, draws)),
+            'constant': np.ones((4, draws)),
+        },
+        sample_stats={
+            'diverging': np.zeros((4, draws), dtype=bool),
+        })
+    model = object.__new__(am.ScalarAgentModel)
+    model.trace = trace
+
+    diagnostics = model.trace_diagnostics()
+
+    assert np.isfinite(diagnostics['max_rhat'])
+    assert np.isfinite(diagnostics['min_ess_bulk'])
+    assert np.isfinite(diagnostics['min_ess_tail'])
+    assert diagnostics['n_divergences'] == 0
+
+
+def test_trace_diagnostics_reject_undefined_nonconstant_components():
+    rng = np.random.default_rng(4)
+    values = rng.normal(size=(4, 40))
+    values[0, 0] = np.nan
+    trace = az.from_dict(
+        posterior={'theta': values},
+        sample_stats={
+            'diverging': np.zeros((4, 40), dtype=bool),
+        })
+    model = object.__new__(am.ScalarAgentModel)
+    model.trace = trace
+
+    with pytest.raises(
+            ValueError, match="Undefined diagnostic for non-constant"):
+        model.trace_diagnostics()
 
 
 def test_multivariate_agent_prior_predictive_with_intercept():
@@ -76,6 +169,115 @@ def test_multivariate_agent_prior_predictive_without_intercept():
 
     assert len(samples) == 3
     assert samples[0][0].shape == (1, 2)
+
+
+def test_scalar_no_intercept_reduction_uses_exact_joint_ols_law():
+    model = am.ScalarAgentModel(plate_size=8)
+
+    old_auxiliaries = {
+        'S_X', 'S_Y', 'S_A', 'Z_XX',
+        'U_XY', 'V_XY', 'U_XA', 'V_XA',
+    }
+    assert {'s', 'W', 'g'}.issubset(model.model.named_vars)
+    assert old_auxiliaries.isdisjoint(model.model.named_vars)
+
+    with model.model:
+        prior = pm.sample_prior_predictive(
+            draws=20, random_seed=4)
+    samples = prior.prior
+
+    n = model.plate_size
+    S_x = (
+        n * samples['alpha_mu_X'] +
+        samples['alpha_sigma_X'] * samples['s'])
+    XTX = (
+        S_x**2 / n +
+        samples['alpha_sigma_X']**2 * samples['W'])
+    beta = (
+        model.scm_constants['b'] +
+        model.scm_constants['d'] * samples['N_E'])
+    c = (
+        model.scm_constants['a'] +
+        samples['alpha_mu_Y'] +
+        samples['N_E'] * samples['alpha_mu_A'])
+    tau = np.sqrt(
+        samples['N_E']**2 * samples['alpha_sigma_A']**2 +
+        samples['alpha_sigma_Y']**2)
+    expected_phi = (
+        beta + c * S_x / XTX +
+        tau * samples['g'] / np.sqrt(XTX))
+
+    assert np.allclose(samples['S_x'], S_x)
+    assert np.allclose(samples['XTX'], XTX)
+    assert np.allclose(samples['phi'], expected_phi)
+
+
+def test_scalar_no_intercept_reduction_matches_explicit_plate():
+    n = 8
+    rng = np.random.default_rng(4)
+    alpha_mu_X = 80.0
+    alpha_sigma_X = 10.0
+    alpha_mu_A = 2.0
+    alpha_sigma_A = 1.0
+    alpha_mu_Y = 0.0
+    alpha_sigma_Y = 0.1
+    N_E = 1.2
+    a = 12.0
+    b = -0.1
+    d = 0.125
+
+    epsilon_X = rng.normal(size=n)
+    epsilon_A = rng.normal(size=n)
+    epsilon_Y = rng.normal(size=n)
+    X = alpha_mu_X + alpha_sigma_X * epsilon_X
+    A = d * X + alpha_mu_A + alpha_sigma_A * epsilon_A
+    Y = a + b * X + N_E * A + alpha_mu_Y + alpha_sigma_Y * epsilon_Y
+    explicit_phi = np.dot(X, Y) / np.dot(X, X)
+
+    residual = (
+        N_E * alpha_sigma_A * epsilon_A +
+        alpha_sigma_Y * epsilon_Y)
+    tau = np.sqrt(
+        N_E**2 * alpha_sigma_A**2 + alpha_sigma_Y**2)
+    S_x = X.sum()
+    XTX = np.dot(X, X)
+    g = np.dot(X, residual) / (tau * np.sqrt(XTX))
+    beta = b + d * N_E
+    c = a + alpha_mu_Y + N_E * alpha_mu_A
+    reduced_phi = beta + c * S_x / XTX + tau * g / np.sqrt(XTX)
+
+    assert np.allclose(reduced_phi, explicit_phi)
+
+
+def test_scalar_prediction_tolerance_uses_prediction_scale():
+    model = am.ScalarAgentModel(plate_size=8)
+    with model.model:
+        pm.set_data({
+            'X_o_': np.asarray(40.0),
+            'pred_o_': np.asarray(0.0),
+        })
+        point = model.model.initial_point()
+        phi_value, = model.model.replace_rvs_by_values(
+            [model.model['phi']])
+        phi_fn = model.model.compile_fn(phi_value)
+        logp_fn = model.model.compile_logp(
+            vars=[model.model['prediction_obs']])
+    phi = np.asarray(phi_fn(point)).item()
+    residual = 2e-3
+    logps = []
+    for X_o in (40.0, 120.0):
+        with model.model:
+            pm.set_data({
+                'X_o_': np.asarray(X_o),
+                'pred_o_': np.asarray(X_o * phi + residual),
+            })
+        logps.append(float(logp_fn(point)))
+
+    sigma = 1e-3
+    expected = (
+        -0.5 * (residual / sigma)**2 -
+        np.log(sigma) - 0.5 * np.log(2 * np.pi))
+    assert np.allclose(logps, [expected, expected], rtol=0, atol=1e-10)
 
 
 def test_single_prediction_likelihood_keeps_prediction_scalar():

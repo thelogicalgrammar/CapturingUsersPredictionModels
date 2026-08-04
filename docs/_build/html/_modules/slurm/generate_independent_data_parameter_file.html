@@ -1,0 +1,303 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>slurm.generate_independent_data_parameter_file &mdash; CapturingUsersPredictionModels 1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=f2a433a1"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+</head>
+
+<body class="wy-body-for-nav">
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+
+
+          <a href="../../index.html" class="icon icon-home">
+            CapturingUsersPredictionModels
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/agent_model.html">Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/scm.html">Structural Causal Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/distributions.html">Custom Distributions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/experiment.html">Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/experiment_randomness.html">Experiment Randomness</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/dimensionality_config.html">Dimensionality Configuration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/experiment_dimensionality.html">Dimensionality Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/experiment_collapsed.html">Collapsed Experiment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/utils.html">Utilities</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">SLURM Scripts</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/completion_check.html">Completion Check</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/generate_parameter_file.html">Generate Parameter File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/generate_independent_data_parameter_file.html">Generate Independent-Data Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules/generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">CapturingUsersPredictionModels</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">slurm.generate_independent_data_parameter_file</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+
+  <h1>Source code for slurm.generate_independent_data_parameter_file</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Generate a manifest with an independent dataset and patient per run.&quot;&quot;&quot;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="n">REPO_ROOT</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span>
+<span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">REPO_ROOT</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">REPO_ROOT</span><span class="p">))</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dimensionality_config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>  <span class="c1"># noqa: E402</span>
+    <span class="n">A0_TREATMENT</span><span class="p">,</span>
+    <span class="n">A1_TREATMENT</span><span class="p">,</span>
+    <span class="n">DECISION_THRESHOLD</span><span class="p">,</span>
+    <span class="n">N_CHAINS</span><span class="p">,</span>
+    <span class="n">N_COVARIATES</span><span class="p">,</span>
+    <span class="n">N_DRAWS</span><span class="p">,</span>
+    <span class="n">N_TUNE</span><span class="p">,</span>
+    <span class="n">PLATE_SIZE</span><span class="p">,</span>
+    <span class="n">SCAN_CENTERS</span><span class="p">,</span>
+    <span class="n">TARGET_ACCEPT</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">experiment_randomness</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>  <span class="c1"># noqa: E402</span>
+    <span class="n">BASE_SEED</span><span class="p">,</span>
+    <span class="n">NO_INTERCEPT_SCAN_CENTERS</span><span class="p">,</span>
+    <span class="n">RESULT_SCHEMA_VERSION</span><span class="p">,</span>
+    <span class="n">SCHEME</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">slurm.generate_parameter_file_dimensionality</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>  <span class="c1"># noqa: E402</span>
+    <span class="n">parse_integer_selection</span><span class="p">,</span>
+    <span class="n">write_atomic</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<span class="n">DESIGNS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;univariate_no_intercept&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;agent_model&#39;</span><span class="p">:</span> <span class="s1">&#39;scalar&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;centers&#39;</span><span class="p">:</span> <span class="n">NO_INTERCEPT_SCAN_CENTERS</span><span class="p">,</span>
+        <span class="s1">&#39;deviations&#39;</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="mi">30</span><span class="p">,</span> <span class="mi">31</span><span class="p">)),</span>
+        <span class="s1">&#39;n_covariates&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span><span class="p">,),</span>
+        <span class="s1">&#39;scaling&#39;</span><span class="p">:</span> <span class="s1">&#39;1k&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;fit_intercept&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;univariate_intercept&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;agent_model&#39;</span><span class="p">:</span> <span class="s1">&#39;collapsed_sign_marginalized&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;centers&#39;</span><span class="p">:</span> <span class="n">SCAN_CENTERS</span><span class="p">,</span>
+        <span class="s1">&#39;deviations&#39;</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="mi">30</span><span class="p">,</span> <span class="mi">31</span><span class="p">)),</span>
+        <span class="s1">&#39;n_covariates&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span><span class="p">,),</span>
+        <span class="s1">&#39;scaling&#39;</span><span class="p">:</span> <span class="s1">&#39;1k&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;fit_intercept&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;multivariate_intercept&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;agent_model&#39;</span><span class="p">:</span> <span class="s1">&#39;collapsed_sign_marginalized&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;centers&#39;</span><span class="p">:</span> <span class="n">SCAN_CENTERS</span><span class="p">,</span>
+        <span class="s1">&#39;deviations&#39;</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mi">20</span><span class="p">,</span> <span class="o">-</span><span class="mi">10</span><span class="p">,</span> <span class="o">-</span><span class="mi">3</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span>
+        <span class="s1">&#39;n_covariates&#39;</span><span class="p">:</span> <span class="n">N_COVARIATES</span><span class="p">,</span>
+        <span class="s1">&#39;scaling&#39;</span><span class="p">:</span> <span class="s1">&#39;sqrtk&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;fit_intercept&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="generate_manifest">
+<a class="viewcode-back" href="../../modules/generate_independent_data_parameter_file.html#slurm.generate_independent_data_parameter_file.generate_manifest">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_manifest</span><span class="p">(</span>
+        <span class="n">experiment_design</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">replicates</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">deviations</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">n_covariates</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">base_seed</span><span class="o">=</span><span class="n">BASE_SEED</span><span class="p">,</span> <span class="n">design_output</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Write a manifest and its design sidecar.&quot;&quot;&quot;</span>
+    <span class="n">design</span> <span class="o">=</span> <span class="n">DESIGNS</span><span class="p">[</span><span class="n">experiment_design</span><span class="p">]</span>
+    <span class="n">replicates</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+        <span class="nb">range</span><span class="p">(</span><span class="mi">50</span><span class="p">)</span> <span class="k">if</span> <span class="n">replicates</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">replicates</span><span class="p">)</span>
+    <span class="n">deviations</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+        <span class="n">design</span><span class="p">[</span><span class="s1">&#39;deviations&#39;</span><span class="p">]</span> <span class="k">if</span> <span class="n">deviations</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">deviations</span><span class="p">)</span>
+    <span class="n">n_covariates</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+        <span class="n">design</span><span class="p">[</span><span class="s1">&#39;n_covariates&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">n_covariates</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">n_covariates</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">replicates</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">replicates</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">replicates</span><span class="p">)</span> <span class="ow">or</span>
+            <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="mi">0</span>
+                <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">replicates</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s1">&#39;replicates must be unique non-negative integers&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">deviations</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">deviations</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">deviations</span><span class="p">)</span> <span class="ow">or</span>
+            <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="o">-</span><span class="mi">30</span> <span class="o">&lt;=</span> <span class="n">value</span> <span class="o">&lt;=</span> <span class="mi">30</span>
+                <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">deviations</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s1">&#39;deviations must be unique integers from -30 through 30&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">n_covariates</span> <span class="ow">or</span>
+            <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">n_covariates</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">n_covariates</span><span class="p">)</span> <span class="ow">or</span>
+            <span class="ow">not</span> <span class="nb">set</span><span class="p">(</span><span class="n">n_covariates</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="nb">set</span><span class="p">(</span><span class="n">design</span><span class="p">[</span><span class="s1">&#39;n_covariates&#39;</span><span class="p">])):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s1">&#39;n_covariates are incompatible with the experiment design&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">base_seed</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="n">base_seed</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;base_seed must be a non-negative integer&#39;</span><span class="p">)</span>
+
+    <span class="n">lines</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">param</span><span class="p">,</span> <span class="p">(</span><span class="n">center</span><span class="p">,</span> <span class="n">step</span><span class="p">)</span> <span class="ow">in</span> <span class="n">design</span><span class="p">[</span><span class="s1">&#39;centers&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">deviation</span> <span class="ow">in</span> <span class="n">deviations</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">center</span> <span class="o">+</span> <span class="n">deviation</span> <span class="o">*</span> <span class="n">step</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">n_covariates</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">replicate</span> <span class="ow">in</span> <span class="n">replicates</span><span class="p">:</span>
+                    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                        <span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> </span><span class="si">{:.6f}</span><span class="s1"> </span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                            <span class="n">param</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">replicate</span><span class="p">,</span>
+                            <span class="n">design</span><span class="p">[</span><span class="s1">&#39;scaling&#39;</span><span class="p">],</span> <span class="n">deviation</span><span class="p">))</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+    <span class="n">write_atomic</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">content</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">design_output</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">design_output</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span>
+            <span class="n">output</span><span class="o">.</span><span class="n">stem</span> <span class="o">+</span> <span class="s1">&#39;.design.json&#39;</span><span class="p">)</span>
+    <span class="n">design_output</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">design_output</span><span class="p">)</span>
+    <span class="n">metadata</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;design_version&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;result_schema_version&#39;</span><span class="p">:</span> <span class="n">RESULT_SCHEMA_VERSION</span><span class="p">,</span>
+        <span class="s1">&#39;experiment_design&#39;</span><span class="p">:</span> <span class="n">experiment_design</span><span class="p">,</span>
+        <span class="s1">&#39;agent_model&#39;</span><span class="p">:</span> <span class="n">design</span><span class="p">[</span><span class="s1">&#39;agent_model&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;manifest&#39;</span><span class="p">:</span> <span class="n">output</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+        <span class="s1">&#39;manifest_sha256&#39;</span><span class="p">:</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span>
+            <span class="n">content</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">(),</span>
+        <span class="s1">&#39;line_count&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">),</span>
+        <span class="s1">&#39;parameters&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="n">key</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;center&#39;</span><span class="p">:</span> <span class="n">center</span><span class="p">,</span> <span class="s1">&#39;step&#39;</span><span class="p">:</span> <span class="n">step</span><span class="p">}</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="p">(</span><span class="n">center</span><span class="p">,</span> <span class="n">step</span><span class="p">)</span> <span class="ow">in</span> <span class="n">design</span><span class="p">[</span><span class="s1">&#39;centers&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">},</span>
+        <span class="s1">&#39;deviations&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">deviations</span><span class="p">),</span>
+        <span class="s1">&#39;n_covariates&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">n_covariates</span><span class="p">),</span>
+        <span class="s1">&#39;replicates&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">replicates</span><span class="p">),</span>
+        <span class="s1">&#39;scaling&#39;</span><span class="p">:</span> <span class="n">design</span><span class="p">[</span><span class="s1">&#39;scaling&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;base_seed&#39;</span><span class="p">:</span> <span class="n">base_seed</span><span class="p">,</span>
+        <span class="s1">&#39;seed_scheme&#39;</span><span class="p">:</span> <span class="n">SCHEME</span><span class="p">,</span>
+        <span class="s1">&#39;randomization&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;historical_data&#39;</span><span class="p">:</span> <span class="s1">&#39;independent_per_manifest_row&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;observation&#39;</span><span class="p">:</span> <span class="s1">&#39;independent_per_manifest_row&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;sampler&#39;</span><span class="p">:</span> <span class="s1">&#39;independent_per_manifest_row&#39;</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="s1">&#39;sampler&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;draws&#39;</span><span class="p">:</span> <span class="n">N_DRAWS</span><span class="p">,</span>
+            <span class="s1">&#39;tune&#39;</span><span class="p">:</span> <span class="n">N_TUNE</span><span class="p">,</span>
+            <span class="s1">&#39;chains&#39;</span><span class="p">:</span> <span class="n">N_CHAINS</span><span class="p">,</span>
+            <span class="s1">&#39;target_accept&#39;</span><span class="p">:</span> <span class="n">TARGET_ACCEPT</span><span class="p">,</span>
+            <span class="s1">&#39;max_treedepth&#39;</span><span class="p">:</span> <span class="mi">15</span><span class="p">,</span>
+            <span class="s1">&#39;init&#39;</span><span class="p">:</span> <span class="s1">&#39;jitter+adapt_diag&#39;</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="s1">&#39;experiment&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;plate_size&#39;</span><span class="p">:</span> <span class="n">PLATE_SIZE</span><span class="p">,</span>
+            <span class="s1">&#39;a1_treatment&#39;</span><span class="p">:</span> <span class="n">A1_TREATMENT</span><span class="p">,</span>
+            <span class="s1">&#39;a0_treatment&#39;</span><span class="p">:</span> <span class="n">A0_TREATMENT</span><span class="p">,</span>
+            <span class="s1">&#39;decision_threshold&#39;</span><span class="p">:</span> <span class="n">DECISION_THRESHOLD</span><span class="p">,</span>
+            <span class="s1">&#39;fit_intercept&#39;</span><span class="p">:</span> <span class="n">design</span><span class="p">[</span><span class="s1">&#39;fit_intercept&#39;</span><span class="p">],</span>
+        <span class="p">},</span>
+    <span class="p">}</span>
+    <span class="n">write_atomic</span><span class="p">(</span>
+        <span class="n">design_output</span><span class="p">,</span>
+        <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">metadata</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Wrote </span><span class="si">{}</span><span class="s1"> lines to </span><span class="si">{}</span><span class="s1">.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">),</span> <span class="n">output</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Design metadata: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">design_output</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">output</span></div>
+
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="vm">__doc__</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s1">&#39;--experiment-design&#39;</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">DESIGNS</span><span class="p">),</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--output&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--design-output&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--replicates&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;0-49&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--deviations&#39;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--n-covariates&#39;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--base-seed&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">BASE_SEED</span><span class="p">)</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">replicate_ids</span> <span class="o">=</span> <span class="n">parse_integer_selection</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">replicates</span><span class="p">)</span>
+        <span class="n">generate_manifest</span><span class="p">(</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">experiment_design</span><span class="p">,</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span>
+            <span class="n">replicates</span><span class="o">=</span><span class="n">replicate_ids</span><span class="p">,</span>
+            <span class="n">deviations</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">deviations</span><span class="p">,</span>
+            <span class="n">n_covariates</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">n_covariates</span><span class="p">,</span>
+            <span class="n">base_seed</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">base_seed</span><span class="p">,</span>
+            <span class="n">design_output</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">design_output</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">))</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+</body>
+</html>

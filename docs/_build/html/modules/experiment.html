@@ -10,7 +10,7 @@
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
 
-  
+
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="../_static/documentation_options.js?v=f2a433a1"></script>
@@ -23,14 +23,14 @@
     <link rel="prev" title="Custom Distributions" href="distributions.html" />
 </head>
 
-<body class="wy-body-for-nav"> 
+<body class="wy-body-for-nav">
   <div class="wy-grid-for-nav">
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
 
-          
-          
+
+
           <a href="../index.html" class="icon icon-home">
             CapturingUsersPredictionModels
           </a>
@@ -52,6 +52,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_randomness.html">Experiment Randomness</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dimensionality_config.html">Dimensionality Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
@@ -63,6 +64,7 @@
 <li class="toctree-l1"><a class="reference internal" href="completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="generate_parameter_file.html">Generate Parameter File</a></li>
 <li class="toctree-l1"><a class="reference internal" href="generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generate_independent_data_parameter_file.html">Generate Independent-Data Manifest</a></li>
 <li class="toctree-l1"><a class="reference internal" href="generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
@@ -89,7 +91,7 @@
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-             
+
   <section id="module-experiment">
 <span id="experiment"></span><h1>Experiment<a class="headerlink" href="#module-experiment" title="Link to this heading"></a></h1>
 <p>This module provides functionality to run experiments that test agent decision-making
@@ -108,7 +110,7 @@ use 72kg as the feature of the observed patient.</p>
 Could perhaps implement support for changing plate size and SCM parameters</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="experiment.main">
-<span class="sig-prename descclassname"><span class="pre">experiment.</span></span><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">agent_priors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modified_prior</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_treatment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_treatment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plate_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scm_noise_parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'N_E':</span> <span class="pre">1.0,</span> <span class="pre">'alpha_mu_A':</span> <span class="pre">2,</span> <span class="pre">'alpha_mu_X':</span> <span class="pre">80,</span> <span class="pre">'alpha_mu_Y':</span> <span class="pre">0.0,</span> <span class="pre">'alpha_sigma_A':</span> <span class="pre">1.0,</span> <span class="pre">'alpha_sigma_X':</span> <span class="pre">10,</span> <span class="pre">'alpha_sigma_Y':</span> <span class="pre">0.1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scm_constants</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'a':</span> <span class="pre">12.0,</span> <span class="pre">'b':</span> <span class="pre">-0.1,</span> <span class="pre">'d':</span> <span class="pre">0.125}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameter_descriptions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'agent_priors':</span> <span class="pre">'Default',</span> <span class="pre">'scm_constants':</span> <span class="pre">'Default',</span> <span class="pre">'scm_noise_parameters':</span> <span class="pre">'Default'}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/experiment.html#main"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#experiment.main" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">experiment.</span></span><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X_o</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">agent_priors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modified_prior</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A1_treatment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0_treatment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plate_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scm_noise_parameters</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'N_E':</span> <span class="pre">1.0,</span> <span class="pre">'alpha_mu_A':</span> <span class="pre">2,</span> <span class="pre">'alpha_mu_X':</span> <span class="pre">80,</span> <span class="pre">'alpha_mu_Y':</span> <span class="pre">0.0,</span> <span class="pre">'alpha_sigma_A':</span> <span class="pre">1.0,</span> <span class="pre">'alpha_sigma_X':</span> <span class="pre">10,</span> <span class="pre">'alpha_sigma_Y':</span> <span class="pre">0.1}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scm_constants</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'a':</span> <span class="pre">12.0,</span> <span class="pre">'b':</span> <span class="pre">-0.1,</span> <span class="pre">'d':</span> <span class="pre">0.125}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameter_descriptions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">{'agent_priors':</span> <span class="pre">'Default',</span> <span class="pre">'scm_constants':</span> <span class="pre">'Default',</span> <span class="pre">'scm_noise_parameters':</span> <span class="pre">'Default'}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_rng</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampler_settings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./results'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'results.csv'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">result_metadata</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot_pair</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refuse_overwrite</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/experiment.html#main"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#experiment.main" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -126,6 +128,13 @@ decision support model.</p></li>
 <li><p><strong>scm_noise_parameters</strong> (<em>dict</em>) – Dict with keys needed in SCM-class.</p></li>
 <li><p><strong>scm_constants</strong> (<em>dict</em>) – Constants defining the relationships in the SCM.</p></li>
 <li><p><strong>rng</strong> (<em>int</em><em> or </em><em>rng</em>) – Seed or rng for reproducibility.</p></li>
+<li><p><strong>data_rng</strong> – Independent seed or generator for the historical dataset.</p></li>
+<li><p><strong>sampler_settings</strong> (<em>dict</em><em> or </em><em>None</em>) – Explicit NUTS settings.</p></li>
+<li><p><strong>output_dir</strong> (<em>str</em><em> or </em><em>pathlib.Path</em>) – Result directory.</p></li>
+<li><p><strong>output_file</strong> (<em>str</em>) – Result CSV name.</p></li>
+<li><p><strong>result_metadata</strong> (<em>dict</em><em> or </em><em>None</em>) – Additional result provenance.</p></li>
+<li><p><strong>plot_pair</strong> (<em>bool</em>) – Whether to write the posterior pair plot.</p></li>
+<li><p><strong>refuse_overwrite</strong> (<em>bool</em>) – Atomically reject an existing result file.</p></li>
 </ul>
 </dd>
 </dl>
@@ -150,7 +159,7 @@ decision support model.</p></li>
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
     <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
     provided by <a href="https://readthedocs.org">Read the Docs</a>.
-   
+
 
 </footer>
         </div>
@@ -161,7 +170,7 @@ decision support model.</p></li>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script> 
+  </script>
 
 </body>
 </html>

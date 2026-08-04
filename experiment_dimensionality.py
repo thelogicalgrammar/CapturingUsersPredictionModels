@@ -27,6 +27,13 @@ import agent_model as am
 import scm
 import single_prediction_collapsed_agent_model as spcam
 import utils
+from experiment_randomness import (
+    RESULT_SCHEMA_VERSION as INDEPENDENT_RESULT_SCHEMA_VERSION,
+    SCHEME as INDEPENDENT_DATA_SEED_SCHEME,
+    format_stream_key as format_independent_stream_key,
+    run_rng as independent_run_rng,
+    run_stream_key as independent_run_stream_key,
+)
 from dimensionality_config import (
     AGENT_MODEL as DEFAULT_AGENT_MODEL,
     A0_TREATMENT,
@@ -44,6 +51,7 @@ from dimensionality_config import (
     PLATE_SIZE,
     RESULT_SCHEMA_VERSION,
     SCALING_CHOICES,
+    SCAN_CENTERS,
     TARGET_ACCEPT,
     TRUE_SCM,
     format_stream_key,
@@ -337,7 +345,9 @@ def main(agent_priors, modified_prior, k,
         prior_CATE_samples_, prior_CATE_mean, prior_CATE_std = \
             agent_model.sample_prior_predictive_CATE(X_o, A1_treatment, A0_treatment,
                                                      rng=rng_obj)
-    prior_treatment = A1_treatment if prior_CATE_mean > threshold else A0_treatment
+    prior_high_treatment = prior_CATE_mu > threshold
+    prior_treatment = (
+        A1_treatment if prior_high_treatment else A0_treatment)
     prior_predictive_summaries = agent_model.sample_prior_predictive_summaries(rng=rng_obj)
 
     # 6. Posterior sampling. All settings are explicit and recorded below.
@@ -368,7 +378,9 @@ def main(agent_priors, modified_prior, k,
         posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std = \
             agent_model.sample_posterior_predictive_CATE(X_o, A1_treatment, A0_treatment,
                                                          rng=rng_obj)
-    posterior_treatment = A1_treatment if posterior_CATE_mean > threshold else A0_treatment
+    posterior_high_treatment = posterior_CATE_mean > threshold
+    posterior_treatment = (
+        A1_treatment if posterior_high_treatment else A0_treatment)
     posterior_predictive_summaries  = agent_model.sample_posterior_predictive_summaries(rng=rng_obj)
     if is_collapsed:
         posterior_parameter_summaries = agent_model.posterior_parameter_summaries(rng=rng_obj)
@@ -405,22 +417,36 @@ def main(agent_priors, modified_prior, k,
     }
 
     # 10. Decision correctness and outcome quality.
-    prior_decision_correct     = np.sign(true_CATE_mean - threshold) == np.sign(prior_CATE_mean - threshold)
-    posterior_decision_correct = np.sign(true_CATE_mean - threshold) == np.sign(posterior_CATE_mean - threshold)
-    true_best_treatment        = A1_treatment if np.sign(true_CATE_mean - threshold) > 0 else A0_treatment
+    true_high_treatment = true_CATE_mu > threshold
+    true_sample_high_treatment = true_CATE_samples_ > threshold
+    prior_decision_correct = prior_high_treatment == true_high_treatment
+    posterior_decision_correct = \
+        posterior_high_treatment == true_high_treatment
+    true_best_treatment = (
+        A1_treatment if true_high_treatment else A0_treatment)
 
-    if np.sign(prior_CATE_mean - threshold) != np.sign(posterior_CATE_mean - threshold):
-        decision_changed = 1 if np.sign(posterior_CATE_mean - threshold) == np.sign(true_CATE_mean - threshold) else -1
+    if prior_high_treatment != posterior_high_treatment:
+        decision_changed = (
+            1 if posterior_high_treatment == true_high_treatment else -1)
     else:
         decision_changed = 0
 
-    frac_correct_prior_decision     = np.mean(np.sign(true_CATE_samples_ - threshold) == np.sign(prior_CATE_mean - threshold))
-    frac_correct_posterior_decision = np.mean(np.sign(true_CATE_samples_ - threshold) == np.sign(posterior_CATE_mean - threshold))
-    frac_correct_true_best_treatment = np.mean(np.sign(true_CATE_samples_ - threshold) == np.sign(true_CATE_mean - threshold))
+    frac_correct_prior_decision = np.mean(
+        true_sample_high_treatment == prior_high_treatment)
+    frac_correct_posterior_decision = np.mean(
+        true_sample_high_treatment == posterior_high_treatment)
+    frac_correct_true_best_treatment = np.mean(
+        true_sample_high_treatment == true_high_treatment)
 
-    Y_mean_prior_treatment     = potential_outcome_A1_mean if np.sign(prior_CATE_mean - threshold) > 0 else potential_outcome_A0_mean
-    Y_mean_posterior_treatment = potential_outcome_A1_mean if np.sign(posterior_CATE_mean - threshold) > 0 else potential_outcome_A0_mean
-    Y_mean_true_best_treatment = potential_outcome_A1_mean if np.sign(true_CATE_mean - threshold) > 0 else potential_outcome_A0_mean
+    Y_mean_prior_treatment = (
+        potential_outcome_A1_mean
+        if prior_high_treatment else potential_outcome_A0_mean)
+    Y_mean_posterior_treatment = (
+        potential_outcome_A1_mean
+        if posterior_high_treatment else potential_outcome_A0_mean)
+    Y_mean_true_best_treatment = (
+        potential_outcome_A1_mean
+        if true_high_treatment else potential_outcome_A0_mean)
 
     outputs = {
         'pred_o':                            pred_o,
@@ -444,8 +470,7 @@ def main(agent_priors, modified_prior, k,
     }
 
     # 11. Assemble results.
-    current_time  = time.strftime("%Y%m%d%H%M%S")
-    experiment_id = current_time + str(np.random.randint(1000, 9999))
+    experiment_id = uuid.uuid4().hex
 
     # X_o: store as scalar for k=1, as bracketed list for k>1.
     # Individual components are always written as extra columns X_o_0, X_o_1, …
@@ -566,6 +591,12 @@ def _parse_args():
         '--fixed-rng-seed', type=_nonnegative_int,
         help='base seed for historical data, observation and sampler streams')
     parser.add_argument(
+        '--experiment-design',
+        choices=('univariate_intercept', 'multivariate_intercept'),
+        help='independent-data design for a registered scientific row')
+    parser.add_argument('--base-seed', type=_nonnegative_int)
+    parser.add_argument('--scan-deviation', type=int)
+    parser.add_argument(
         '--x-o', type=float,
         help='externally supplied observation; supported only for k=1')
     parser.add_argument(
@@ -582,6 +613,26 @@ def _parse_args():
                 "--x-o requires both --fixed-rng-seed and --source-row")
     elif args.source_row is not None:
         parser.error("--source-row requires --x-o")
+    if args.experiment_design is not None:
+        if args.base_seed is None or args.scan_deviation is None:
+            parser.error(
+                "--experiment-design requires --base-seed and "
+                "--scan-deviation")
+        if args.fixed_rng_seed is not None or args.x_o is not None:
+            parser.error(
+                "--experiment-design cannot be combined with "
+                "--fixed-rng-seed or --x-o")
+        if (args.experiment_design == 'univariate_intercept' and
+                (args.n_covariates != 1 or args.sigma_scaling != '1k')):
+            parser.error(
+                "univariate_intercept requires n_covariates=1 and "
+                "sigma_scaling=1k")
+        if (args.experiment_design == 'multivariate_intercept' and
+                args.sigma_scaling != 'sqrtk'):
+            parser.error("multivariate_intercept requires sqrtk scaling")
+    elif args.base_seed is not None or args.scan_deviation is not None:
+        parser.error(
+            "--base-seed and --scan-deviation require --experiment-design")
     args.draws = args.draws or args.legacy_draws or N_DRAWS
     return args
 
@@ -621,7 +672,49 @@ if __name__ == '__main__':
     observation_rng = None
     data_rng = None
     run_rng = np.random.default_rng(args.seed)
-    if args.fixed_rng_seed is not None:
+    if args.experiment_design is not None:
+        center, step = SCAN_CENTERS[param_name]
+        expected_value = center + args.scan_deviation * step
+        if not np.isclose(
+                param_value, expected_value, rtol=0.0, atol=1e-7):
+            raise ValueError(
+                '{} value {} does not match scan deviation {:+d}'.format(
+                    param_name, param_value, args.scan_deviation))
+        key_args = (
+            args.experiment_design,
+            param_name,
+            args.scan_deviation,
+            args.n_covariates,
+            args.seed,
+            args.sigma_scaling,
+        )
+        data_key = independent_run_stream_key(
+            'historical_data', *key_args)
+        observation_key = independent_run_stream_key(
+            'observation', *key_args)
+        sampler_key = independent_run_stream_key('sampler', *key_args)
+        data_rng = independent_run_rng(
+            args.base_seed, 'historical_data', *key_args)
+        observation_rng = independent_run_rng(
+            args.base_seed, 'observation', *key_args)
+        run_rng = independent_run_rng(
+            args.base_seed, 'sampler', *key_args)
+        result_metadata = {
+            'result_schema_version': INDEPENDENT_RESULT_SCHEMA_VERSION,
+            'experiment_design': args.experiment_design,
+            'experimental_unit': 'historical_dataset_and_patient',
+            'replicate_id': args.seed,
+            'patient_id': format_independent_stream_key(observation_key),
+            'data_seed': args.base_seed,
+            'historical_data_stream_key':
+                format_independent_stream_key(data_key),
+            'sampler_seed': args.base_seed,
+            'sampler_stream_key':
+                format_independent_stream_key(sampler_key),
+            'observation_seed_scheme': INDEPENDENT_DATA_SEED_SCHEME,
+            'fit_intercept': FIT_INTERCEPT,
+        }
+    elif args.fixed_rng_seed is not None:
         data_rng = np.random.default_rng(args.fixed_rng_seed)
         if args.x_o is None:
             sampler_key = run_stream_key(

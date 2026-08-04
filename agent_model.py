@@ -36,7 +36,6 @@ import pymc as pm
 import pytensor.tensor as pt
 from scipy.stats import kurtosis, skew
 from abc import ABC, abstractmethod
-import warnings
 
 import scm
 from distributions import NoncentralChiSquared
@@ -253,6 +252,7 @@ class AgentModel(ABC):
         Returns:
             tuple: ``(do_A_samples, do_A_mean, do_A_std)``.
         """
+        rng = np.random.default_rng(rng)
         self._ensure_prior_samples(rng=rng)
         X = self._flatten_vector_parameter(X, 'X')
         do_A_samples = np.zeros(shape=(self.prior_draws,))
@@ -279,6 +279,7 @@ class AgentModel(ABC):
         Returns:
             list: One ``[X, A, Y]`` triple per draw.
         """
+        rng = np.random.default_rng(rng)
         with self.model:
             tmp = pm.sample_prior_predictive(
                 draws=draws,
@@ -381,6 +382,7 @@ class AgentModel(ABC):
         Returns:
             tuple: ``(CATE_samples, CATE_mean, CATE_std)``.
         """
+        rng = np.random.default_rng(rng)
         self._ensure_prior_samples(rng=rng)
         X = self._flatten_vector_parameter(X, 'X')
         CATE_samples = np.zeros(shape=(self.prior_draws,))
@@ -407,6 +409,7 @@ class AgentModel(ABC):
         Returns:
             list: One ``(X, A, Y, mu_Y_cond, std_Y_cond)`` sample per draw.
         """
+        rng = np.random.default_rng(rng)
         parameter_draws = self._parameter_draws(self.trace.posterior)  # BUG or inconsistency? Does not check for existence and replaces old samples?
         self.posterior_draws = len(parameter_draws)
         samples = []
@@ -432,6 +435,7 @@ class AgentModel(ABC):
         Returns:
             tuple: ``(CATE_samples, CATE_mean, CATE_std)``.
         """
+        rng = np.random.default_rng(rng)
         X = self._flatten_vector_parameter(X, 'X')
         parameter_draws = self._parameter_draws(self.trace.posterior)
         CATE_samples = np.zeros(shape=(len(parameter_draws),))
@@ -459,6 +463,7 @@ class AgentModel(ABC):
         Returns:
             tuple: ``(potential_outcomes, do_A_mean, do_A_std)``.
         """
+        rng = np.random.default_rng(rng)
         X = self._flatten_vector_parameter(X, 'X')
         parameter_draws = self._parameter_draws(self.trace.posterior)
         potential_outcomes = np.zeros(shape=(len(parameter_draws),))
@@ -470,7 +475,7 @@ class AgentModel(ABC):
         do_A_std = np.std(potential_outcomes)
         return potential_outcomes, do_A_mean, do_A_std
 
-    def get_prior_CATE_mu(self, A1_treatment, A0_treatment):  # REMOVE? This has the potential to break something with a different model.
+    def get_prior_CATE_mu(self, A1_treatment, A0_treatment):
         """
         Return the prior mean of the CATE-distribution. The current SCM is such
         that N_E is not dependent on X and the treatment effect only depends on
@@ -480,24 +485,60 @@ class AgentModel(ABC):
             A1_treatment (float): Dosage value of higher dose treatment.
             A0_treatment (float): Dosage value of lower dose treatment.
         """
-        warnings.warn("This method will be deprecated soon.")
         return (A1_treatment - A0_treatment) * self.prior_parameters['N_E_mu']
 
     def trace_diagnostics(self):
         """
         Return basic sampler diagnostics for the current posterior trace.
 
+        A component that is exactly constant is omitted because its R-hat and
+        ESS are undefined but it has no Monte Carlo error. Any other undefined
+        diagnostic raises an error instead of being skipped by xarray.
+
         Returns:
             dict: ``max_rhat``, ``min_ess_bulk``, ``min_ess_tail`` (computed
             with ArviZ), and ``n_divergences``.
         """
-        rhat_values = az.rhat(self.trace)
-        ess_bulk_values = az.ess(self.trace, method='bulk')
-        ess_tail_values = az.ess(self.trace, method='tail')
+        diagnostic_var_names = list(self.trace.posterior.data_vars)
+        rhat_values = az.rhat(
+            self.trace, var_names=diagnostic_var_names)
+        ess_bulk_values = az.ess(
+            self.trace, var_names=diagnostic_var_names, method='bulk')
+        ess_tail_values = az.ess(
+            self.trace, var_names=diagnostic_var_names, method='tail')
+
+        def finite_statistics(dataset):
+            statistics = []
+            for name in diagnostic_var_names:
+                samples = np.asarray(self.trace.posterior[name].values)
+                components = samples.reshape(
+                    samples.shape[0], samples.shape[1], -1)
+                values = np.asarray(dataset[name].values).reshape(-1)
+                if values.size != components.shape[-1]:
+                    raise ValueError(
+                        "Diagnostic shape mismatch for {!r}.".format(name))
+                for component, value in zip(
+                        np.moveaxis(components, -1, 0), values):
+                    if np.isfinite(value):
+                        statistics.append(float(value))
+                    elif (np.all(np.isfinite(component))
+                          and np.ptp(component) == 0.0):
+                        continue
+                    else:
+                        raise ValueError(
+                            "Undefined diagnostic for non-constant {!r}."
+                            .format(name))
+            if not statistics:
+                raise ValueError("No non-constant variables to diagnose.")
+            return statistics
+
+        rhat_statistics = finite_statistics(rhat_values)
+        ess_bulk_statistics = finite_statistics(ess_bulk_values)
+        ess_tail_statistics = finite_statistics(ess_tail_values)
         return {
-            'max_rhat': float(rhat_values.to_array().max().values),
-            'min_ess_bulk': float(ess_bulk_values.to_array().min().values),
-            'min_ess_tail': float(ess_tail_values.to_array().min().values),
+            'max_rhat': max(rhat_statistics),
+            'min_ess_bulk': min(ess_bulk_statistics),
+            'min_ess_tail': min(ess_tail_statistics),
             'n_divergences': int(self.trace.sample_stats['diverging'].sum()),
         }
 
@@ -1056,10 +1097,11 @@ class ScalarAgentModel(AgentModel):
     learned parameters with their own priors.
 
     Rather than modeling the plate of plate_size patients explicitly, the
-    model reduces it to low-dimensional auxiliary variables (``S_X``, ``S_Y``,
-    ``S_A``, ``Z_XX``, ``U_XY``, ``V_XY``, ``U_XA``, ``V_XA``), from which the
-    OLS slope coefficient ``phi`` of the external predictive model (a
-    no-intercept regression of ``Y`` on ``X``) is reconstructed analytically.
+    model reduces it to three auxiliary variables: ``s`` (the sum of
+    covariate noises), ``W`` (the centered covariate dispersion), and ``g``
+    (the outcome-noise projection). From these, the OLS slope coefficient
+    ``phi`` of the external predictive model (a no-intercept regression of
+    ``Y`` on ``X``) is reconstructed analytically.
 
     Args:
         plate_size (int): Size of the plate (number of i.i.d. samples used to
@@ -1208,12 +1250,10 @@ class ScalarAgentModel(AgentModel):
 
         The observed feature ``X_o`` and the observed prediction ``pred_o``
         enter as :class:`pm.Data` placeholders, updated at sampling time. The
-        plate of plate_size patients is replaced by the low-dimensional
-        auxiliary variables ``S_X``, ``S_Y``, ``S_A`` (sums of noise terms)
-        and ``Z_XX``, ``U_XY``, ``V_XY``, ``U_XA``, ``V_XA`` (sums of squares,
-        as chi-squared variables), from which the sufficient statistics
-        ``S_4``...``S_123`` are reconstructed and combined into the
-        no-intercept OLS slope ``phi``. The observed prediction is modeled as
+        plate of plate_size patients is replaced by the exact no-intercept
+        reduction ``(s, W, g)``. These variables reconstruct the uncentered
+        covariate sum and sum of squares, conditional on which the OLS
+        numerator noise is Gaussian. The observed prediction is modeled as
         ``pred_o = phi * X_o``, and ``X_o`` is also given the covariate
         likelihood ``N(alpha_mu_X, alpha_sigma_X)``.
 
@@ -1234,41 +1274,38 @@ class ScalarAgentModel(AgentModel):
             alpha_sigma_Y = parameters['alpha_sigma_Y']
             N_E = parameters['N_E']
 
-            S_X = pm.Normal('S_X', mu=0, sigma=pt.sqrt(self.plate_size))
-            S_Y = pm.Normal('S_Y', mu=0, sigma=pt.sqrt(self.plate_size))
-            S_A = pm.Normal('S_A', mu=0, sigma=pt.sqrt(self.plate_size))
-            Z_XX = pm.ChiSquared('Z_XX', self.plate_size - 1)
-            U_XY = pm.ChiSquared('U_XY', self.plate_size - 1)
-            V_XY = pm.ChiSquared('V_XY', self.plate_size - 1)
-            U_XA = pm.ChiSquared('U_XA', self.plate_size - 1)
-            V_XA = pm.ChiSquared('V_XA', self.plate_size - 1)
+            s = pm.Normal('s', mu=0, sigma=pt.sqrt(self.plate_size))
+            W = pm.ChiSquared('W', self.plate_size - 1)
+            g = pm.Normal('g', mu=0, sigma=1)
 
-            S_9 = pm.Deterministic('S_9', (S_X * S_A / self.plate_size +
-                                        (U_XA - V_XA) / 2))
-            S_8 = pm.Deterministic('S_8', (S_X * S_Y / self.plate_size +
-                                        (U_XY - V_XY) / 2))
-            S_7 = pm.Deterministic('S_7', Z_XX + S_X**2 / self.plate_size)
-            S_6 = pm.Deterministic('S_6', (self.plate_size * alpha_mu_X * alpha_mu_Y +
-                                        alpha_mu_X * alpha_sigma_Y * S_Y +
-                                        alpha_mu_Y * alpha_sigma_X * S_X +
-                                        alpha_sigma_X * alpha_sigma_Y * S_8))
-            S_5 = pm.Deterministic('S_5', N_E * (self.plate_size * alpha_mu_X * alpha_mu_A +
-                                        alpha_mu_X * alpha_sigma_A * S_A +
-                                        alpha_mu_A * alpha_sigma_X * S_X +
-                                        alpha_sigma_X * alpha_sigma_A * S_9))
-            S_4 = pm.Deterministic('S_4', self.scm_constants['a'] * (self.plate_size * alpha_mu_X + alpha_sigma_X * S_X))
-            S_123 = pm.Deterministic('S_123', (self.plate_size * alpha_mu_X**2 +
-                                             2 * alpha_mu_X * alpha_sigma_X * S_X +
-                                             alpha_sigma_X**2 * S_7))
-            phi = pm.Deterministic('phi', (self.scm_constants['b'] + self.scm_constants['d'] * N_E +
-                                    (S_4 + S_5 + S_6) / S_123))
+            beta = pm.Deterministic(
+                'beta', self.scm_constants['b'] +
+                self.scm_constants['d'] * N_E)
+            c = pm.Deterministic(
+                'c', self.scm_constants['a'] + alpha_mu_Y +
+                N_E * alpha_mu_A)
+            tau = pm.Deterministic(
+                'tau',
+                pt.sqrt(N_E**2 * alpha_sigma_A**2 + alpha_sigma_Y**2))
+            S_x = pm.Deterministic(
+                'S_x',
+                self.plate_size * alpha_mu_X + alpha_sigma_X * s)
+            XTX = pm.Deterministic(
+                'XTX',
+                S_x**2 / self.plate_size + alpha_sigma_X**2 * W)
+            phi = pm.Deterministic(
+                'phi',
+                beta + c * S_x / XTX + tau * g / pt.sqrt(XTX))
 
-            pm.Normal('X_o', alpha_mu_X, alpha_sigma_X, observed=X_o_, shape=X_o_.shape)
-            phi_hat = pred_o_ / X_o_
-            pm.Normal('phi_obs', phi, 1e-3, observed=phi_hat)
+            pm.Normal('X_o', alpha_mu_X, alpha_sigma_X,
+                      observed=X_o_, shape=X_o_.shape)
+            pm.Normal('prediction_obs', phi * X_o_, 1e-3,
+                      observed=pred_o_)
         return model
 
-    def sample(self, X_o, pred_o, draws=1000, rng=None):
+    def sample(self, X_o, pred_o, draws=1000, tune=1000,
+               target_accept=.85, chains=4, max_treedepth=15,
+               init="jitter+adapt_diag", rng=None):
         """
         Sample from the posterior given observed data.
         Stores the latest trace in self.
@@ -1277,6 +1314,11 @@ class ScalarAgentModel(AgentModel):
             X_o (np.ndarray): Vector of observed features.
             pred_o (np.ndarray): Vector of observed predictions.
             draws (int): Size of sample to draw from the posterior.
+            tune (int): Number of tuning (warmup) iterations.
+            target_accept (float): Target acceptance probability for NUTS.
+            chains (int): Number of chains to sample.
+            max_treedepth (int): Maximum tree depth for NUTS.
+            init (str): Initialization method passed to pm.sample.
             rng: Seed or initialized random number generator for
                 reproducibility.
 
@@ -1287,12 +1329,12 @@ class ScalarAgentModel(AgentModel):
         pm.set_data({'X_o_': X_o, 'pred_o_': pred_o}, model=self.model)
         with self.model:
             trace = pm.sample(draws=self.posterior_draws,
-                              tune=1000,
-                              target_accept=.85,
-                              chains=4,
+                              tune=tune,
+                              target_accept=target_accept,
+                              chains=chains,
                               random_seed=rng,
-                              max_treedepth=15,
-                              init="jitter+adapt_diag",
+                              max_treedepth=max_treedepth,
+                              init=init,
                               callback=printing_callback)
         self.trace = trace
         self.X_o = X_o
