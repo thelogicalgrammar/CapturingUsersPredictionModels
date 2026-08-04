@@ -10,6 +10,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from dimensionality_config import (  # noqa: E402
+    AGENT_MODEL,
     A0_TREATMENT,
     A1_TREATMENT,
     DECISION_THRESHOLD,
@@ -43,7 +44,7 @@ DESIGNS = {
         'fit_intercept': False,
     },
     'univariate_intercept': {
-        'agent_model': 'collapsed_sign_marginalized',
+        'agent_model': AGENT_MODEL,
         'centers': SCAN_CENTERS,
         'deviations': tuple(range(-30, 31)),
         'n_covariates': (1,),
@@ -51,7 +52,7 @@ DESIGNS = {
         'fit_intercept': True,
     },
     'multivariate_intercept': {
-        'agent_model': 'collapsed_sign_marginalized',
+        'agent_model': AGENT_MODEL,
         'centers': SCAN_CENTERS,
         'deviations': (-20, -10, -3, -1, 0, 1, 3, 10, 20),
         'n_covariates': N_COVARIATES,
@@ -113,6 +114,7 @@ def generate_manifest(
         'result_schema_version': RESULT_SCHEMA_VERSION,
         'experiment_design': experiment_design,
         'agent_model': design['agent_model'],
+        'coefficient_mode': 'fixed',
         'manifest': output.name,
         'manifest_sha256': hashlib.sha256(
             content.encode('utf-8')).hexdigest(),

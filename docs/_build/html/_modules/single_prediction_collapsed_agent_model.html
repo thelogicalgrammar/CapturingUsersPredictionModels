@@ -46,6 +46,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../modules/distributions.html">Custom Distributions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment.html">Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_series.html">Experiment Series</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/experiment_randomness.html">Experiment Randomness</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/dimensionality_config.html">Dimensionality Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/experiment_dimensionality.html">Dimensionality Experiment</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/single_prediction_collapsed_agent_model.html">Single-Prediction Collapsed Agent Model</a></li>
@@ -57,6 +58,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../modules/completion_check.html">Completion Check</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file.html">Generate Parameter File</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_dimensionality.html">Generate Dimensionality Manifest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules/generate_independent_data_parameter_file.html">Generate Independent-Data Manifest</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../modules/generate_parameter_file_univariate_intercept.html">Generate Univariate Intercept Manifest</a></li>
 </ul>
 
@@ -1224,11 +1226,18 @@
 
         <span class="k">def</span><span class="w"> </span><span class="nf">moment_dict</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">key_prefix</span><span class="p">):</span>
             <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">values</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">standard_deviation</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">standard_deviation</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+                <span class="n">skewness</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+                <span class="n">excess_kurtosis</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">skewness</span> <span class="o">=</span> <span class="n">skew</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+                <span class="n">excess_kurtosis</span> <span class="o">=</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
             <span class="k">return</span> <span class="p">{</span>
                 <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_mean&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key_prefix</span><span class="p">):</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">values</span><span class="p">),</span>
-                <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_std&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key_prefix</span><span class="p">):</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">values</span><span class="p">),</span>
-                <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_skew&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key_prefix</span><span class="p">):</span> <span class="n">skew</span><span class="p">(</span><span class="n">values</span><span class="p">),</span>
-                <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_kurtosis&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key_prefix</span><span class="p">):</span> <span class="n">kurtosis</span><span class="p">(</span><span class="n">values</span><span class="p">),</span>
+                <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_std&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key_prefix</span><span class="p">):</span> <span class="n">standard_deviation</span><span class="p">,</span>
+                <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_skew&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key_prefix</span><span class="p">):</span> <span class="n">skewness</span><span class="p">,</span>
+                <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_kurtosis&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key_prefix</span><span class="p">):</span> <span class="n">excess_kurtosis</span><span class="p">,</span>
             <span class="p">}</span>
 
         <span class="k">def</span><span class="w"> </span><span class="nf">vector_summaries</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>

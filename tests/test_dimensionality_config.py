@@ -11,6 +11,7 @@ from sklearn.linear_model import LinearRegression
 
 import scm
 from dimensionality_config import (
+    AGENT_MODEL,
     A0_TREATMENT,
     A1_TREATMENT,
     DECISION_THRESHOLD,
@@ -32,9 +33,12 @@ from dimensionality_config import (
     run_stream_key,
 )
 from experiment_dimensionality import (
+    _apply_prior_modification,
     _array_fingerprint,
+    _make_priors,
     _prepare_run_randomness,
     _publish_without_overwrite,
+    _validate_fixed_coefficients,
 )
 from slurm.generate_parameter_file_dimensionality import (
     generate_slurm_parameter_file,
@@ -104,6 +108,52 @@ def test_dimensionality_grid_configuration():
         'sqrtk': '1/sqrt(k)',
     }
     assert DEFAULT_SCALING == '1k'
+    assert AGENT_MODEL == \
+        'collapsed_sign_marginalized_fixed_coefficients'
+
+
+def test_structural_coefficients_are_fixed_for_every_dimension():
+    for scaling in ('1/k', '1/sqrt(k)'):
+        for k in (1, 4, 32):
+            priors = _make_priors(k, coef_sigma_scaling=scaling)
+            np.testing.assert_array_equal(
+                priors['N_b_mu'], np.full(k, -0.1 / k))
+            np.testing.assert_array_equal(
+                priors['N_d_mu'], np.full(k, 0.125 / k))
+            np.testing.assert_array_equal(
+                priors['N_b_sigma'], np.zeros(k))
+            np.testing.assert_array_equal(
+                priors['N_d_sigma'], np.zeros(k))
+
+
+def test_fixed_structural_coefficients_cannot_be_scanned():
+    priors = _make_priors(2)
+    for parameter in ('N_b_mu', 'N_b_sigma', 'N_d_mu', 'N_d_sigma'):
+        with pytest.raises(ValueError, match='is fixed'):
+            _apply_prior_modification(
+                priors, parameter, 0.5, 2)
+
+
+def test_fixed_structural_coefficients_are_validated_fail_closed():
+    priors = _make_priors(2)
+    _validate_fixed_coefficients(priors, 2)
+
+    for parameter in ('N_b_mu', 'N_b_sigma', 'N_d_mu', 'N_d_sigma'):
+        invalid = {name: np.array(value, copy=True)
+                   for name, value in priors.items()}
+        invalid[parameter][0] += 0.01
+        with pytest.raises(ValueError, match='fixed experiment value'):
+            _validate_fixed_coefficients(invalid, 2)
+
+    missing = priors.copy()
+    del missing['N_b_mu']
+    with pytest.raises(ValueError, match='missing fixed coefficient'):
+        _validate_fixed_coefficients(missing, 2)
+
+    wrong_shape = priors.copy()
+    wrong_shape['N_d_mu'] = np.array([0.0625])
+    with pytest.raises(ValueError, match='fixed experiment value'):
+        _validate_fixed_coefficients(wrong_shape, 2)
 
 
 def test_generated_manifests_preserve_the_registered_grid(tmp_path):

@@ -72,8 +72,15 @@ def test_manifest_counts_and_settings(tmp_path):
         assert sidecar['line_count'] == expected_count
         assert sidecar['experiment_design'] == experiment_design
         assert sidecar['base_seed'] == randomness.BASE_SEED
+        assert sidecar['coefficient_mode'] == 'fixed'
         assert sidecar['result_schema_version'] == \
             randomness.RESULT_SCHEMA_VERSION
+        if sidecar['experiment']['fit_intercept']:
+            assert sidecar['agent_model'] == \
+                'collapsed_sign_marginalized_fixed_coefficients'
+        else:
+            assert sidecar['agent_model'] == \
+                'scalar_sign_marginalized'
         assert sidecar['sampler'] == {
             'chains': 4,
             'draws': 1000,

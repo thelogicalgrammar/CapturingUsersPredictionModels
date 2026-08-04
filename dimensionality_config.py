@@ -21,9 +21,9 @@ TRUE_SCM = {
 
 COEFFICIENT_PRIOR_REFERENCE = {
     'N_b_mu': -0.1,
-    'N_b_sigma': 0.1,
+    'N_b_sigma': 0.0,
     'N_d_mu': 0.125,
-    'N_d_sigma': 0.1,
+    'N_d_sigma': 0.0,
 }
 
 SCAN_CENTERS = {
@@ -45,7 +45,7 @@ N_DRAWS = 1000
 N_TUNE = 1000
 N_CHAINS = 4
 TARGET_ACCEPT = 0.85
-AGENT_MODEL = 'collapsed_sign_marginalized'
+AGENT_MODEL = 'collapsed_sign_marginalized_fixed_coefficients'
 PLATE_SIZE = 1000
 A1_TREATMENT = 20
 A0_TREATMENT = 10

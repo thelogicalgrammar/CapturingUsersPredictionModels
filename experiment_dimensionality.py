@@ -19,11 +19,9 @@ _cache_root = os.environ.get(
     'XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
 os.makedirs(os.path.join(_cache_root, 'arviz'), exist_ok=True)
 
-import arviz as az
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
-import agent_model as am
 import scm
 import single_prediction_collapsed_agent_model as spcam
 import utils
@@ -67,7 +65,7 @@ threshold = DECISION_THRESHOLD
 rng = FIXED_RNG_SEED
 
 AGENT_MODEL = os.environ.get('DIM_MODEL', DEFAULT_AGENT_MODEL)
-VALID_AGENT_MODELS = ('normal', 'collapsed_sign_marginalized')
+VALID_AGENT_MODELS = ('collapsed_sign_marginalized_fixed_coefficients',)
 if AGENT_MODEL not in VALID_AGENT_MODELS:
     raise ValueError(
         "DIM_MODEL must be one of {}, not {!r}".format(
@@ -79,9 +77,11 @@ parameter_descriptions = {
     'scm_constants':        'Default',
 }
 
-# Vector prior keys that are broadcast directly vs those scaled by 1/k.
+# Vector prior keys that are broadcast directly.
 _BROADCAST_VECTOR_PARAMS = {'mu_X', 'sigma_X', 'mu_sigma_X', 'sigma_sigma_X'}
-_SCALED_VECTOR_PARAMS = {'N_b_mu', 'N_b_sigma', 'N_d_mu', 'N_d_sigma'}
+_FIXED_COEFFICIENT_PARAMS = {
+    'N_b_mu', 'N_b_sigma', 'N_d_mu', 'N_d_sigma',
+}
 
 def _make_priors(k, coef_sigma_scaling='1/k'):
     """
@@ -91,27 +91,12 @@ def _make_priors(k, coef_sigma_scaling='1/k'):
     E[X^T N_d] match the scalar case (mu_X = 80). The mean scaling is
     forced: without it the total systematic effect grows with k.
 
-    The sigma scaling is a free design choice, controlled by
-    ``coef_sigma_scaling``:
-
-    - ``'1/k'`` (default, original convention): preserves the coefficient
-      of variation per dimension. The prior variance of the aggregate
-      projections x^T N_b and x^T N_d then decays like 1/k
-      (Q_o * (0.1/k)^2 with Q_o ~ 6500 k gives ~65/k), so the posterior
-      can tighten with k because the prior itself becomes more concentrated.
-    - ``'1/sqrt(k)'``: keeps the prior variance of the aggregate
-      projections approximately constant across k for the baseline design.
-      By the single-prediction reduction, the coefficients enter the
-      likelihood only through those projections. This makes it a
-      prior-variance-preserving sensitivity convention for comparing
-      dimensionalities; it does not by itself imply equal total information
-      or an invariant posterior across k.
+    N_b and N_d are conditioned on these values: their standard deviations
+    are exactly zero. ``coef_sigma_scaling`` remains part of the experiment
+    interface so the registered manifests stay comparable, but it does not
+    alter a fixed coefficient.
     """
-    if coef_sigma_scaling == '1/k':
-        sigma_divisor = k
-    elif coef_sigma_scaling == '1/sqrt(k)':
-        sigma_divisor = np.sqrt(k)
-    else:
+    if coef_sigma_scaling not in ('1/k', '1/sqrt(k)'):
         raise ValueError(
             "coef_sigma_scaling must be '1/k' or '1/sqrt(k)', not {!r}".format(
                 coef_sigma_scaling))
@@ -132,33 +117,43 @@ def _make_priors(k, coef_sigma_scaling='1/k'):
         'N_E_sigma':     1.0,
         'N_b_mu': np.full(
             k, COEFFICIENT_PRIOR_REFERENCE['N_b_mu'] / k),
-        'N_b_sigma': np.full(
-            k, COEFFICIENT_PRIOR_REFERENCE['N_b_sigma'] / sigma_divisor),
+        'N_b_sigma': np.zeros(k),
         'N_d_mu': np.full(
             k, COEFFICIENT_PRIOR_REFERENCE['N_d_mu'] / k),
-        'N_d_sigma': np.full(
-            k, COEFFICIENT_PRIOR_REFERENCE['N_d_sigma'] / sigma_divisor),
+        'N_d_sigma': np.zeros(k),
     }
 
 
-def _apply_prior_modification(agent_priors, param_name, param_value, k,
-                              coef_sigma_scaling='1/k'):
+def _validate_fixed_coefficients(agent_priors, k):
+    """Require the exact structural coefficients registered for this run."""
+    expected = {
+        'N_b_mu': np.full(k, COEFFICIENT_PRIOR_REFERENCE['N_b_mu'] / k),
+        'N_b_sigma': np.zeros(k),
+        'N_d_mu': np.full(k, COEFFICIENT_PRIOR_REFERENCE['N_d_mu'] / k),
+        'N_d_sigma': np.zeros(k),
+    }
+    for name, expected_value in expected.items():
+        if name not in agent_priors:
+            raise ValueError('missing fixed coefficient: {}'.format(name))
+        value = np.asarray(agent_priors[name], dtype=float)
+        if value.shape != (k,) or not np.array_equal(value, expected_value):
+            raise ValueError(
+                '{} does not match the fixed experiment value'.format(name))
+
+
+def _apply_prior_modification(agent_priors, param_name, param_value, k):
     """
     Apply a single-float CLI modification to agent_priors in-place.
 
-    For broadcast vector params (mu_X, …): sets every dimension to param_value.
-    For scaled vector params, param_value is the scalar (k = 1) equivalent:
-    means are always divided by k; sigmas are divided by k or sqrt(k)
-    according to ``coef_sigma_scaling``, consistently with ``_make_priors``.
-    For scalar params: assigns directly.
+    Broadcast vector parameters (mu_X, ...) are set in every dimension.
+    Scalar parameters are assigned directly. N_b and N_d are conditioned on
+    fixed values and cannot be scanned in this experiment.
     """
+    if param_name in _FIXED_COEFFICIENT_PARAMS:
+        raise ValueError(
+            '{} is fixed in this experiment'.format(param_name))
     if param_name in _BROADCAST_VECTOR_PARAMS:
         agent_priors[param_name] = np.full(k, param_value)
-    elif param_name in {'N_b_sigma', 'N_d_sigma'}:
-        divisor = k if coef_sigma_scaling == '1/k' else np.sqrt(k)
-        agent_priors[param_name] = np.full(k, param_value / divisor)
-    elif param_name in _SCALED_VECTOR_PARAMS:
-        agent_priors[param_name] = np.full(k, param_value / k)
     else:
         agent_priors[param_name] = param_value
 
@@ -278,7 +273,7 @@ def main(agent_priors, modified_prior, k,
     else:
         sampler_settings = sampler_settings.copy()
     draws = sampler_settings['draws']
-    is_collapsed = AGENT_MODEL == 'collapsed_sign_marginalized'
+    _validate_fixed_coefficients(agent_priors, k)
     seed_value = modified_prior.get('seed', 'NA')
     scaling_tag = ('_sqrtk'
                    if modified_prior.get('coef_sigma_scaling') == '1/sqrt(k)'
@@ -321,30 +316,17 @@ def main(agent_priors, modified_prior, k,
     historical_data_sha256 = _array_fingerprint(X, A, Y_historical)
 
     # 4. Construct the selected agent model.
-    if is_collapsed:
-        agent_model = spcam.SinglePredictionCollapsedAgentModel(
-            n_covariates=k,
-            plate_size=plate_size,
-            prior_parameters=agent_priors,
-        )
-    else:
-        agent_model = am.AgentModelNormalPredictions(
-            n_covariates=k,
-            plate_size=plate_size,
-            prior_parameters=agent_priors,
-            fit_intercept=FIT_INTERCEPT,
-        )
+    agent_model = spcam.SinglePredictionCollapsedAgentModel(
+        n_covariates=k,
+        plate_size=plate_size,
+        prior_parameters=agent_priors,
+    )
 
     # 5. Prior CATE and treatment decision.
     prior_CATE_mu = agent_model.get_prior_CATE_mu(A1_treatment, A0_treatment)
-    if is_collapsed:
-        prior_CATE_samples_, prior_CATE_mean, prior_CATE_std = \
-            agent_model.sample_prior_predictive_CATE(A1_treatment, A0_treatment,
-                                                     draws=draws, rng=rng_obj)
-    else:
-        prior_CATE_samples_, prior_CATE_mean, prior_CATE_std = \
-            agent_model.sample_prior_predictive_CATE(X_o, A1_treatment, A0_treatment,
-                                                     rng=rng_obj)
+    prior_CATE_samples_, prior_CATE_mean, prior_CATE_std = \
+        agent_model.sample_prior_predictive_CATE(
+            A1_treatment, A0_treatment, draws=draws, rng=rng_obj)
     prior_high_treatment = prior_CATE_mu > threshold
     prior_treatment = (
         A1_treatment if prior_high_treatment else A0_treatment)
@@ -354,38 +336,18 @@ def main(agent_priors, modified_prior, k,
     agent_model.sample(X_o=X_o, pred_o=pred_o, rng=rng_obj,
                        **sampler_settings)
 
-    if is_collapsed:
-        trace_diagnostics = agent_model.trace_diagnostics()
-    else:
-        rhat_values = az.rhat(agent_model.trace)
-        ess_bulk_values = az.ess(agent_model.trace, method='bulk')
-        ess_tail_values = az.ess(agent_model.trace, method='tail')
-        trace_diagnostics = {
-            'max_rhat': float(rhat_values.to_array().max().values),
-            'min_ess_bulk': float(
-                ess_bulk_values.to_array().min().values),
-            'min_ess_tail': float(
-                ess_tail_values.to_array().min().values),
-            'n_divergences': int(
-                agent_model.trace.sample_stats['diverging'].sum()),
-        }
+    trace_diagnostics = agent_model.trace_diagnostics()
 
     # 7. Posterior CATE and treatment decision.
-    if is_collapsed:
-        posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std = \
-            agent_model.sample_posterior_predictive_CATE(A1_treatment, A0_treatment)
-    else:
-        posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std = \
-            agent_model.sample_posterior_predictive_CATE(X_o, A1_treatment, A0_treatment,
-                                                         rng=rng_obj)
+    posterior_CATE_samples_, posterior_CATE_mean, posterior_CATE_std = \
+        agent_model.sample_posterior_predictive_CATE(
+            A1_treatment, A0_treatment)
     posterior_high_treatment = posterior_CATE_mean > threshold
     posterior_treatment = (
         A1_treatment if posterior_high_treatment else A0_treatment)
     posterior_predictive_summaries  = agent_model.sample_posterior_predictive_summaries(rng=rng_obj)
-    if is_collapsed:
-        posterior_parameter_summaries = agent_model.posterior_parameter_summaries(rng=rng_obj)
-    else:
-        posterior_parameter_summaries = agent_model.posterior_parameter_summaries()
+    posterior_parameter_summaries = \
+        agent_model.posterior_parameter_summaries(rng=rng_obj)
 
     # 8. Ground truth CATE and potential outcomes.
     true_CATE_mu = data_scm.get_CATE_mu(A1_treatment, A0_treatment)
@@ -529,9 +491,8 @@ def main(agent_priors, modified_prior, k,
     compiled_results['n_tune'] = sampler_settings['tune']
     compiled_results['n_chains'] = sampler_settings['chains']
     compiled_results['target_accept'] = sampler_settings['target_accept']
-    if is_collapsed:
-        compiled_results['posterior_negative_sign_probability'] = \
-            agent_model.posterior_negative_sign_probability()
+    compiled_results['posterior_negative_sign_probability'] = \
+        agent_model.posterior_negative_sign_probability()
     tmp_file = '{}.tmp.{}.{}'.format(run_file, os.getpid(), uuid.uuid4().hex)
     output_dir.mkdir(parents=True, exist_ok=True)
     utils.write_results_to_file(compiled_results,
@@ -654,8 +615,7 @@ if __name__ == '__main__':
         )
 
     default_value = agent_priors[param_name]
-    _apply_prior_modification(agent_priors, param_name, param_value, k,
-                              coef_sigma_scaling=coef_sigma_scaling)
+    _apply_prior_modification(agent_priors, param_name, param_value, k)
 
     # Compare element-wise for vector params, directly for scalars.
     is_default = np.all(agent_priors[param_name] == default_value)

@@ -125,6 +125,100 @@ def test_collapsed_likelihood_keeps_prediction_scalar():
         assert np.all(np.isfinite(gradient))
 
 
+def test_fixed_coefficients_have_finite_log_density_and_gradient():
+    for n_covariates in (1, 2):
+        priors = {
+            'N_b_mu': np.full(n_covariates, -0.1 / n_covariates),
+            'N_b_sigma': np.zeros(n_covariates),
+            'N_d_mu': np.full(n_covariates, 0.125 / n_covariates),
+            'N_d_sigma': np.zeros(n_covariates),
+        }
+        model = spcam.SinglePredictionCollapsedAgentModel(
+            n_covariates=n_covariates,
+            plate_size=12,
+            prior_parameters=priors)
+        pm.set_data({
+            'X_o_': np.linspace(80.0, 120.0, n_covariates),
+            'pred_o_': np.asarray(30.0),
+        }, model=model.model)
+        with model.model:
+            point = model.model.initial_point()
+            logp = model.model.compile_logp()(point)
+            gradient = model.model.compile_dlogp()(point)
+
+        assert np.isfinite(logp)
+        assert np.all(np.isfinite(gradient))
+
+
+def test_fixed_coefficients_remain_exact_in_reconstruction():
+    n_covariates = 2
+    N_b = np.full(n_covariates, -0.1 / n_covariates)
+    N_d = np.full(n_covariates, 0.125 / n_covariates)
+    model = spcam.SinglePredictionCollapsedAgentModel(
+        n_covariates=n_covariates,
+        plate_size=12,
+        prior_parameters={
+            'N_b_mu': N_b,
+            'N_b_sigma': np.zeros(n_covariates),
+            'N_d_mu': N_d,
+            'N_d_sigma': np.zeros(n_covariates),
+        })
+    model.X_o = np.array([80.0, 120.0])
+    model.pred_o = 30.0
+    parameters = {
+        'N_E': 1.0,
+        'alpha_mu_A': 2.0,
+        'alpha_sigma_A': 1.0,
+        'alpha_mu_Y': 12.0,
+        'alpha_sigma_Y': 0.1,
+        'R': 0.5,
+        'T': 9.0,
+    }
+    rng = np.random.default_rng(4)
+
+    prior_N_b, prior_N_d = model._sample_prior_coefficients(rng)
+    posterior_N_b, posterior_N_d = \
+        model._sample_conditional_coefficients(parameters, rng)
+    _, _, joint_N_b, joint_N_d = model._sample_conditional_parameters(
+        parameters, parameters['N_E'], rng)
+
+    np.testing.assert_array_equal(prior_N_b, N_b)
+    np.testing.assert_array_equal(prior_N_d, N_d)
+    np.testing.assert_array_equal(posterior_N_b, N_b)
+    np.testing.assert_array_equal(posterior_N_d, N_d)
+    np.testing.assert_array_equal(joint_N_b, N_b)
+    np.testing.assert_array_equal(joint_N_d, N_d)
+
+
+def test_fixed_coefficient_summaries_report_constant_moments():
+    n_draws = 5
+    model = spcam.SinglePredictionCollapsedAgentModel(
+        n_covariates=1,
+        plate_size=12,
+        prior_parameters={
+            'N_b_mu': np.array([-0.1]),
+            'N_b_sigma': np.zeros(1),
+            'N_d_mu': np.array([0.125]),
+            'N_d_sigma': np.zeros(1),
+        })
+    model.trace = az.from_dict(
+        posterior=synthetic_posterior(
+            n_covariates=1, n_draws=n_draws))
+    model.posterior_coefficient_draws = [
+        (np.array([-0.1]), np.array([0.125]))
+        for _ in range(n_draws)
+    ]
+
+    summaries = model.posterior_parameter_summaries(rng=4)
+
+    assert summaries['param_N_b_mean'] == -0.1
+    assert summaries['param_N_d_mean'] == 0.125
+    assert summaries['param_N_b_std'] == 0.0
+    assert summaries['param_N_d_std'] == 0.0
+    assert np.isnan(summaries['param_N_b_skew'])
+    assert np.isnan(summaries['param_N_d_kurtosis'])
+
+
 def test_collapsed_model_marginalizes_structural_coefficients():
     model = spcam.SinglePredictionCollapsedAgentModel(
         n_covariates=3,
