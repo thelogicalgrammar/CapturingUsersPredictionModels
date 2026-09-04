@@ -318,6 +318,7 @@ def plot_CATE_for_var(var, mean_of_x, std_of_x, x_label, file_name,
     plt.xlabel(x_label)
     plt.ylabel('CATE')
     plt.savefig('./fig/{}_CATE_{}.pdf'.format(scan, var))
+    plt.clf()
 
 
 def plot_CATEs(file_name='./results/results_18_2.csv'):
@@ -948,7 +949,7 @@ def plot_prior_and_posterior_Y(df, variable_name, mean_x, std_x=None,
     x_ticks = np.unique(melted['Prior belief'].values)
     if variable_name == 'N_E_mu':
         x_tick_labels = ['{:.2f}'.format(v) if i % 5 == 0 else '' for i, v in enumerate(x_ticks)]
-    elif scan == 'wide':
+    elif scan in ('wide', 'wide_intercept'):
         x_tick_labels = ['{:.0f}'.format(v) if i % 5 == 0 else '' for i, v in enumerate(x_ticks)]
     elif variable_name in ('mu_A', 'mu_Y') and scan == 'focused':
         x_tick_labels = ['{:.1f}'.format(v) if i % 5 == 0 else '' for i, v in enumerate(x_ticks)]
