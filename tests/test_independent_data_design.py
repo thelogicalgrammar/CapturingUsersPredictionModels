@@ -1,6 +1,7 @@
 import json
 
 import numpy as np
+import pytest
 
 import experiment_randomness as randomness
 from slurm.generate_independent_data_parameter_file import (
@@ -106,3 +107,32 @@ def test_manifest_extensions_preserve_existing_rows(tmp_path):
     generate_manifest(
         'multivariate_intercept', repeated, replicates=range(50))
     assert full.read_bytes() == repeated.read_bytes()
+
+
+def test_focal_mu_X_manifest_changes_one_prior_coordinate(tmp_path):
+    output = tmp_path / 'focal_mu_X.txt'
+    full_output = tmp_path / 'full.txt'
+    generate_manifest('multivariate_intercept', full_output)
+    generate_manifest(
+        'multivariate_intercept', output,
+        parameters=('mu_X',),
+        mu_X_prior_scope='first_coordinate')
+
+    lines = output.read_text().splitlines()
+    sidecar = json.loads(
+        output.with_suffix('.design.json').read_text())
+    assert len(lines) == 9 * 6 * 50 == 2700
+    assert lines[0] == 'mu_X -120.000000 1 0 sqrtk -20'
+    assert lines[-1] == 'mu_X 280.000000 32 49 sqrtk 20'
+    assert lines == [
+        line for line in full_output.read_text().splitlines()
+        if line.startswith('mu_X ')]
+    assert sidecar['parameters'] == {
+        'mu_X': {'center': 80.0, 'step': 10.0}}
+    assert sidecar['mu_X_prior_scope'] == 'first_coordinate'
+
+    with pytest.raises(ValueError, match='multivariate mu_X scan'):
+        generate_manifest(
+            'multivariate_intercept', tmp_path / 'invalid.txt',
+            parameters=('mu_A', 'mu_X'),
+            mu_X_prior_scope='first_coordinate')

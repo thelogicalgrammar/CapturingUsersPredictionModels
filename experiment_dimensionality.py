@@ -2,7 +2,8 @@
 Dimensionality experiment for a multivariate SCM with intercept.
 
 The coefficient-prior scaling is either ``1k`` or ``sqrtk``. Sampler settings
-and the selected model parameterization are written into every result row.
+and the selected model parameterization are written into every result row. A
+``mu_X`` scan can modify every coordinate or only the first coordinate.
 
 Run ``python experiment_dimensionality.py --help`` for the command-line
 interface.
@@ -141,18 +142,33 @@ def _validate_fixed_coefficients(agent_priors, k):
                 '{} does not match the fixed experiment value'.format(name))
 
 
-def _apply_prior_modification(agent_priors, param_name, param_value, k):
+def _apply_prior_modification(
+        agent_priors, param_name, param_value, k,
+        mu_X_prior_scope='all_coordinates'):
     """
     Apply a single-float CLI modification to agent_priors in-place.
 
-    Broadcast vector parameters (mu_X, ...) are set in every dimension.
-    Scalar parameters are assigned directly. N_b and N_d are conditioned on
-    fixed values and cannot be scanned in this experiment.
+    Vector parameters are normally set in every dimension. For ``mu_X``, the
+    scan can instead modify only the first coordinate. Scalar parameters are
+    assigned directly. N_b and N_d are conditioned on fixed values and cannot
+    be scanned in this experiment.
     """
+    valid_scopes = ('all_coordinates', 'first_coordinate')
+    if mu_X_prior_scope not in valid_scopes:
+        raise ValueError(
+            'mu_X_prior_scope must be one of {}, not {!r}'.format(
+                valid_scopes, mu_X_prior_scope))
+    if param_name != 'mu_X' and mu_X_prior_scope != 'all_coordinates':
+        raise ValueError(
+            'first_coordinate scope is supported only for mu_X')
     if param_name in _FIXED_COEFFICIENT_PARAMS:
         raise ValueError(
             '{} is fixed in this experiment'.format(param_name))
-    if param_name in _BROADCAST_VECTOR_PARAMS:
+    if param_name == 'mu_X' and mu_X_prior_scope == 'first_coordinate':
+        modified = np.asarray(agent_priors[param_name], dtype=float).copy()
+        modified[0] = param_value
+        agent_priors[param_name] = modified
+    elif param_name in _BROADCAST_VECTOR_PARAMS:
         agent_priors[param_name] = np.full(k, param_value)
     else:
         agent_priors[param_name] = param_value
@@ -558,6 +574,11 @@ def _parse_args():
     parser.add_argument('--base-seed', type=_nonnegative_int)
     parser.add_argument('--scan-deviation', type=int)
     parser.add_argument(
+        '--mu-x-prior-scope',
+        choices=('all_coordinates', 'first_coordinate'),
+        default='all_coordinates',
+        help='coordinates modified by a mu_X scan')
+    parser.add_argument(
         '--x-o', type=float,
         help='externally supplied observation; supported only for k=1')
     parser.add_argument(
@@ -594,6 +615,10 @@ def _parse_args():
     elif args.base_seed is not None or args.scan_deviation is not None:
         parser.error(
             "--base-seed and --scan-deviation require --experiment-design")
+    if (args.mu_x_prior_scope != 'all_coordinates' and
+            args.param_name != 'mu_X'):
+        parser.error(
+            '--mu-x-prior-scope first_coordinate requires param_name=mu_X')
     args.draws = args.draws or args.legacy_draws or N_DRAWS
     return args
 
@@ -615,7 +640,9 @@ if __name__ == '__main__':
         )
 
     default_value = agent_priors[param_name]
-    _apply_prior_modification(agent_priors, param_name, param_value, k)
+    _apply_prior_modification(
+        agent_priors, param_name, param_value, k,
+        mu_X_prior_scope=args.mu_x_prior_scope)
 
     # Compare element-wise for vector params, directly for scalars.
     is_default = np.all(agent_priors[param_name] == default_value)
@@ -627,6 +654,8 @@ if __name__ == '__main__':
         'seed': rng,
         'coef_sigma_scaling': coef_sigma_scaling,
     }
+    if param_name == 'mu_X':
+        modified_prior['mu_X_prior_scope'] = args.mu_x_prior_scope
     observed_x = None
     result_metadata = None
     observation_rng = None

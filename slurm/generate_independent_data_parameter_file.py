@@ -1,4 +1,8 @@
-"""Generate a manifest with an independent dataset and patient per run."""
+"""Generate a manifest with an independent dataset and patient per run.
+
+The multivariate ``mu_X`` scan may target only its first coordinate while the
+other coordinates remain at the aligned prior mean.
+"""
 import argparse
 import hashlib
 import json
@@ -64,7 +68,8 @@ DESIGNS = {
 
 def generate_manifest(
         experiment_design, output, replicates=None, deviations=None,
-        n_covariates=None, base_seed=BASE_SEED, design_output=None):
+        n_covariates=None, base_seed=BASE_SEED, design_output=None,
+        parameters=None, mu_X_prior_scope='all_coordinates'):
     """Write a manifest and its design sidecar."""
     design = DESIGNS[experiment_design]
     replicates = tuple(
@@ -74,6 +79,8 @@ def generate_manifest(
     n_covariates = tuple(
         design['n_covariates']
         if n_covariates is None else n_covariates)
+    parameters = tuple(
+        design['centers'] if parameters is None else parameters)
     if (not replicates or len(set(replicates)) != len(replicates) or
             any(not isinstance(value, int) or value < 0
                 for value in replicates)):
@@ -91,9 +98,21 @@ def generate_manifest(
             'n_covariates are incompatible with the experiment design')
     if not isinstance(base_seed, int) or base_seed < 0:
         raise ValueError('base_seed must be a non-negative integer')
+    if (not parameters or len(set(parameters)) != len(parameters) or
+            not set(parameters) <= set(design['centers'])):
+        raise ValueError(
+            'parameters are incompatible with the experiment design')
+    if mu_X_prior_scope not in ('all_coordinates', 'first_coordinate'):
+        raise ValueError('unknown mu_X prior scope')
+    if (mu_X_prior_scope == 'first_coordinate' and
+            (experiment_design != 'multivariate_intercept' or
+             parameters != ('mu_X',))):
+        raise ValueError(
+            'first_coordinate scope requires the multivariate mu_X scan')
 
     lines = []
-    for param, (center, step) in design['centers'].items():
+    for param in parameters:
+        center, step = design['centers'][param]
         for deviation in deviations:
             value = center + deviation * step
             for k in n_covariates:
@@ -120,9 +139,13 @@ def generate_manifest(
             content.encode('utf-8')).hexdigest(),
         'line_count': len(lines),
         'parameters': {
-            key: {'center': center, 'step': step}
-            for key, (center, step) in design['centers'].items()
+            key: {
+                'center': design['centers'][key][0],
+                'step': design['centers'][key][1],
+            }
+            for key in parameters
         },
+        'mu_X_prior_scope': mu_X_prior_scope,
         'deviations': list(deviations),
         'n_covariates': list(n_covariates),
         'replicates': list(replicates),
@@ -167,6 +190,12 @@ if __name__ == '__main__':
     parser.add_argument('--replicates', default='0-49')
     parser.add_argument('--deviations', nargs='+', type=int)
     parser.add_argument('--n-covariates', nargs='+', type=int)
+    parser.add_argument(
+        '--parameters', nargs='+', choices=tuple(SCAN_CENTERS))
+    parser.add_argument(
+        '--mu-x-prior-scope',
+        choices=('all_coordinates', 'first_coordinate'),
+        default='all_coordinates')
     parser.add_argument('--base-seed', type=int, default=BASE_SEED)
     args = parser.parse_args()
     try:
@@ -178,6 +207,8 @@ if __name__ == '__main__':
             deviations=args.deviations,
             n_covariates=args.n_covariates,
             base_seed=args.base_seed,
-            design_output=args.design_output)
+            design_output=args.design_output,
+            parameters=args.parameters,
+            mu_X_prior_scope=args.mu_x_prior_scope)
     except ValueError as exc:
         parser.error(str(exc))

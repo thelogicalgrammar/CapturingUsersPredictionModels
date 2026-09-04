@@ -134,6 +134,27 @@ def test_fixed_structural_coefficients_cannot_be_scanned():
                 priors, parameter, 0.5, 2)
 
 
+def test_mu_X_scan_can_modify_only_the_first_coordinate():
+    priors = _make_priors(4)
+    _apply_prior_modification(
+        priors, 'mu_X', 180.0, 4,
+        mu_X_prior_scope='first_coordinate')
+    np.testing.assert_array_equal(
+        priors['mu_X'], np.asarray([180.0, 80.0, 80.0, 80.0]))
+
+    scalar = _make_priors(1)
+    _apply_prior_modification(
+        scalar, 'mu_X', 180.0, 1,
+        mu_X_prior_scope='first_coordinate')
+    np.testing.assert_array_equal(
+        scalar['mu_X'], np.asarray([180.0]))
+
+    with pytest.raises(ValueError, match='supported only for mu_X'):
+        _apply_prior_modification(
+            _make_priors(4), 'mu_Y', 12.1, 4,
+            mu_X_prior_scope='first_coordinate')
+
+
 def test_fixed_structural_coefficients_are_validated_fail_closed():
     priors = _make_priors(2)
     _validate_fixed_coefficients(priors, 2)
