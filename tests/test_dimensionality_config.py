@@ -14,6 +14,7 @@ from dimensionality_config import (
     AGENT_MODEL,
     A0_TREATMENT,
     A1_TREATMENT,
+    COEFFICIENT_PRIOR_REFERENCE,
     DECISION_THRESHOLD,
     DEFAULT_SCALING,
     DIMENSIONALITY_EXPERIMENT_DESIGN,
@@ -35,9 +36,11 @@ from dimensionality_config import (
 from experiment_dimensionality import (
     _apply_prior_modification,
     _array_fingerprint,
+    _covariate_mean,
     _make_priors,
     _prepare_run_randomness,
     _publish_without_overwrite,
+    _scaled_fixed_coefficient,
     _validate_fixed_coefficients,
 )
 from slurm.generate_parameter_file_dimensionality import (
@@ -58,18 +61,18 @@ EXPECTED_LINE_COUNT = (
 )
 
 
-def _training_features(k):
+def _training_features(k, scaling='1/k'):
     data_scm = scm.MultivariateSCM(
         n_covariates=k,
-        alpha_mu_X=np.full(k, TRUE_SCM['alpha_mu_X']),
+        alpha_mu_X=_covariate_mean(k),
         alpha_sigma_X=np.full(k, TRUE_SCM['alpha_sigma_X']),
         alpha_mu_A=TRUE_SCM['alpha_mu_A'],
         alpha_sigma_A=TRUE_SCM['alpha_sigma_A'],
         alpha_mu_Y=TRUE_SCM['alpha_mu_Y'],
         alpha_sigma_Y=TRUE_SCM['alpha_sigma_Y'],
         N_E=TRUE_SCM['N_E'],
-        N_b=np.full(k, TRUE_SCM['N_b'] / k),
-        N_d=np.full(k, TRUE_SCM['N_d'] / k),
+        N_b=_scaled_fixed_coefficient(TRUE_SCM['N_b'], k, scaling),
+        N_d=_scaled_fixed_coefficient(TRUE_SCM['N_d'], k, scaling),
     )
     features, *_ = data_scm.sample(
         draws=1000, rng=np.random.default_rng(FIXED_RNG_SEED))
@@ -97,7 +100,7 @@ def test_dimensionality_grid_configuration():
         'N_E_mu': (1.0, 0.05),
     }
     assert SCAN_DEVIATIONS == (-10, -3, -1, 0, 1, 3, 10)
-    assert N_COVARIATES == (1, 2, 4, 8, 16, 32)
+    assert N_COVARIATES == (2, 4, 8, 16, 32)
     assert N_REPLICATES == 50
     assert (N_DRAWS, N_TUNE, N_CHAINS, TARGET_ACCEPT) == (
         1000, 1000, 4, 0.85)
@@ -114,16 +117,38 @@ def test_dimensionality_grid_configuration():
 
 def test_structural_coefficients_are_fixed_for_every_dimension():
     for scaling in ('1/k', '1/sqrt(k)'):
-        for k in (1, 4, 32):
+        for k in (1, 2, 4, 32):
             priors = _make_priors(k, coef_sigma_scaling=scaling)
             np.testing.assert_array_equal(
-                priors['N_b_mu'], np.full(k, -0.1 / k))
+                priors['N_b_mu'],
+                _scaled_fixed_coefficient(-0.1, k, scaling))
             np.testing.assert_array_equal(
-                priors['N_d_mu'], np.full(k, 0.125 / k))
+                priors['N_d_mu'],
+                _scaled_fixed_coefficient(0.125, k, scaling))
             np.testing.assert_array_equal(
                 priors['N_b_sigma'], np.zeros(k))
             np.testing.assert_array_equal(
                 priors['N_d_sigma'], np.zeros(k))
+            # Covariate 0 (the reference covariate) is never divided by k.
+            assert priors['N_b_mu'][0] == -0.1
+            assert priors['N_d_mu'][0] == 0.125
+
+
+def test_nuisance_coefficient_variance_is_k_invariant_under_sqrtk():
+    alpha_sigma_X = TRUE_SCM['alpha_sigma_X']
+    for k in (2, 4, 8, 16, 32):
+        priors = _make_priors(k, coef_sigma_scaling='1/sqrt(k)')
+        variance = np.sum(priors['N_b_mu'] ** 2) * alpha_sigma_X ** 2
+        assert variance == pytest.approx(
+            2 * COEFFICIENT_PRIOR_REFERENCE['N_b_mu'] ** 2
+            * alpha_sigma_X ** 2)
+
+
+def test_covariate_mean_centers_nuisance_dimensions_at_zero():
+    for k in (1, 2, 8, 32):
+        mu_X = _covariate_mean(k)
+        assert mu_X[0] == TRUE_SCM['alpha_mu_X']
+        assert np.all(mu_X[1:] == 0.0)
 
 
 def test_fixed_structural_coefficients_cannot_be_scanned():
@@ -166,11 +191,11 @@ def test_generated_manifests_preserve_the_registered_grid(tmp_path):
     lines_1k = output_1k.read_text().splitlines()
     lines_sqrtk = output_sqrtk.read_text().splitlines()
 
-    assert len(lines_1k) == EXPECTED_LINE_COUNT == 8400
+    assert len(lines_1k) == EXPECTED_LINE_COUNT == 7000
     assert len(lines_sqrtk) == EXPECTED_LINE_COUNT
-    assert lines_1k[0] == 'mu_A -8.000000 1 0'
+    assert lines_1k[0] == 'mu_A -8.000000 2 0'
     assert lines_1k[-1] == 'N_E_mu 1.500000 32 49'
-    assert lines_sqrtk[0] == 'mu_A -8.000000 1 0 sqrtk'
+    assert lines_sqrtk[0] == 'mu_A -8.000000 2 0 sqrtk'
     assert lines_sqrtk[-1] == 'N_E_mu 1.500000 32 49 sqrtk'
     assert lines_sqrtk == [line + ' sqrtk' for line in lines_1k]
 
@@ -206,7 +231,7 @@ def test_manifest_batches_are_exactly_composable(tmp_path):
     kwargs = {
         'sigma_scaling': 'sqrtk',
         'deviations': (-10, 0, 10),
-        'n_covariates': (1, 8, 32),
+        'n_covariates': (2, 8, 32),
     }
     generate_slurm_parameter_file(full, replicates=(0, 1, 2, 3), **kwargs)
     generate_slurm_parameter_file(first, replicates=(0, 1), **kwargs)
@@ -221,7 +246,7 @@ def test_only_registered_grid_extensions_are_generated(tmp_path):
     generate_slurm_parameter_file(
         extension,
         deviations=(-30, -25, -20, 20, 25, 30),
-        n_covariates=(1, 32),
+        n_covariates=(2, 32),
         replicates=(0,),
     )
     assert len(extension.read_text().splitlines()) == 4 * 6 * 2
@@ -268,7 +293,7 @@ def test_new_rows_do_not_change_existing_random_streams(tmp_path):
         sigma_scaling='sqrtk',
         replicates=(7, 50, 79),
         deviations=(-25, -10, 0, 10, 25),
-        n_covariates=(1, 32),
+        n_covariates=(2, 32),
     )
     assert np.array_equal(
         original, _patient('mu_A', -8.0, 32, 7, 'sqrtk'))

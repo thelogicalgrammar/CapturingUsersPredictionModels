@@ -83,25 +83,66 @@ _FIXED_COEFFICIENT_PARAMS = {
     'N_b_mu', 'N_b_sigma', 'N_d_mu', 'N_d_sigma',
 }
 
-def _make_priors(k, coef_sigma_scaling='1/k'):
+def _covariate_mean(k):
     """
-    Build agent prior dict for k covariates.
+    Return the length-k mean vector for X.
 
-    N_b_mu[i] = -0.1/k and N_d_mu[i] = 0.125/k so that E[X^T N_b] and
-    E[X^T N_d] match the scalar case (mu_X = 80). The mean scaling is
-    forced: without it the total systematic effect grows with k.
+    Covariate 0 keeps the fixed reference mean (``TRUE_SCM['alpha_mu_X']``)
+    in every experiment, regardless of k. The remaining k-1 covariates are
+    centered at zero. ``alpha_sigma_X`` (the standard deviation of X) is
+    left uniform across all k dimensions elsewhere, so only the mean needs
+    this per-index treatment.
+    """
+    mu = np.zeros(k)
+    mu[0] = TRUE_SCM['alpha_mu_X']
+    return mu
 
-    N_b and N_d are conditioned on these values: their standard deviations
-    are exactly zero. ``coef_sigma_scaling`` remains part of the experiment
-    interface so the registered manifests stay comparable, but it does not
-    alter a fixed coefficient.
+
+def _scaled_fixed_coefficient(reference_value, k, coef_sigma_scaling):
+    """
+    Return a length-k fixed coefficient vector (shape of N_b or N_d).
+
+    Index 0 pairs with the covariate that keeps the reference mean
+    (:func:`_covariate_mean`) and is never divided by k, so its
+    contribution to the linear predictor does not shrink as nuisance
+    covariates are added. The remaining k-1 "nuisance" entries pair with
+    the zero-mean covariates and share a value scaled by
+    ``coef_sigma_scaling``:
+
+    - '1/k': ``reference_value / k`` (the historical scaling, not
+      variance-preserving).
+    - '1/sqrt(k)': ``reference_value / sqrt(k - 1)``, which keeps
+      ``Var(N_b . X) = 2 * reference_value**2 * alpha_sigma_X**2`` constant
+      for every k >= 2, since alpha_sigma_X is shared by every covariate.
     """
     if coef_sigma_scaling not in ('1/k', '1/sqrt(k)'):
         raise ValueError(
             "coef_sigma_scaling must be '1/k' or '1/sqrt(k)', not {!r}".format(
                 coef_sigma_scaling))
+    coefficients = np.zeros(k)
+    coefficients[0] = reference_value
+    if k > 1:
+        if coef_sigma_scaling == '1/k':
+            coefficients[1:] = reference_value / k
+        else:
+            coefficients[1:] = reference_value / np.sqrt(k - 1)
+    return coefficients
+
+
+def _make_priors(k, coef_sigma_scaling='1/k'):
+    """
+    Build agent prior dict for k covariates.
+
+    mu_X[0] = TRUE_SCM['alpha_mu_X'] and N_b_mu[0]/N_d_mu[0] are never
+    divided by k, so the systematic effect of the reference covariate does
+    not shrink as nuisance covariates (mu_X[1:] = 0) are added. See
+    :func:`_covariate_mean` and :func:`_scaled_fixed_coefficient`.
+
+    N_b and N_d are conditioned on these values: their standard deviations
+    are exactly zero.
+    """
     return {
-        'mu_X':          np.full(k, TRUE_SCM['alpha_mu_X']),
+        'mu_X':          _covariate_mean(k),
         'sigma_X':       np.full(k, 0.1),
         'mu_sigma_X':    np.full(k, TRUE_SCM['alpha_sigma_X']),
         'sigma_sigma_X': np.full(k, 0.1),
@@ -115,21 +156,23 @@ def _make_priors(k, coef_sigma_scaling='1/k'):
         'sigma_sigma_Y': 0.01,
         'N_E_mu':        TRUE_SCM['N_E'],
         'N_E_sigma':     1.0,
-        'N_b_mu': np.full(
-            k, COEFFICIENT_PRIOR_REFERENCE['N_b_mu'] / k),
+        'N_b_mu': _scaled_fixed_coefficient(
+            COEFFICIENT_PRIOR_REFERENCE['N_b_mu'], k, coef_sigma_scaling),
         'N_b_sigma': np.zeros(k),
-        'N_d_mu': np.full(
-            k, COEFFICIENT_PRIOR_REFERENCE['N_d_mu'] / k),
+        'N_d_mu': _scaled_fixed_coefficient(
+            COEFFICIENT_PRIOR_REFERENCE['N_d_mu'], k, coef_sigma_scaling),
         'N_d_sigma': np.zeros(k),
     }
 
 
-def _validate_fixed_coefficients(agent_priors, k):
+def _validate_fixed_coefficients(agent_priors, k, coef_sigma_scaling='1/k'):
     """Require the exact structural coefficients registered for this run."""
     expected = {
-        'N_b_mu': np.full(k, COEFFICIENT_PRIOR_REFERENCE['N_b_mu'] / k),
+        'N_b_mu': _scaled_fixed_coefficient(
+            COEFFICIENT_PRIOR_REFERENCE['N_b_mu'], k, coef_sigma_scaling),
         'N_b_sigma': np.zeros(k),
-        'N_d_mu': np.full(k, COEFFICIENT_PRIOR_REFERENCE['N_d_mu'] / k),
+        'N_d_mu': _scaled_fixed_coefficient(
+            COEFFICIENT_PRIOR_REFERENCE['N_d_mu'], k, coef_sigma_scaling),
         'N_d_sigma': np.zeros(k),
     }
     for name, expected_value in expected.items():
@@ -145,14 +188,23 @@ def _apply_prior_modification(agent_priors, param_name, param_value, k):
     """
     Apply a single-float CLI modification to agent_priors in-place.
 
-    Broadcast vector parameters (mu_X, ...) are set in every dimension.
-    Scalar parameters are assigned directly. N_b and N_d are conditioned on
-    fixed values and cannot be scanned in this experiment.
+    Broadcast vector parameters (sigma_X, mu_sigma_X, sigma_sigma_X) are set
+    in every dimension, since X's standard deviation is itself uniform
+    across dimensions. mu_X is the exception: only covariate 0 carries a
+    nonzero mean (see :func:`_covariate_mean`), so scanning it moves the
+    agent's belief about the reference covariate's mean while leaving its
+    belief about the k-1 zero-mean nuisance covariates untouched. Scalar
+    parameters are assigned directly. N_b and N_d are conditioned on fixed
+    values and cannot be scanned in this experiment.
     """
     if param_name in _FIXED_COEFFICIENT_PARAMS:
         raise ValueError(
             '{} is fixed in this experiment'.format(param_name))
-    if param_name in _BROADCAST_VECTOR_PARAMS:
+    if param_name == 'mu_X':
+        vector = np.zeros(k)
+        vector[0] = param_value
+        agent_priors[param_name] = vector
+    elif param_name in _BROADCAST_VECTOR_PARAMS:
         agent_priors[param_name] = np.full(k, param_value)
     else:
         agent_priors[param_name] = param_value
@@ -182,7 +234,7 @@ def _prepare_run_randomness(k, rng, observed_x=None, observation_rng=None,
             else np.random.default_rng(observation_rng)
         )
         X_o = patient_rng.normal(
-            loc=TRUE_SCM['alpha_mu_X'],
+            loc=_covariate_mean(k),
             scale=TRUE_SCM['alpha_sigma_X'],
             size=k)
     else:
@@ -273,10 +325,11 @@ def main(agent_priors, modified_prior, k,
     else:
         sampler_settings = sampler_settings.copy()
     draws = sampler_settings['draws']
-    _validate_fixed_coefficients(agent_priors, k)
+    coef_sigma_scaling = modified_prior.get('coef_sigma_scaling', '1/k')
+    _validate_fixed_coefficients(agent_priors, k, coef_sigma_scaling)
     seed_value = modified_prior.get('seed', 'NA')
     scaling_tag = ('_sqrtk'
-                   if modified_prior.get('coef_sigma_scaling') == '1/sqrt(k)'
+                   if coef_sigma_scaling == '1/sqrt(k)'
                    else '')
     run_file = 'results_{}_{:.6f}_k{}_seed{}{}.csv'.format(
         modified_prior['modified_prior'],
@@ -291,15 +344,17 @@ def main(agent_priors, modified_prior, k,
     # 1. Data-generating SCM with true (fixed) parameters.
     data_scm = scm.MultivariateSCM(
         n_covariates=k,
-        alpha_mu_X=np.full(k, TRUE_SCM['alpha_mu_X']),
+        alpha_mu_X=_covariate_mean(k),
         alpha_sigma_X=np.full(k, TRUE_SCM['alpha_sigma_X']),
         alpha_mu_A=TRUE_SCM['alpha_mu_A'],
         alpha_sigma_A=TRUE_SCM['alpha_sigma_A'],
         alpha_mu_Y=TRUE_SCM['alpha_mu_Y'],
         alpha_sigma_Y=TRUE_SCM['alpha_sigma_Y'],
         N_E=TRUE_SCM['N_E'],
-        N_b=np.full(k, TRUE_SCM['N_b'] / k),
-        N_d=np.full(k, TRUE_SCM['N_d'] / k),
+        N_b=_scaled_fixed_coefficient(
+            TRUE_SCM['N_b'], k, coef_sigma_scaling),
+        N_d=_scaled_fixed_coefficient(
+            TRUE_SCM['N_d'], k, coef_sigma_scaling),
     )
 
     # 2. Prepare the observed patient and historical-data random streams.
