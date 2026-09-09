@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -p rome
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=4G
+#SBATCH --mem=32G
 #SBATCH --time=00:30:00
 #SBATCH --job-name=dim_bookkeeping
 #SBATCH --output=logs/dim_bookkeeping_%j.out
@@ -11,10 +11,12 @@
 # check on a compute node instead of the shared login node. Both steps
 # read many small files from the shared filesystem and can take several
 # minutes; that I/O load doesn't belong on a login node shared with other
-# users. Neither step does numeric computation, so a single core and
-# modest memory are enough - --time may need to grow as results/dim_runs
-# accumulates more files (compiling took ~1 minute at ~4000 files, and
-# several minutes once past ~6000-7000 in earlier testing).
+# users. Neither step does numeric computation, so a single core is
+# enough, but compile_dimensionality_results.py holds every per-run
+# DataFrame in memory at once plus the concatenated result, which grows
+# with the number of completed runs - 4G was not enough and triggered an
+# OOM kill; --mem and --time may both need to grow further as
+# results/dim_runs accumulates more files.
 #
 # Submit from the repo root:
 #
