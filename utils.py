@@ -1077,6 +1077,10 @@ def plot_dimensionality_improvement(
     Plot prior and posterior CATE against covariate dimensionality.
 
     One panel is produced for every scanned value of each prior family.
+    Bands show total uncertainty (within-run sampling variance combined
+    with between-replicate variance via the law of total variance, the
+    same mixture used for the main experiment's CATE panels; see
+    :func:`_mixture_moments`).
 
     Args:
         file_name (str): Consolidated dimensionality-results CSV.
@@ -1086,6 +1090,12 @@ def plot_dimensionality_improvement(
     prior_col = 'Modified prior'
     value_col = 'New value of modified prior'
     dim_col   = 'dimensionality'
+    cate_fields = [
+        ('Prior CATE (sample mean)',
+         'Prior CATE Standard Deviation (sample estimate)'),
+        ('Posterior CATE (sample mean)',
+         'Posterior CATE Standard Deviation (sample estimate)'),
+    ]
 
     df = pd.read_csv(file_name)
     df[dim_col]  = df['X_o'].apply(_parse_dimensionality)
@@ -1097,13 +1107,10 @@ def plot_dimensionality_improvement(
         centers = SCAN_CENTERS if scan_centers is None else scan_centers
         ref, step = centers.get(prior_name, (0.0, 1.0))
 
-        grouped      = prior_df.groupby([dim_col, value_col])
-        agg_prior    = grouped['Prior CATE (sample mean)'].mean().unstack(level=value_col)
-        agg_posterior= grouped['Posterior CATE (sample mean)'].mean().unstack(level=value_col)
-
-        dim_values   = sorted(agg_prior.index.tolist())
+        dim_values   = sorted(prior_df[dim_col].unique().tolist())
         prior_values = sorted(
-            agg_prior.columns, key=lambda v: round((v - ref) / step))
+            prior_df[value_col].unique().tolist(),
+            key=lambda v: round((v - ref) / step))
 
         n_plots = len(prior_values)
         ncols   = 2
@@ -1115,13 +1122,17 @@ def plot_dimensionality_improvement(
             ax    = axes.flat[idx]
             label = _to_scan_label(
                 prior_name, pval, scan_centers=centers)
+            panel_df = prior_df[prior_df[value_col] == pval]
 
-            ax.plot(dim_values, agg_prior[pval].values,
-                    color=colors[0], linestyle='--', marker='o',
-                    label='Prior' if idx == 0 else '_nolegend_')
-            ax.plot(dim_values, agg_posterior[pval].values,
-                    color=colors[1], linestyle='-', marker='o',
-                    label='Posterior' if idx == 0 else '_nolegend_')
+            for color, linestyle, series_label, (mean_col, std_col) in zip(
+                    colors, ('--', '-'), ('Prior', 'Posterior'), cate_fields):
+                summary = _mixture_moments(panel_df, dim_col, mean_col, std_col)
+                x    = summary.index.values
+                mean = summary['mean'].values
+                std  = summary['std'].values
+                ax.plot(x, mean, color=color, linestyle=linestyle, marker='o',
+                        label=series_label if idx == 0 else '_nolegend_')
+                ax.fill_between(x, mean - std, mean + std, alpha=0.2, color=color)
             ax.axhline(true_cate, color='gray', linewidth=0.8,
                        linestyle=(0, (6, 6)),
                        label='True CATE' if idx == 0 else '_nolegend_')
