@@ -6,6 +6,8 @@ constants to describe the same data-generating SCM and parameter grid.
 """
 import math
 
+import numpy as np
+
 
 TRUE_SCM = {
     'alpha_mu_X': 80.0,
@@ -80,7 +82,9 @@ _SCALING_CODES = {
 _STREAM_DOMAIN_CODES = {
     'observation': 1,
     'sampler': 2,
+    'replicate_seed': 3,
 }
+REPLICATE_SEED_SCHEME = 'seedsequence_replicate_seed_v1'
 
 
 def scan_deviation(param_name, param_value):
@@ -128,3 +132,43 @@ def run_stream_key(
 def format_stream_key(stream_key):
     """Return the stable text representation stored with each result."""
     return ':'.join(str(value) for value in stream_key)
+
+
+def replicate_seed(
+        fixed_rng_seed, param_name, param_value, n_covariates,
+        replicate_slot, scaling):
+    """
+    Return a reproducible, decorrelated replacement for a sequential
+    replicate index.
+
+    A plain replicate index (0, 1, 2, ...) used directly as the run seed
+    means every misaligned-prior value at a given k shares the exact same
+    observed patient and historical dataset for "replicate 4" - there is
+    no reason for that correlation to exist. This derives a well-mixed
+    seed instead, via the same ``run_stream_key``/``SeedSequence``
+    machinery used for the observation and sampler streams, so distinct
+    (param_name, param_value, n_covariates, replicate_slot, scaling)
+    combinations get independent seeds while regenerating the same
+    combination under the same ``fixed_rng_seed`` always reproduces the
+    same value.
+
+    Args:
+        fixed_rng_seed (int): Base seed for the whole manifest.
+        param_name (str): Scanned prior name (e.g. 'mu_A').
+        param_value (float): Scanned prior value.
+        n_covariates (int): Dimensionality k.
+        replicate_slot (int): Which of the N_REPLICATES repetitions this
+            is (0-indexed). Only used to decorrelate the N_REPLICATES
+            seeds sharing one (param_name, param_value, n_covariates,
+            scaling) cell from each other; the returned value replaces
+            this index everywhere else, including in the manifest.
+        scaling (str): Key in :data:`SCALING_CHOICES` (e.g. '1k').
+
+    Returns:
+        int: A value in [0, 2**63), safe to use as a NumPy RNG seed.
+    """
+    spawn_key = run_stream_key(
+        'replicate_seed', param_name, param_value, n_covariates,
+        replicate_slot, scaling)
+    sequence = np.random.SeedSequence(fixed_rng_seed, spawn_key=spawn_key)
+    return int(np.random.default_rng(sequence).integers(0, 2**63))

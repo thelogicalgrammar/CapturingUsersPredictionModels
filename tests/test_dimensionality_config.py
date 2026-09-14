@@ -31,6 +31,7 @@ from dimensionality_config import (
     SCAN_DEVIATIONS,
     TARGET_ACCEPT,
     TRUE_SCM,
+    replicate_seed,
     run_stream_key,
 )
 from experiment_dimensionality import (
@@ -193,11 +194,38 @@ def test_generated_manifests_preserve_the_registered_grid(tmp_path):
 
     assert len(lines_1k) == EXPECTED_LINE_COUNT == 7000
     assert len(lines_sqrtk) == EXPECTED_LINE_COUNT
-    assert lines_1k[0] == 'mu_A -8.000000 2 0'
-    assert lines_1k[-1] == 'N_E_mu 1.500000 32 49'
-    assert lines_sqrtk[0] == 'mu_A -8.000000 2 0 sqrtk'
-    assert lines_sqrtk[-1] == 'N_E_mu 1.500000 32 49 sqrtk'
-    assert lines_sqrtk == [line + ' sqrtk' for line in lines_1k]
+
+    # The trailing field is a seed derived from (param, value, k, replicate
+    # slot, scaling), not the plain replicate index, so it must be
+    # reproduced via replicate_seed() rather than hardcoded.
+    seed_1k_first = replicate_seed(FIXED_RNG_SEED, 'mu_A', -8.0, 2, 0, '1k')
+    seed_1k_last = replicate_seed(FIXED_RNG_SEED, 'N_E_mu', 1.5, 32, 49, '1k')
+    seed_sqrtk_first = replicate_seed(
+        FIXED_RNG_SEED, 'mu_A', -8.0, 2, 0, 'sqrtk')
+    seed_sqrtk_last = replicate_seed(
+        FIXED_RNG_SEED, 'N_E_mu', 1.5, 32, 49, 'sqrtk')
+
+    assert lines_1k[0] == 'mu_A -8.000000 2 {}'.format(seed_1k_first)
+    assert lines_1k[-1] == 'N_E_mu 1.500000 32 {}'.format(seed_1k_last)
+    assert lines_sqrtk[0] == 'mu_A -8.000000 2 {} sqrtk'.format(
+        seed_sqrtk_first)
+    assert lines_sqrtk[-1] == 'N_E_mu 1.500000 32 {} sqrtk'.format(
+        seed_sqrtk_last)
+
+    # Scaling is part of the seed derivation, so the same (param, value, k,
+    # replicate slot) gets a different, decorrelated seed per scaling.
+    assert seed_1k_first != seed_sqrtk_first
+    assert seed_1k_last != seed_sqrtk_last
+
+    # Structure still lines up one-for-one between the two manifests; only
+    # the seed (and the scaling suffix) differs.
+    def _without_seed(line):
+        parts = line.split()
+        return parts[0], parts[1], parts[2]
+
+    assert [_without_seed(line) for line in lines_1k] == \
+        [_without_seed(line) for line in lines_sqrtk]
+    assert all(line.endswith(' sqrtk') for line in lines_sqrtk)
 
     design = json.loads(
         output_1k.with_name(

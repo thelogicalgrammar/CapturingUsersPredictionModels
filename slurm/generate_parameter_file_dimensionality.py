@@ -1,8 +1,15 @@
 """
 Generate a manifest for the dimensionality SLURM array job.
 
-Each line contains ``param_name param_value n_covariates replicate``. The
-``sqrtk`` scaling adds a fifth field with that value.
+Each line contains ``param_name param_value n_covariates seed``. The
+``sqrtk`` scaling adds a fifth field with that value. ``seed`` is not a
+plain sequential replicate index - it is a reproducible, decorrelated
+value derived from (param_name, param_value, n_covariates, replicate
+slot, scaling) via :func:`dimensionality_config.replicate_seed`, so that
+distinct misaligned-prior values (and distinct scalings) at the same k
+and replicate slot do not share a random stream. ``--replicates`` still
+selects which of the N_REPLICATES repetitions to generate (e.g. '0-49'),
+it just no longer appears literally in the output.
 
 Run from the repo root::
 
@@ -41,11 +48,13 @@ from dimensionality_config import (  # noqa: E402
     N_TUNE,
     OBSERVATION_SEED_SCHEME,
     PLATE_SIZE,
+    REPLICATE_SEED_SCHEME,
     RESULT_SCHEMA_VERSION,
     SCALING_CHOICES,
     SCAN_CENTERS,
     SCAN_DEVIATIONS,
     TARGET_ACCEPT,
+    replicate_seed,
 )
 
 
@@ -151,9 +160,12 @@ def generate_slurm_parameter_file(
         for key, values in params.items():
             for value in values:
                 for k in n_covariates:
+                    seed_value = replicate_seed(
+                        fixed_rng_seed, key, value, k, replicate,
+                        sigma_scaling)
                     lines.append(
                         f'{key} {value:.6f} {k} '
-                        f'{replicate}{scaling_field}\n')
+                        f'{seed_value}{scaling_field}\n')
     manifest_content = ''.join(lines)
     write_atomic(parameters_file, manifest_content)
     total = len(lines)
@@ -181,6 +193,7 @@ def generate_slurm_parameter_file(
         'scaling': sigma_scaling,
         'fixed_rng_seed': fixed_rng_seed,
         'observation_seed_scheme': OBSERVATION_SEED_SCHEME,
+        'replicate_seed_scheme': REPLICATE_SEED_SCHEME,
         'pairing': DIMENSIONALITY_PAIRING,
         'sampler': {
             'draws': N_DRAWS,

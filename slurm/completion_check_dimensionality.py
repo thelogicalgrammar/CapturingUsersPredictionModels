@@ -3,13 +3,16 @@ Checks which jobs from the dimensionality experiment finished and writes
 a new parameter file for re-running the ones that didn't.
 
 Unlike the scalar completion_check.py (which matches on X_o), this script
-matches on exact (param_name, param_value, n_covariates, replicate,
-scaling) identity: X_o is sampled internally and not stored in the
-parameter file, so the replicate index stands in for identity instead.
-Every completed row already carries its replicate index and scaling in the
-'seed' and 'coef_sigma_scaling' columns (merged in from experiment
-metadata), so re-run lines can name the exact missing replicate rather
-than a bare count.
+matches on exact (param_name, param_value, n_covariates, seed, scaling)
+identity: X_o is sampled internally and not stored in the parameter file,
+so the run seed stands in for identity instead. That seed is not a plain
+replicate index - it is a reproducible value derived from (param_name,
+param_value, n_covariates, replicate slot, scaling) via
+dimensionality_config.replicate_seed(), so distinct misaligned-prior
+values don't share a random stream. Every completed row already carries
+its seed and scaling in the 'seed' and 'coef_sigma_scaling' columns
+(merged in from experiment metadata), so re-run lines can name the exact
+missing job rather than a bare count.
 
 Usage::
 
@@ -82,7 +85,11 @@ def _read_completed(results_file=RESULTS_FILE):
                 row[name_idx],
                 float(row[value_idx]),
                 int(float(row[k_idx])),
-                int(float(row[seed_idx])),
+                # seed is a large (up to 2**63) derived value, not a
+                # small replicate index - round-tripping it through
+                # float() loses precision (doubles carry ~15-17
+                # significant digits), silently corrupting the match.
+                int(row[seed_idx]),
                 _SCALING_LONG_TO_SHORT[scaling_long],
             )
             completed.add(key)
