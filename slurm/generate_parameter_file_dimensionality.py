@@ -36,6 +36,7 @@ from dimensionality_config import (  # noqa: E402
     A1_TREATMENT,
     DECISION_THRESHOLD,
     DEFAULT_SCALING,
+    DENSE_DEVIATIONS,
     DIMENSIONALITY_EXPERIMENT_DESIGN,
     DIMENSIONALITY_PAIRING,
     EXPLORATORY_DEVIATIONS,
@@ -133,7 +134,9 @@ def generate_slurm_parameter_file(
     if (not deviations or len(set(deviations)) != len(deviations) or
             any(not isinstance(value, int) for value in deviations)):
         raise ValueError('deviations must be unique integers')
-    allowed_deviations = set(SCAN_DEVIATIONS) | set(EXPLORATORY_DEVIATIONS)
+    allowed_deviations = (
+        set(SCAN_DEVIATIONS) | set(EXPLORATORY_DEVIATIONS) |
+        set(DENSE_DEVIATIONS))
     if not set(deviations) <= allowed_deviations:
         raise ValueError(
             'deviations must be registered in dimensionality_config')
