@@ -347,39 +347,6 @@ def plot_CATEs(file_name='./results/results_18_2.csv'):
                               y_lim=y_lim, scan=scan)
 
 
-def plot_all_Y(file_name='./results/results_18_2.csv'):
-    """
-    Method for plotting all boxplots for outcomes Y
-    under treatment selected based on beliefs.
-
-    Args:
-        file_name (str): Path and name of result file.
-    """
-    scans = ['wide', 'focused']
-    var_names = ['mu_X', 'N_E_mu', 'mu_Y', 'mu_A']
-    mean_of_vars = [80.0, None, 0.0, 2.0]
-    std_of_vars = [10.0, None, 0.1, 1.0]  # N_E does not really have a variance.
-    keep_rates = [2, 1, 1, 1]
-    # labels = ['Prior beliefs on $\\mu_X$', 'Prior beliefs on $N_E$',
-    #             'Prior beliefs on $\\mu_Y$', 'Prior beliefs on $\\mu_A$']
-    # Limits for wide and focused scan plots:
-    x_lim_array = [[(-30, 30), (-.5, 2.5), (-30, 30), (-30, 30)],
-                   [(-3, 3), (.7, 1.3), (-3, 3), (-3, 3)]]
-    # Forcing sns to use matplotlib styles:
-    plt.clf()
-    sns.set_theme(style='white')
-    sns.set_context(rc=plt.rcParams)
-    sns.color_palette('tab10', desat=1.0)
-
-    results = load_results(file_name=file_name)
-    for scan, x_lims in zip(scans, x_lim_array):
-        for key, mean_x, std_x, keep_rate, xlim in zip(var_names, mean_of_vars, std_of_vars, keep_rates, x_lims):
-            df_grid = match_to_grid(results[key], key, scan_type=scan)
-            plot_prior_and_posterior_Y(df=df_grid, variable_name=key,
-                                       mean_x=mean_x, std_x=std_x,
-                                       xlim=xlim, scan=scan, keep_rate=keep_rate)
-
-
 def _compute_grid(mod_var_name, scan_type):
     """
     Return the predefined list of prior values for the given variable
@@ -903,62 +870,6 @@ def plot_all_cate_change(file_name='./results/results.csv', scan=''):
             x_label=x_label,
             scan=scan,
         )
-
-
-def plot_prior_and_posterior_Y(df, variable_name, mean_x, std_x=None,
-                               xlim=(None, None), scan=None, keep_rate=None):
-    """
-    Create side-by-side boxplots of prior and posterior Y outcomes.
-
-    Args:
-        df (pd.DataFrame): Results for one modified prior (from match_to_grid).
-        variable_name (str): Name of the modified prior (e.g. 'mu_X').
-        mean_x (float): Mean of x for normalization.
-        std_x (float): Standard deviation of x for normalization.
-        xlim ((float, float)): +-Limits of horizontal axis after normalization.
-        scan (str): 'wide' or 'focused'.
-        keep_rate (int): Keep every nth x-value to reduce clutter.
-    """
-    param_col = 'New value of modified prior'
-    df = df.copy()
-
-    if std_x is not None:
-        df[param_col] = (df[param_col] - mean_x) / std_x
-
-    if xlim[0] is not None:
-        df = df[(df[param_col] >= xlim[0]) & (df[param_col] <= xlim[1])]
-
-    if keep_rate is not None and keep_rate > 1:
-        unique_vals = sorted(df[param_col].unique())
-        keep_vals = {v for i, v in enumerate(unique_vals) if i % keep_rate == 0}
-        df = df[df[param_col].isin(keep_vals)]
-
-    melted = df.melt(
-        id_vars=param_col,
-        value_vars=['Y_mean_prior_treatment', 'Y_mean_posterior_treatment'],
-        var_name='Outcomes',
-        value_name='Y',
-    )
-    melted['Outcomes'] = melted['Outcomes'].map({
-        'Y_mean_prior_treatment': 'Without ML-DS',
-        'Y_mean_posterior_treatment': 'With ML-DS',
-    })
-    melted = melted.rename(columns={param_col: 'Prior belief'})
-
-    x_ticks = np.unique(melted['Prior belief'].values)
-    if variable_name == 'N_E_mu':
-        x_tick_labels = ['{:.2f}'.format(v) if i % 5 == 0 else '' for i, v in enumerate(x_ticks)]
-    elif scan == 'wide':
-        x_tick_labels = ['{:.0f}'.format(v) if i % 5 == 0 else '' for i, v in enumerate(x_ticks)]
-    elif variable_name in ('mu_A', 'mu_Y') and scan == 'focused':
-        x_tick_labels = ['{:.1f}'.format(v) if i % 5 == 0 else '' for i, v in enumerate(x_ticks)]
-    else:
-        x_tick_labels = [str(v) if i % 5 == 0 else '' for i, v in enumerate(x_ticks)]
-
-    sns.boxplot(data=melted, x='Prior belief', y='Y', hue='Outcomes', saturation=1.0)
-    plt.gca().set_xticklabels(x_tick_labels)
-    plt.savefig('./fig/{}_{}_Y_boxplot.pdf'.format(scan, variable_name))
-    plt.clf()
 
 
 def plot_all(file_name='./results/results_18_2.csv'):
