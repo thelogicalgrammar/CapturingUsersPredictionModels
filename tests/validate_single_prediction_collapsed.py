@@ -15,8 +15,8 @@ implementation in ``single_prediction_collapsed_agent_model.py`` against
 brute force, using only NumPy/SciPy sampling (no NUTS):
 
 1. R construction (Cochran): the central-chi-squared construction \n
-   :math:`R = (\\Delta_X + G_R/\\sqrt{n})^2 + Z_R/n`,
-   :math:`G_R \\sim \\mathcal{N}(0,1)`, :math:`Z_R \\sim \\chi^2_{k-1}`, \n
+   :math:`R = (\\Delta_X + G_R/\\sqrt{n})^2 + C_R/n`,
+   :math:`G_R \\sim \\mathcal{N}(0,1)`, :math:`C_R \\sim \\chi^2_{k-1}`, \n
    used in the PyMC model must reproduce both the native non-central
    chi-squared :math:`\\tfrac{1}{n}\\chi'^2_k(n\\Delta_X^2)` and the direct
    k-coordinate Gaussian construction :math:`R = \\lVert r \\rVert^2`.
@@ -182,7 +182,7 @@ def sample_R_cochran(rng, delta_squared, k, plate_size, size=None):
 
     This mirrors the construction in the PyMC graph of
     ``SinglePredictionCollapsedAgentModel._build_model()``: \n
-    :math:`R = (\\Delta_X + G_R/\\sqrt{n})^2 + Z_R/n` \n
+    :math:`R = (\\Delta_X + G_R/\\sqrt{n})^2 + C_R/n` \n
     with the convention :math:`\\chi^2_0 = 0` when k = 1.
 
     Args:
@@ -196,9 +196,9 @@ def sample_R_cochran(rng, delta_squared, k, plate_size, size=None):
         float or np.ndarray: Draw(s) of R.
     """
     G_R = rng.normal(size=size)
-    Z_R = rng.chisquare(df=k - 1, size=size) if k > 1 else 0.0
+    C_R = rng.chisquare(df=k - 1, size=size) if k > 1 else 0.0
     return ((np.sqrt(delta_squared) + G_R / np.sqrt(plate_size))**2 +
-            Z_R / plate_size)
+            C_R / plate_size)
 
 
 def validate_r_construction(k, args, rng):

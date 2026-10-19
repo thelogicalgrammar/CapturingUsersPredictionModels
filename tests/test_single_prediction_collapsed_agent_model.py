@@ -473,7 +473,7 @@ def test_noncentral_chi_squared_forward_sampling_matches_scipy():
 
 
 def test_cochran_construction_matches_noncentral_chi_squared():
-    # R = (Delta_X + G_R / sqrt(n))^2 + Z_R / n must reproduce
+    # R = (Delta_X + G_R / sqrt(n))^2 + C_R / n must reproduce
     # (1 / n) * noncentral_chisquare(k, n * Delta_X^2).
     rng = np.random.default_rng(4)
     n = 1000
@@ -486,8 +486,8 @@ def test_cochran_construction_matches_noncentral_chi_squared():
             df=k, nonc=n * delta_squared, size=size) / n
 
         G_R = rng.normal(size=size)
-        Z_R = rng.chisquare(df=k - 1, size=size) if k > 1 else 0.0
-        cochran = (np.sqrt(delta_squared) + G_R / np.sqrt(n))**2 + Z_R / n
+        C_R = rng.chisquare(df=k - 1, size=size) if k > 1 else 0.0
+        cochran = (np.sqrt(delta_squared) + G_R / np.sqrt(n))**2 + C_R / n
 
         assert ks_2samp(reference, cochran).pvalue > 0.01
 

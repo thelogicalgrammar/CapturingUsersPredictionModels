@@ -154,10 +154,10 @@ def joint_likelihood_surface(feature_grid, pred_model, agent_priors,
     # R follows the grid point through its non-centrality Delta_X^2(x).
     delta = np.sqrt(np.sum(((points - mu_X) / sigma_X)**2, axis=1))
     G_R = rng.normal(size=marginal_draws)
-    Z_R = rng.chisquare(df=n_covariates - 1, size=marginal_draws)
+    C_R = rng.chisquare(df=n_covariates - 1, size=marginal_draws)
     T = rng.chisquare(df=plate_size - n_covariates, size=marginal_draws)
     R = ((delta[:, None] + G_R[None, :] / np.sqrt(plate_size))**2 +
-         Z_R[None, :] / plate_size)
+         C_R[None, :] / plate_size)
     variance = (coefficient_variance[:, None] +
                 tau_squared * (1.0 / plate_size + R / T[None, :]))
     prediction_likelihood = np.mean(
